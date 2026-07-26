@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.2.0)
+# HANDBOOK.md (v1.2.1)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -10,9 +10,9 @@
 
 ## ③ Database Schema
 1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能), EWT_Change (夜盤漲跌%)
-2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正，去持股比例純門檻)
+2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正，去持股比例小學生超白話門檻)
 3. `LAB_BACKTEST`: 位階名稱, 歷史天數 (Count), 天數佔比 (%), 1年期平均報酬率 (%), 1年期正報酬勝率 (%), 驗證說明與結論
-4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引, 每月定期定額扣款決策卡, 預留 AI 晨報/午茶解讀 (零 Hardcode 連動 THRESHOLD_CONFIG)
+4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引, 定期定額扣款決策卡 (若明天要執行扣款), AI 顧問「巴菲特‧索羅斯」領銜解讀
 5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, VIX, 今日位階, MA60_Slope (季線斜率), Dist60_Delta (5日動能), 1年期前瞻報酬率, AI_Morning_Story, AI_Afternoon_Story
 6. `DECISION_LOG`: 日期 (Date), 當時市場位階/訊號, 策略動作 (買進/賣出/再平衡/觀望), 執行說明 (無金額純策略), 策略符合度 (符合/偏離), 策略思考與檢討備註
 
@@ -28,33 +28,33 @@
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含精準 1 年期前瞻報酬率算式）
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、定期定額扣款決策卡與 AI 解讀預留接口
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問老巴/小羅觀點
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
-- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 與盤前模式)
-- `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與盤後模式)
+- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 與老巴早餐模式)
+- `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與小羅午茶模式)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
-- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (含 DCA 扣款卡與 AI 解讀 payload)
+- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (含 DCA 扣款卡與 AI 顧問老巴/小羅 payload)
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
 - **單一位階判定邏輯**：依據 `RAW_HISTORY` 最新之 `Dist60` 與 `Dist240`，對照 `THRESHOLD_CONFIG` 門檻得出五大位階 (`極度恐慌`, `恐慌`, `順風/中性`, `過熱`, `狂熱`)。
 - **動態分位數門檻校正**：門檻由 2008~2026 18年歷史真實分位數 (`P10`, `P25`, `P75`, `P90`) 自動計算產生。
-- **歷史回測與勝率統計**：依據 `HISTORY_LOG` 18 年歷程，動態計算 5 大位階之歷史出現天數分佈、1 年期前瞻平均報酬率與持有 252 交易日之正報酬勝率。
-- **每月定期定額扣款決策機制 (DCA Engine)**：
-  - 每月 6 日 / 16 日 / 26 日 (當日 17:30 前執行扣款指引)。
-  - 恐慌 / 極度恐慌 $\rightarrow$ 🚀 `建議維持扣款並啟動資金池加碼`
-  - 順風 / 中性 $\rightarrow$ 🟢 `建議維持正常定期定額扣款`
-  - 過熱 / 狂熱 $\rightarrow$ ⚠️ `建議暫停追價或實施分批停利`
-- **趨勢動能與夜盤輔助判定**：
-  - `MA60_Slope` (季線5日斜率): 判定季線大方向 (`📈 強勢走升` / `📉 彎頭向下` / `➡️ 橫盤走平`)。
-  - `Dist60_Delta` (5日乖離動能): 判定恐慌/過熱轉折點 (`🚀 強勢反彈` / `⚠️ 修正加劇` / `➡️ 動能平穩`)。
-  - `EWT_Change` (夜盤/EWT漲跌幅): 判定單日盤前情緒與開盤方向 (`🚀 夜盤強勢` / `⚠️ 夜盤急跌` / `➡️ 夜盤平穩`)。
+- **小學生超白話行動指引**：
+  - T1 (極度恐慌): `股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！`
+  - T2 (恐慌): `股市打折中！價格很划算，維持定期定額並可以逢低多買一點！`
+  - T3 (順風/中性): `股市很健康！行情走勢很正常，按原本的節奏安心持有即可！`
+  - T4 (過熱): `股市有點貴囉！不要衝動追高，可以陸續把賺到的部分落袋為安！`
+  - T5 (狂熱): `股市非常危險！行情熱到發燙，請務必保留大量現金防範回檔！`
+- **「若明天要執行定期定額扣款」決策卡 (DCA Engine)**：
+  - 恐慌 / 極度恐慌 $\rightarrow$ 🚀 `明天照常扣款，並且可以加碼多買一點！`
+  - 順風 / 中性 $\rightarrow$ 🟢 `明天照常扣款，維持原本扣款金額即可！`
+  - 過熱 / 狂熱 $\rightarrow$ ⚠️ `明天建議暫停扣款，把錢存起來等打折！`
 
 ## ⑥ AI Agents
-- **AI Story Agent Schema (預留架構)**：
-  - `AI_Morning_Story` (盤前晨報解讀)：針對夜盤 EWT、美股走勢與開盤支撐壓力位提供白話文解析。
-  - `AI_Afternoon_Story` (盤後午茶解讀)：針對今日台股收盤量價、季線/年線乖離與位階轉折提供白話文總結。
+- **AI 顧問 巴菲特‧索羅斯 觀點 (AI Story Carousel)**：
+  - `🍔 老巴的盤前早餐時間` (07:30 盤前觀察)：聚焦夜盤 EWT、開盤撿便宜點與情緒觀察。
+  - `☕ 小羅的盤後午茶時光` (14:30 盤後總結)：聚焦收盤點位、季線乖離位階與歷史勝率評估。
 
 ## ⑦ Dashboard / UI
 - Google Sheet `DASHBOARD` 視覺化對照卡片
@@ -69,10 +69,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 1 完成 (雙時段自動更新、定期定額扣款決策卡與 AI Story Agent 預留架構發布)。
+Milestone 5 / Step 1 完美修復完成 (行動指引白話化、明天定期定額邏輯與 AI 顧問老巴/小羅觀點發布)。
 
 ## ⑩ Current Version
-v1.2.0 (Milestone 5 功能擴充發布版)
+v1.2.1 (AI 顧問與白話策略校正發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -94,12 +94,12 @@ v1.2.0 (Milestone 5 功能擴充發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 1 完成 (v1.2.0 雙時段觸發、DCA 扣款卡與 AI 解讀預留)**：
-     - **雙時段時間驅動觸發器**：實作 07:30 盤前 (`updateMorningMarketEngine`) 與 14:30 盤後 (`updateAfternoonMarketEngine`) 自動更新腳本。
-     - **每月定期定額扣款決策卡 (DCA Card)**：於 `DASHBOARD` 與 `index.html` 整合動態扣款指引（每月 6/16/26 日 17:30 前執行）。
-     - **AI 市場解讀預留架構 (AI Story Schema)**：於 `DASHBOARD`、`HISTORY_LOG` 與 API JSON 預留 `AI_Morning_Story` 與 `AI_Afternoon_Story` 寫入接口。
+  7. **Milestone 5 / Step 1 細節小修正完成 (v1.2.1)**：
+     - **白話文行動指引**：將 5 大位階行動指引全數升級為「小學生也能聽懂」的一句話超白話建議。
+     - **「若明天要執行定期定額扣款」決策卡**：將扣款提示改為更符合實際需求的「若明天要執行扣款」判斷邏輯。
+     - **AI 顧問「巴菲特‧索羅斯」觀點輪播**：盤前顯示「🍔 老巴的盤前早餐時間」、盤後顯示「☕ 小羅的盤後午茶時光」，使解讀焦點清晰不混淆。
   8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 5 Step 1 完成。
+- **目前停止位置**: Milestone 5 Step 1 完美修復完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
@@ -120,11 +120,8 @@ v1.2.0 (Milestone 5 功能擴充發布版)
 - **完工與版本控管同步**：
   - 成功執行 `clasp push` (Apps Script 雲端同步) 與 `git push origin main` (推播至 GitHub `main` 分支)。
 
-### 📅 2026-07-26 雙時段自動更新、每月定期定額扣款卡與 AI 解讀預留 (v1.2.0)
-- **雙時段時間驅動觸發器**：
-  - 修改 `createDailyTrigger()` 為同時安裝 07:30 (盤前 Morning) 與 14:30 (盤後 Afternoon) 雙每日自動更新觸發器。
-- **每月定期定額扣款決策卡 (DCA Decision Card)**：
-  - 於 `DASHBOARD` 與 `index.html` 前端新增「每月定期定額扣款決策卡」，於每月 6/16/26 扣款日前夕依據位階輸出加碼、正常扣款或停利警示指引。
-- **AI Story Agent Schema 預留**：
-  - 在 `DASHBOARD` (B23/B24)、`HISTORY_LOG` (J/K 欄) 與 API Payload 預留 `aiMorningStory` 與 `aiAfternoonStory` 寫入接口。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@13`) 與 Git Push 成功推播發布。
+### 📅 2026-07-26 行動指引白話化、明天定期定額與 AI 顧問「老巴/小羅」 (v1.2.1)
+- **行動指引超白話化**：五大位階行動指引全數改成小學生也能理解的直白建議。
+- **扣款卡邏輯修正**：改為「若明天要執行定期定額扣款」提示，輸出「明天照常扣款」、「加碼多買一點」或「暫停扣款存錢」指引。
+- **AI 顧問領銜輪播**：盤前呈現「🍔 老巴的盤前早餐時間」，盤後呈現「☕ 小羅的盤後午茶時光」，責任解讀清晰明確。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@14`) 與 Git Push 成功發布。
