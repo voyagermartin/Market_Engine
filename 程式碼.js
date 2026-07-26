@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.0.7 (緊急修復：getMarketEngineData 直接強控從 RAW_HISTORY 實體 Row 3 讀取最新 43,654.84 行情)
+ * Version: v1.0.8 (用戶指定數據校正：TWII 43,654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83%)
  */
 
 /**
@@ -34,7 +34,7 @@ function setupMarketEngineV3() {
   const rawSheet = setupSheet(ss, 'RAW_HISTORY', 1000, 10);
   buildRawHistorySheet(rawSheet);
   
-  // 3. 寫入標準歷史數據種子 (約 600 交易日，涵蓋 2008/2020/2022/2024/2026 關鍵行情)
+  // 3. 寫入標準歷史數據種子 (對齊用戶指定行情)
   seedInitialData(rawSheet);
 
   // 4. 建立 HISTORY_LOG (歷史位階日誌)
@@ -57,7 +57,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.0.7) 數據算式校正完成！\nRAW_HISTORY 與 DASHBOARD 已精準參照最新一筆實體行情 (TWII 43,654.84 點)。');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.0.8) 數據校正完成！\nTWII = 43,654.84, Dist60 = -0.87%, Dist240 = +32.29%, VIX = 18.58, EWT = -1.83%。');
 }
 
 /**
@@ -259,7 +259,7 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
 }
 
 /**
- * 寫入標準初始化歷史數據 (約 600 行，對齊最新 TWII 43,654.84 實體行情)
+ * 寫入標準初始化歷史數據 (第3列精準對齊用戶指定行情)
  */
 function seedInitialData(sheet) {
   const targetSheet = sheet || SpreadsheetApp.getActiveSpreadsheet().getSheetByName('RAW_HISTORY');
@@ -296,11 +296,11 @@ function seedFullHistoricalData() {
   }
 
   SpreadsheetApp.flush();
-  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日，最新 TWII 43,654.84 點）！\nTHRESHOLD_CONFIG 與 LAB_BACKTEST 已自動連動完成。`);
+  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日）！\nTWII 43,654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83% 連動完成。`);
 }
 
 /**
- * 通用行情數據生成器 (第3列最新交易日精準對齊 TWII 43,654.84)
+ * 通用行情數據生成器 (第3列最新交易日精準對齊用戶指定行情：TWII 43654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83%)
  */
 function generateMarketRows(startDate, endDate) {
   const rows = [];
@@ -311,17 +311,17 @@ function generateMarketRows(startDate, endDate) {
     const day = currDate.getDay();
     if (day !== 0 && day !== 6) {
       let twii = 43654.84;
-      let vix = 15.80;
-      let ma60 = 43165.20;
-      let ma240 = 39605.50;
-      let ewtChange = 0.0085;
+      let vix = 18.58;
+      let ma60 = 44037.97;  // (43654.84 - 44037.97) / 44037.97 = -0.87%
+      let ma240 = 32999.35; // (43654.84 - 32999.35) / 32999.35 = +32.29%
+      let ewtChange = -0.0183; // -1.83%
 
       if (isFirstRow) {
         twii = 43654.84;
-        vix = 15.80;
-        ma60 = 43165.20;
-        ma240 = 39605.50;
-        ewtChange = 0.0085;
+        vix = 18.58;
+        ma60 = 44037.97;
+        ma240 = 32999.35;
+        ewtChange = -0.0183;
         isFirstRow = false;
       } else {
         const year = currDate.getFullYear();
@@ -514,7 +514,7 @@ function buildLabBacktestSheet(sheet) {
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板 - MAX Date 參照公式校正)
+// 5. DASHBOARD (日常觀察儀表板 - 用戶指定數據直連校正)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
@@ -648,9 +648,9 @@ function updateDailyMarketEngine() {
     rawSheet.insertRowBefore(3);
     
     const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
-    const prevVix = rawSheet.getRange(4, 3).getValue() || 15.8;
-    const prevMa60 = rawSheet.getRange(4, 4).getValue() || 43165.2;
-    const prevMa240 = rawSheet.getRange(4, 5).getValue() || 39605.5;
+    const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
+    const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
+    const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
 
     const newTwii = Math.round((prevTwii + (Math.random() * 200 - 100)) * 100) / 100;
     const newVix = Math.round((Math.max(10, prevVix + (Math.random() * 2 - 1))) * 100) / 100;
@@ -722,7 +722,7 @@ function doGet(e) {
 }
 
 /**
- * 抓取 Market Engine 全站數據 API (直接讀取 RAW_HISTORY 實體 Row 3 最新數據)
+ * 抓取 Market Engine 全站數據 API (對齊用戶指定數據：TWII 43654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83%)
  */
 function getMarketEngineData() {
   let ss = null;
@@ -743,21 +743,21 @@ function getMarketEngineData() {
   const data = {
     date: '2026-07-24',
     twii: '43,654.84',
-    dist60: '+1.14%',
-    dist240: '+10.22%',
-    vix: '15.80',
-    ma60Slope: '+0.35%',
-    dist60Delta: '+0.12%',
-    ewtChange: '+0.85%',
+    dist60: '-0.87%',
+    dist240: '+32.29%',
+    vix: '18.58',
+    ma60Slope: '+0.25%',
+    dist60Delta: '-0.15%',
+    ewtChange: '-1.83%',
     phase: '順風/中性',
     actionGuide: '市場處於 P25~P75 正常常態通道。建議續抱核心部位，維持標準再平衡。',
     metricsStatus: {
-      dist60: '偏高/熱絡',
+      dist60: '偏低/恐慌',
       dist240: '偏高/熱絡',
       vix: '✅ 平穩',
       ma60Slope: '📈 強勢走升',
       dist60Delta: '➡️ 動能平穩',
-      ewtChange: '🚀 夜盤強勢'
+      ewtChange: '⚠️ 夜盤急跌'
     },
     backtest: []
   };
@@ -772,7 +772,7 @@ function getMarketEngineData() {
       data.dist60 = rowValues[5];
       data.dist240 = rowValues[6];
       data.ma60Slope = rowValues[7];
-      data.dist60Delta = rowValues[8];
+      data.dist60Delta = rawValues[8];
       data.ewtChange = rowValues[9];
     }
   }
