@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.1.7 (修復二次初始化合併儲存格衝突 Exception)
+ * Version: v0.1.8 (修復 DASHBOARD 殘留現金比 & 公式 IFERROR 防護)
  */
 
 /**
@@ -54,7 +54,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.7) 6大分頁建置完成！\n已成功解除舊有儲存格合併限制，初始化 100% 順暢。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.8) 6大分頁建置完成！\n已徹底清除 DASHBOARD 建議股票/現金比，並為全檔公式加上 IFERROR 防爆保護。');
 }
 
 /**
@@ -65,7 +65,6 @@ function setupSheet(ss, name, rows, cols) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
   } else {
-    // 解除舊有的所有合併儲存格，徹底防止二次初始化發生合併範圍衝突 Exception
     try {
       sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
     } catch (e) {
@@ -140,7 +139,7 @@ function buildThresholdConfigSheet(sheet) {
   sheet.getRange('A4:B8').setValues(metaValues.map(r => [r[0], r[1]]));
   sheet.getRange('G4:G8').setValues(metaValues.map(r => [r[2]]));
 
-  // 2. 寫入動態分位數公式
+  // 2. 寫入動態分位數門檻公式
   const tierFormulas = [
     [-9.99, '=C12', -9.99, '=D12'],
     ['=C12', '=C13', '=D12', '=D13'],
@@ -158,7 +157,7 @@ function buildThresholdConfigSheet(sheet) {
     sheet.getRange(`A${4+i}:G${4+i}`).setBackground(rowColors[i]);
   }
 
-  // 區塊 2: 歷史數據分位數實測統計 (校正基準點)
+  // 區塊 2: 歷史數據分位數實測統計 (帶有 IFERROR 安全防爆機制)
   sheet.getRange('10:10').breakApart();
   sheet.getRange('A10:E10').merge().setValue('📐 歷史數據分位數實測統計 (Single Source of Truth 數據源頭)')
        .setFontWeight('bold').setFontSize(12).setBackground('#0f172a').setFontColor('#ffffff');
@@ -172,10 +171,10 @@ function buildThresholdConfigSheet(sheet) {
   );
 
   const percentileFormulas = [
-    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.10)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.10)'],
-    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.25)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.25)'],
-    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.75)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.75)'],
-    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.90)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.90)']
+    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.10), -0.10)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.10), -0.15)'],
+    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.25), -0.03)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.25), -0.05)'],
+    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.75), 0.05)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.75), 0.10)'],
+    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.90), 0.12)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.90), 0.20)']
   ];
 
   sheet.getRange('C12:D15').setFormulas(percentileFormulas);
@@ -384,7 +383,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=RAW_HISTORY!F${rawRow}`,
       `=RAW_HISTORY!G${rawRow}`,
       `=RAW_HISTORY!C${rawRow}`,
-      `=IF(ISBLANK(A${i}), "", IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, AND(C${i}>=THRESHOLD_CONFIG!$C$6, C${i}<=THRESHOLD_CONFIG!$D$6), THRESHOLD_CONFIG!$B$6, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$8))`,
+      `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, AND(C${i}>=THRESHOLD_CONFIG!$C$6, C${i}<=THRESHOLD_CONFIG!$D$6), THRESHOLD_CONFIG!$B$6, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$8), "計算中"))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (B${i}-INDIRECT("B"&(ROW()-252)))/INDIRECT("B"&(ROW()-252)), "")`
@@ -452,7 +451,7 @@ function buildLabBacktestSheet(sheet) {
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板)
+// 5. DASHBOARD (日常觀察儀表板 - 去持股/現金比版)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
@@ -493,20 +492,24 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B9').setNumberFormat('0.00');
   sheet.getRange('B10:B11').setNumberFormat('+0.00%;-0.00%;0.00%');
 
+  // 區塊 2: 位階與策略卡片 (純位階與策略指引，無股票/現金比)
   sheet.getRange('13:13').breakApart();
-  sheet.getRange('A13:E13').merge().setValue('🎯 今日市場位階與配置決策卡片')
+  sheet.getRange('A13:E13').merge().setValue('🎯 今日市場位階與核心策略指引卡片')
        .setFontWeight('bold').setFontSize(12).setBackground('#0284c7').setFontColor('#ffffff');
 
   sheet.getRange('A14').setValue('今日市場位階').setFontWeight('bold');
   sheet.getRange('14:14').breakApart();
   sheet.getRange('B14:E14').merge().setFormula(
-    '=IFS(OR(B7<THRESHOLD_CONFIG!D4, B8<THRESHOLD_CONFIG!F4), THRESHOLD_CONFIG!B4, OR(B7<THRESHOLD_CONFIG!D5, B8<THRESHOLD_CONFIG!F5), THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, OR(B7>THRESHOLD_CONFIG!C7, B8>THRESHOLD_CONFIG!E7), THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B8)'
+    '=IFERROR(IFS(OR(B7<THRESHOLD_CONFIG!D4, B8<THRESHOLD_CONFIG!F4), THRESHOLD_CONFIG!B4, OR(B7<THRESHOLD_CONFIG!D5, B8<THRESHOLD_CONFIG!F5), THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, OR(B7>THRESHOLD_CONFIG!C7, B8>THRESHOLD_CONFIG!E7), THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B8), "資料計算中")'
   ).setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center').setBackground('#e0f2fe').setFontColor('#0369a1');
 
   sheet.getRange('A15').setValue('核心策略行動指引').setFontWeight('bold');
   sheet.getRange('15:15').breakApart();
-  sheet.getRange('B15:E15').merge().setFormula('=VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE)')
+  sheet.getRange('B15:E15').merge().setFormula('=IFERROR(VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE), "等待最新數據對照")')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
+
+  // 清除舊版 A16:E16 殘留內容與格式
+  sheet.getRange('A16:E16').clearContent().clearFormat();
 
   sheet.setColumnWidth(1, 180);
   sheet.setColumnWidth(2, 160);

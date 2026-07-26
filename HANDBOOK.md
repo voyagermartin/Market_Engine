@@ -1,4 +1,4 @@
-# HANDBOOK.md (v0.1.7)
+# HANDBOOK.md (v0.1.8)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -28,7 +28,7 @@
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與趨勢動能燈號
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與趨勢動能燈號 (全 IFERROR 防護)
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
@@ -51,13 +51,13 @@
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
 - 單一計算基準：所有分頁與 Log 的 Market_Phase 必須經由同一套算式產出，嚴禁 Hardcode。
 - 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
-- 高效能與合併保護：公式針對「有效資料列數」進行單一 2D 陣列批次寫入；執行 `.merge()` 前必先調用 `.breakApart()` 清除舊有合併儲存格防止範圍衝突 Exception。
+- 全檔 IFERROR 防爆保護：所有 Percentile、VLOOKUP、IFS 公式均需封裝 `IFERROR` 並設預設值，絕不拋出 `#ERROR! / #REF! / #VALUE!` 剖析異常。
 
 ## ⑨ Current Sprint
-Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，修復二次初始化合併範圍衝突 Exception)。
+Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，修復 DASHBOARD 殘留現金比與全檔 IFERROR 防護)。
 
 ## ⑩ Current Version
-v0.1.7
+v0.1.8
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -70,11 +70,9 @@ v0.1.7
 - **已完成項目**: 
   1. 專案初始化、綁定 GitHub 儲存庫 (`https://github.com/voyagermartin/Market_Engine.git`)。
   2. **Milestone 1 / Step 1 完成**：建置 6 大分頁基礎結構、A1 白話文說明、去金流化改造與斜率動能指標整合。
-  3. **Milestone 1 / Step 2 完成與修復 (v0.1.7)**：
-     - **去比例優化**：依需求移除 `THRESHOLD_CONFIG` 與 `DASHBOARD` 中的「建議股票%」與「建議現金%」欄位。
-     - **公式剖析錯誤修復**：修正 `setFormulas()` 與 `setValues()` 混用問題。
-     - **合併範圍 Exception 修復 (v0.1.7)**：修復重複執行初始化時，因舊有欄寬改變（例如由 9 欄縮減為 7 欄）導致 `.merge()` 觸發的 `你必須選取合併範圍內的所有儲存格` Exception。現在重新建置前皆會自動調用 `.breakApart()` 解除舊合併限制，實現 100% 順暢重設。
-     - **18年分位數動態連動**：`THRESHOLD_CONFIG` 建立 18年歷史數據 `Dist60` / `Dist240` 分位數 (`P10`, `P25`, `P75`, `P90`) 動態統計校正矩陣。
+  3. **Milestone 1 / Step 2 完成與全防護修復 (v0.1.8)**：
+     - **去比例完整清除**：徹底清除 `DASHBOARD` 殘留的股票/現金比行（原 A15~A16），將行動指引直連 `THRESHOLD_CONFIG` Column 6 (G欄)。
+     - **全檔 IFERROR 防爆保護**：為 `THRESHOLD_CONFIG` 的 `PERCENTILE` 與 `DASHBOARD` 的 `IFS`/`VLOOKUP` 加上 `IFERROR` 預設保護，徹底杜絕「公式剖析錯誤 / #ERROR!」。
   4. 完成所有 Google Apps Script 雲端推播 (`clasp push`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收與連動測試)。
+- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收)。
 - **下一步施工位置**: Milestone 2 / Step 1 (建置 LAB_BACKTEST 1年期前瞻報酬率計算腳本)。
