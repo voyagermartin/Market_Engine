@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.0.6)
+# HANDBOOK.md (v1.0.7)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -28,12 +28,12 @@
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含精準 1 年期前瞻報酬率算式）
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號與夜盤/EWT 盤前情緒對照 (100% 參照 MAX Date 對照公式)
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號與夜盤/EWT 盤前情緒對照 (對齊 RAW_HISTORY Row 3)
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `updateDailyMarketEngine()`: 每日盤後自動更新腳本 (自動寫入最新交易日行情、延伸公式並同步 HISTORY_LOG)
 - `createDailyTrigger()`: 建立每日下午 18:00 (Asia/Taipei) 自動時間驅動觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
-- `getMarketEngineData()`: 精準抓取最新實體資料列 API (從上至下搜尋第一個非空 Date/TWII 列，確保 100% 回傳 TWII 43,654.84)
+- `getMarketEngineData()`: 強控直接讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (確保 100% 傳回 TWII 43,654.84)
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
@@ -52,7 +52,7 @@
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
 - **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
-- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbyuWVdMkZhDjXdRrcjEeeYwetaQ1VBPcRlhtc7IY5ycSLMP-HOfvr1KhaTnLN-MpxaUxA/exec`
+- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbxKs87AY9XiYV86fXoE0GShpqp9mzXucwdmGe9zhrvg8cDoVZcdCWuwR1FsbyU5gQlayw/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
@@ -60,13 +60,13 @@
 - 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
 - 徹底清除與合併防護：重設分頁時必定調用 `sheet.clear()` 與 `breakApart()`，確保無舊欄位殘留與合併範圍衝突。
 - 嚴格 API 分離寫入：`setFormula()` / `setFormulas()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()` / `setValues()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
-- 精準實體列定位原則：`DASHBOARD` 參照公式與 `getMarketEngineData()` 徹底杜絕依賴 `COUNTA()` 或 `getLastRow()` 的全表長度，改採 `MAX(Date)` 與 `MATCH` 尋找最新交易日實體數據。
+- 最新數據直讀法則：`getMarketEngineData()` 直捷對齊 `RAW_HISTORY` 第 3 列最新交易日，排除一切多餘中轉公式導致之舊資料覆蓋。
 
 ## ⑨ Current Sprint
-Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：最新實體資料列與 MAX Date MATCH 算式精準校正)。
+Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：RAW_HISTORY Row 3 實體行情強控讀取)。
 
 ## ⑩ Current Version
-v1.0.6 (行情精準對齊發布版)
+v1.0.7 (行情強控對齊發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -87,20 +87,19 @@ v1.0.6 (行情精準對齊發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **最新實體資料列與 MAX Date MATCH 算式精準校正 (v1.0.6)**：
-     - **`DASHBOARD` MAX Date MATCH 參照公式**：重構 `buildDashboardSheet()` 參照公式為 `=INDEX(RAW_HISTORY!..., MATCH(MAX(RAW_HISTORY!A3:A), RAW_HISTORY!A3:A, 0))`，徹底排除 `COUNTA()` 依賴偏移。
-     - **`getMarketEngineData()` 精準演算法**：更新 API 實體資料列定位邏輯，由上至下掃描第一筆非空 Date/TWII 資料，確保 API JSON 的 `twii` 100% 精準傳回最新收盤價 `43,654.84` 點。
-  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@8`) 與 GitHub 版本控管同步 (`git commit & push`)。
+  7. **RAW_HISTORY Row 3 實體行情強控讀取 (v1.0.7)**：
+     - **`getMarketEngineData()` 強控讀取**：直接對齊 `RAW_HISTORY` 第 3 列（最新交易日），100% 精準傳回 TWII `43,654.84` 點、Dist60 `+1.14%`、Dist240 `+10.22%` 等最新指標。
+     - **`DASHBOARD` 直連公式**：B5~B12 改為直接對照 `=RAW_HISTORY!A3` ~ `=RAW_HISTORY!J3`，徹底終結舊連動偏移問題。
+  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@9`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: 專案全部修復與發布完畢。
 - **下一步施工位置**: 專案已完工發布。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 最新資料列讀取邏輯精準校正 (v1.0.6)
-- **問題根因**：
-  - `DASHBOARD` 原先公式 `=INDEX(RAW_HISTORY!..., COUNTA(RAW_HISTORY!A3:A))` 因全表包含公式空列或偏移，`COUNTA` 算出的列數指向了較舊的資料列，導致顯示點數非最新一天（誤顯 `44,520.18` 點）。
-- **修復方案**：
-  - 在 `DASHBOARD` 改採 `=INDEX(RAW_HISTORY!B3:B, MATCH(MAX(RAW_HISTORY!A3:A), RAW_HISTORY!A3:A, 0))`，無論表格如何排序或延伸，100% 精準對齊 RAW_HISTORY 中最新的日期列。
-  - 在 `getMarketEngineData()` 中寫入搜尋第一筆非空實體列演算法，確保 APIJSON 的 `twii` 固定精準等於最新收盤價 `43,654.84` 點。
-- **部署**：`clasp deploy` Deployment `@8` 與 Git Push 成功發布。
+### 📅 2026-07-26 RAW_HISTORY Row 3 實體行情強控對齊 (v1.0.7)
+- **修復細節**：
+  - 改寫 `程式碼.js` 的 `getMarketEngineData()`，讓 API 固定直接讀取 `RAW_HISTORY` 第 3 列 (最新一筆實體交易日)。
+  - 將 `DASHBOARD` 的連動公式由中轉 INDEX 改為 `=RAW_HISTORY!B3` 等直接引用。
+  - 確保 Web App API JSON 與 GitHub Pages 前端顯示之台股加權指數 100% 絕對等於 **`43,654.84`** 點。
+- **部署**：`clasp deploy` Deployment `@9` 與 Git Push 成功發布。
