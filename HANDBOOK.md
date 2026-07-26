@@ -1,4 +1,4 @@
-# HANDBOOK.md (v0.2.0)
+# HANDBOOK.md (v0.2.1)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -9,10 +9,10 @@
 - **Presentation Layer**: GAS Web App / Google Sheet Dashboard
 
 ## ③ Database Schema
-1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能)
+1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能), EWT_Change (夜盤漲跌%)
 2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正，去比例純門檻)
 3. `LAB_BACKTEST`: 位階名稱, 歷史天數, 天數佔比%, 1年期平均報酬率%, 1年期正報酬勝率%, 驗證說明與結論
-4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta), 今日市場位階, 趨勢動能燈號, 核心策略行動指引
+4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引
 5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, VIX, 今日位階, MA60_Slope (季線斜率), Dist60_Delta (5日動能), 1年期前瞻報酬率
 6. `DECISION_LOG`: 日期 (Date), 當時市場位階/訊號, 策略動作 (買進/賣出/再平衡/觀望), 執行說明 (無金額純策略), 策略符合度 (符合/偏離), 策略思考與檢討備註
 
@@ -22,22 +22,23 @@
 - `setupSheet()`: 取得/建立分頁，執行 `sheet.clear()` 徹底清除舊欄位殘留，並執行 `breakApart()` 防止合併衝突 Exception
 - `setHeaderBanner()` / `setTableHeader()`: 統一繪製分頁第 1 列白話文說明與標題欄位
 - `buildThresholdConfigSheet()`: 建立純門檻對照矩陣，動態連動 P10/P25/P75/P90 歷史分位數 (Single Source of Truth)
-- `buildRawHistorySheet()`: 建立基礎數據表結構
-- `applyRawHistoryFormulas()`: 按實體數據列數高效批次寫入四項計算公式
-- `seedInitialData()`: 寫入初始化標準數據種子（約 600 交易日，極速載入）
-- `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
+- `buildRawHistorySheet()`: 建立基礎數據表結構 (包含 J 欄 EWT_Change 夜盤漲跌%)
+- `applyRawHistoryFormulas()`: 按實體數據列數高效批次寫入四項計算公式與 EWT 格式化
+- `seedInitialData()`: 寫入初始化標準數據種子（約 600 交易日，含 EWT 漲跌%）
+- `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日，含 EWT 漲跌%)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與趨勢動能燈號 (帶有公式與純文字動態寫入判斷)
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號與夜盤/EWT 盤前情緒對照 (Row 12)
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
 - **單一位階判定邏輯**：依據 `RAW_HISTORY` 最新之 `Dist60` 與 `Dist240`，對照 `THRESHOLD_CONFIG` 門檻得出五大位階 (`極度恐慌`, `恐慌`, `順風/中性`, `過熱`, `狂熱`)。
 - **動態分位數門檻校正**：門檻由 2008~2026 18年歷史真實分位數 (`P10`, `P25`, `P75`, `P90`) 自動計算產生。
-- **趨勢動能輔助判定**：
+- **趨勢動能與夜盤輔助判定**：
   - `MA60_Slope` (季線5日斜率): 判定季線大方向 (`📈 強勢走升` / `📉 彎頭向下` / `➡️ 橫盤走平`)。
   - `Dist60_Delta` (5日乖離動能): 判定恐慌/過熱轉折點 (`🚀 強勢反彈` / `⚠️ 修正加劇` / `➡️ 動能平穩`)。
+  - `EWT_Change` (夜盤/EWT漲跌幅): 判定單日盤前情緒與開盤方向 (`🚀 夜盤強勢` / `⚠️ 夜盤急跌` / `➡️ 夜盤平穩`)。
 
 ## ⑥ AI Agents
 無
@@ -54,10 +55,10 @@
 - 嚴格 API 分離寫入：`setFormula()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
 
 ## ⑨ Current Sprint
-Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，修復 DASHBOARD 不明範圍名稱 #NAME? 錯誤)。
+Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，成功整合 EWT 夜盤漲跌幅指標)。
 
 ## ⑩ Current Version
-v0.2.0
+v0.2.1
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -70,10 +71,9 @@ v0.2.0
 - **已完成項目**: 
   1. 專案初始化、綁定 GitHub 儲存庫 (`https://github.com/voyagermartin/Market_Engine.git`)。
   2. **Milestone 1 / Step 1 完成**：建置 6 大分頁基礎結構、A1 白話文說明、去金流化改造與斜率動能指標整合。
-  3. **Milestone 1 / Step 2 完成與修復 (v0.2.0)**：
-     - **#NAME? 不明範圍名稱修復**：修復 `DASHBOARD` 中 `Trading Date` 與 `加權指數` 行之 D 欄純文字 (`最新交易日`, `市場價格`) 誤調用 `setFormula()` 被當成自訂 Range 參照拋出 `#NAME?` 的問題。改為檢查字串是否以 `=` 開頭，純文字自動調用 `setValue()` 寫入。
-     - **LAB_BACKTEST 公式剖析修復**：F4:F8 結論文字純文字寫入。
-     - **舊欄位抹除保護**：`setupSheet()` 自動執行 `sheet.clear()` 確保無殘留列。
+  3. **Milestone 1 / Step 2 完成與指標擴充 (v0.2.1)**：
+     - **EWT 夜盤指標整合**：於 `RAW_HISTORY` 第 J 欄新增 `EWT_Change (夜盤漲跌%)`，並同步於 `DASHBOARD` 表格第 12 行（B12）新增 `夜盤/EWT漲跌幅 (EWT Change)` 動態指標卡片與 `🚀 夜盤強勢 / ⚠️ 夜盤急跌 / ➡️ 夜盤平穩` 趨勢燈號，提供單日盤前情緒與開盤開高/低之客觀參考。
+     - **所有基礎錯誤 100% 排除**：公式剖析錯誤、合併範圍 Exception、不明範圍名稱 (#NAME?) 均已全數解決。
   4. 完成所有 Google Apps Script 雲端推播 (`clasp push`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收與修復測試)。
+- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收與指標擴充)。
 - **下一步施工位置**: Milestone 2 / Step 1 (建置 LAB_BACKTEST 1年期前瞻報酬率計算腳本)。

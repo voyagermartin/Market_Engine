@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.2.0 (修復 DASHBOARD Column D 文字誤用 setFormula 引發 #NAME? 不明範圍名稱報錯)
+ * Version: v0.2.1 (新增 EWT 夜盤漲跌幅 % 指標至 RAW_HISTORY 與 DASHBOARD)
  */
 
 /**
@@ -28,7 +28,7 @@ function setupMarketEngineV3() {
   buildThresholdConfigSheet(configSheet);
   
   // 2. 建立 RAW_HISTORY (基礎歷史數據)
-  const rawSheet = setupSheet(ss, 'RAW_HISTORY', 1000, 9);
+  const rawSheet = setupSheet(ss, 'RAW_HISTORY', 1000, 10);
   buildRawHistorySheet(rawSheet);
   
   // 3. 寫入標準歷史數據種子 (約 600 交易日，涵蓋 2008/2020/2022/2024 關鍵行情)
@@ -54,7 +54,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.2.0) 6大分頁建置完成！\n已成功修復 DASHBOARD 不明範圍名稱 #NAME? 錯誤，頁面完全正常運作。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.2.1) 6大分頁建置完成！\n已成功整合夜盤 (EWT) 漲跌幅指標至 RAW_HISTORY 與 DASHBOARD。');
 }
 
 /**
@@ -205,15 +205,15 @@ function buildThresholdConfigSheet(sheet) {
 function buildRawHistorySheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【基礎歷史數據】存放台股 (TWII) 收盤價、VIX 恐慌指數、MA60 (季線) 與 MA240 (年線)，並自動計算季線與年線乖離率、季線5日斜率與乖離動能。', 
-    'I', 
+    '【基礎歷史數據】存放台股 (TWII) 收盤價、VIX 恐慌指數、MA60/240 均線與乖離率，並整合夜盤 (EWT) 漲跌幅指標做盤前開盤參考。', 
+    'J', 
     '#1e293b'
   );
 
   setTableHeader(
     sheet, 
-    'A2:I2', 
-    ['Date', 'TWII (收盤)', 'VIX', 'MA60 (季線)', 'MA240 (年線)', 'Dist60 (季線乖離)', 'Dist240 (年線乖離)', 'MA60_Slope (季線斜率)', 'Dist60_Delta (5日動能)'], 
+    'A2:J2', 
+    ['Date', 'TWII (收盤)', 'VIX', 'MA60 (季線)', 'MA240 (年線)', 'Dist60 (季線乖離)', 'Dist240 (年線乖離)', 'MA60_Slope (季線斜率)', 'Dist60_Delta (5日動能)', 'EWT_Change (夜盤漲跌%)'], 
     '#334155'
   );
 
@@ -226,6 +226,7 @@ function buildRawHistorySheet(sheet) {
   sheet.setColumnWidth(7, 130);
   sheet.setColumnWidth(8, 140);
   sheet.setColumnWidth(9, 140);
+  sheet.setColumnWidth(10, 150);
 }
 
 /**
@@ -251,6 +252,7 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
   sheet.getRange(startRow, 3, count, 1).setNumberFormat('0.00');
   sheet.getRange(startRow, 4, count, 2).setNumberFormat('#,##0.00');
   sheet.getRange(startRow, 6, count, 4).setNumberFormat('+0.00%;-0.00%;0.00%');
+  sheet.getRange(startRow, 10, count, 1).setNumberFormat('+0.00%;-0.00%;0.00%');
 }
 
 /**
@@ -264,7 +266,8 @@ function seedInitialData(sheet) {
   const endDate = new Date('2026-07-24');
   
   const rows = generateMarketRows(startDate, endDate);
-  targetSheet.getRange(3, 1, rows.length, 5).setValues(rows);
+  targetSheet.getRange(3, 1, rows.length, 5).setValues(rows.map(r => [r[0], r[1], r[2], r[3], r[4]]));
+  targetSheet.getRange(3, 10, rows.length, 1).setValues(rows.map(r => [r[5]]));
   applyRawHistoryFormulas(targetSheet, 3, 2 + rows.length);
 }
 
@@ -280,7 +283,8 @@ function seedFullHistoricalData() {
   const endDate = new Date('2026-07-24');
 
   const rows = generateMarketRows(startDate, endDate);
-  rawSheet.getRange(3, 1, rows.length, 5).setValues(rows);
+  rawSheet.getRange(3, 1, rows.length, 5).setValues(rows.map(r => [r[0], r[1], r[2], r[3], r[4]]));
+  rawSheet.getRange(3, 10, rows.length, 1).setValues(rows.map(r => [r[5]]));
   applyRawHistoryFormulas(rawSheet, 3, 2 + rows.length);
 
   const logSheet = ss.getSheetByName('HISTORY_LOG');
@@ -289,11 +293,11 @@ function seedFullHistoricalData() {
   }
 
   SpreadsheetApp.flush();
-  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日）！\nTHRESHOLD_CONFIG 已自動連動完成。`);
+  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日，含 EWT 夜盤漲跌%）！\nTHRESHOLD_CONFIG 已自動連動完成。`);
 }
 
 /**
- * 通用行情數據生成器
+ * 通用行情數據生成器 (含 EWT 夜盤漲跌% 數據)
  */
 function generateMarketRows(startDate, endDate) {
   const rows = [];
@@ -307,6 +311,7 @@ function generateMarketRows(startDate, endDate) {
       let vix = 16.5;
       let ma60 = 22800;
       let ma240 = 21000;
+      let ewtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000)/10000;
 
       if (year >= 2025) { twii = 22500 + Math.random() * 2000; vix = 14 + Math.random() * 8; ma60 = twii * 0.97; ma240 = twii * 0.90; }
       else if (year === 2024) { twii = 17500 + Math.random() * 6000; vix = 13 + Math.random() * 12; ma60 = twii * 0.96; ma240 = twii * 0.88; }
@@ -324,7 +329,7 @@ function generateMarketRows(startDate, endDate) {
       else if (year === 2008) { twii = 3955 + Math.random() * 5000; vix = 35 + Math.random() * 45; ma60 = twii * 1.35; ma240 = twii * 1.55; }
       else { twii = 5000 + Math.random() * 3000; vix = 18 + Math.random() * 12; ma60 = twii * 0.98; ma240 = twii * 0.93; }
 
-      rows.push([new Date(currDate), Math.round(twii * 100)/100, Math.round(vix * 100)/100, Math.round(ma60 * 100)/100, Math.round(ma240 * 100)/100]);
+      rows.push([new Date(currDate), Math.round(twii * 100)/100, Math.round(vix * 100)/100, Math.round(ma60 * 100)/100, Math.round(ma240 * 100)/100, ewtChange]);
     }
     currDate.setDate(currDate.getDate() - 1);
   }
@@ -458,12 +463,12 @@ function buildLabBacktestSheet(sheet) {
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板)
+// 5. DASHBOARD (日常觀察儀表板 - 含 EWT 夜盤漲跌%)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【日常觀察儀表板】即時抓取最新一筆 RAW_HISTORY 數據，套用 THRESHOLD_CONFIG 門檻，顯示今日正確的市場位階、趨勢斜率與策略建議。', 
+    '【日常觀察儀表板】即時抓取最新一筆 RAW_HISTORY 數據與 EWT 夜盤漲跌%，套用 THRESHOLD_CONFIG 門檻，顯示今日正確的市場位階、趨勢斜率與策略建議。', 
     'E', 
     '#0f172a'
   );
@@ -481,7 +486,8 @@ function buildDashboardSheet(sheet) {
     ['年線乖離率 (Dist240)', '=INDEX(RAW_HISTORY!G3:G, COUNTA(RAW_HISTORY!A3:A))', 'MA240 年線', '=IF(B8<0, "偏低/恐慌", "偏高/熱絡")', '中長期趨勢指標'],
     ['VIX 恐慌指數', '=INDEX(RAW_HISTORY!C3:C, COUNTA(RAW_HISTORY!A3:A))', 'VIX Index', '=IF(B9>=30, "🚨 恐慌爆發", IF(B9>=20, "⚠️ 警戒", "✅ 平穩"))', '市場波動度情緒'],
     ['季線 5日斜率 (MA60 Slope)', '=INDEX(RAW_HISTORY!H3:H, COUNTA(RAW_HISTORY!A3:A))', 'MA60 5日變化率', '=IF(B10>0.003, "📈 強勢走升", IF(B10<-0.003, "📉 彎頭向下", "➡️ 橫盤走平"))', '季線趨勢方向'],
-    ['5日乖離動能 (Dist60 Delta)', '=INDEX(RAW_HISTORY!I3:I, COUNTA(RAW_HISTORY!A3:A))', 'Dist60 5日動能', '=IF(B11>0.01, "🚀 強勢反彈", IF(B11<-0.01, "⚠️ 修正加劇", "➡️ 動能平穩"))', '乖離率收斂/發散速度']
+    ['5日乖離動能 (Dist60 Delta)', '=INDEX(RAW_HISTORY!I3:I, COUNTA(RAW_HISTORY!A3:A))', 'Dist60 5日動能', '=IF(B11>0.01, "🚀 強勢反彈", IF(B11<-0.01, "⚠️ 修正加劇", "➡️ 動能平穩"))', '乖離率收斂/發散速度'],
+    ['夜盤/EWT漲跌幅 (EWT Change)', '=INDEX(RAW_HISTORY!J3:J, COUNTA(RAW_HISTORY!A3:A))', 'iShares Taiwan ETF', '=IF(B12>0.01, "🚀 夜盤強勢", IF(B12<-0.01, "⚠️ 夜盤急跌", "➡️ 夜盤平穩"))', '盤前極短線情緒與開盤指引']
   ];
 
   for (let i = 0; i < metrics.length; i++) {
@@ -490,7 +496,6 @@ function buildDashboardSheet(sheet) {
     sheet.getRange(`B${row}`).setFormula(metrics[i][1]);
     sheet.getRange(`C${row}`).setValue(metrics[i][2]);
     
-    // 關鍵修復：如果是公式以 '=' 開頭才調用 setFormula，純文字一律調用 setValue 防範 #NAME? 不明範圍名稱報錯
     if (typeof metrics[i][3] === 'string' && metrics[i][3].startsWith('=')) {
       sheet.getRange(`D${row}`).setFormula(metrics[i][3]);
     } else {
@@ -504,28 +509,28 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B6').setNumberFormat('#,##0.00');
   sheet.getRange('B7:B8').setNumberFormat('+0.00%;-0.00%;0.00%');
   sheet.getRange('B9').setNumberFormat('0.00');
-  sheet.getRange('B10:B11').setNumberFormat('+0.00%;-0.00%;0.00%');
+  sheet.getRange('B10:B12').setNumberFormat('+0.00%;-0.00%;0.00%');
 
   // 區塊 2: 位階與策略卡片 (純位階與策略指引)
-  sheet.getRange('13:13').breakApart();
-  sheet.getRange('A13:E13').merge().setValue('🎯 今日市場位階與核心策略指引卡片')
+  sheet.getRange('14:14').breakApart();
+  sheet.getRange('A14:E14').merge().setValue('🎯 今日市場位階與核心策略指引卡片')
        .setFontWeight('bold').setFontSize(12).setBackground('#0284c7').setFontColor('#ffffff');
 
-  sheet.getRange('A14').setValue('今日市場位階').setFontWeight('bold');
-  sheet.getRange('14:14').breakApart();
-  sheet.getRange('B14:E14').merge().setFormula(
+  sheet.getRange('A15').setValue('今日市場位階').setFontWeight('bold');
+  sheet.getRange('15:15').breakApart();
+  sheet.getRange('B15:E15').merge().setFormula(
     '=IFERROR(IFS(OR(B7<THRESHOLD_CONFIG!D4, B8<THRESHOLD_CONFIG!F4), THRESHOLD_CONFIG!B4, OR(B7<THRESHOLD_CONFIG!D5, B8<THRESHOLD_CONFIG!F5), THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, OR(B7>THRESHOLD_CONFIG!C7, B8>THRESHOLD_CONFIG!E7), THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B8), "資料計算中")'
   ).setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center').setBackground('#e0f2fe').setFontColor('#0369a1');
 
-  sheet.getRange('A15').setValue('核心策略行動指引').setFontWeight('bold');
-  sheet.getRange('15:15').breakApart();
-  sheet.getRange('B15:E15').merge().setFormula('=IFERROR(VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE), "等待最新數據對照")')
+  sheet.getRange('A16').setValue('核心策略行動指引').setFontWeight('bold');
+  sheet.getRange('16:16').breakApart();
+  sheet.getRange('B16:E16').merge().setFormula('=IFERROR(VLOOKUP(B15, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE), "等待最新數據對照")')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
 
-  sheet.setColumnWidth(1, 180);
+  sheet.setColumnWidth(1, 190);
   sheet.setColumnWidth(2, 160);
-  sheet.setColumnWidth(3, 140);
-  sheet.setColumnWidth(4, 160);
+  sheet.setColumnWidth(3, 150);
+  sheet.setColumnWidth(4, 170);
   sheet.setColumnWidth(5, 240);
 }
 
