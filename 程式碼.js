@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.2.1 (新增 EWT 夜盤漲跌幅 % 指標至 RAW_HISTORY 與 DASHBOARD)
+ * Version: v0.2.2 (Milestone 2 / Step 1: 建置 LAB_BACKTEST 1年期前瞻報酬率統計與勝率計算腳本)
  */
 
 /**
@@ -54,7 +54,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.2.1) 6大分頁建置完成！\n已成功整合夜盤 (EWT) 漲跌幅指標至 RAW_HISTORY 與 DASHBOARD。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.2.2) Milestone 2 / Step 1 建置完成！\n已成功建立 LAB_BACKTEST 1年期前瞻報酬率與實測勝率計算腳本。');
 }
 
 /**
@@ -293,7 +293,7 @@ function seedFullHistoricalData() {
   }
 
   SpreadsheetApp.flush();
-  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日，含 EWT 夜盤漲跌%）！\nTHRESHOLD_CONFIG 已自動連動完成。`);
+  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日，含 EWT 夜盤漲跌%）！\nTHRESHOLD_CONFIG 與 LAB_BACKTEST 已自動連動完成。`);
 }
 
 /**
@@ -337,7 +337,7 @@ function generateMarketRows(startDate, endDate) {
 }
 
 // ==========================================
-// 3. HISTORY_LOG (歷史位階日誌)
+// 3. HISTORY_LOG (歷史位階日誌 - 1年期前瞻報酬精準算式)
 // ==========================================
 function buildHistoryLogSheet(sheet) {
   setHeaderBanner(
@@ -385,7 +385,8 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, AND(C${i}>=THRESHOLD_CONFIG!$C$6, C${i}<=THRESHOLD_CONFIG!$D$6), THRESHOLD_CONFIG!$B$6, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$8), "計算中"))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
-      `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (B${i}-INDIRECT("B"&(ROW()-252)))/INDIRECT("B"&(ROW()-252)), "")`
+      // 1年期前瞻報酬算式：(未來第252交易日價 - 當日價) / 當日價
+      `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (INDIRECT("B"&(ROW()-252)) - B${i}) / B${i}, "")`
     ]);
   }
 
@@ -398,18 +399,18 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
 }
 
 // ==========================================
-// 4. LAB_BACKTEST (門檻驗證與回測)
+// 4. LAB_BACKTEST (門檻驗證與回測 - Milestone 2 / Step 1 實作)
 // ==========================================
 function buildLabBacktestSheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【門檻驗證與歷史回測】自動統計歷史數據中各位階出現的天數分佈、佔比，以及持有一年 (252交易日) 後的前瞻平均報酬率與勝率。', 
+    '【門檻驗證與歷史回測】自動統計 2008~2026 歷史數據中各位階出現的天數分佈、佔比，以及持有一年 (252交易日) 後的前瞻平均報酬率與正報酬勝率。', 
     'F', 
     '#1e1b4b'
   );
 
   sheet.getRange('2:2').breakApart();
-  sheet.getRange('A2:F2').merge().setValue('📈 歷史位階分佈與 1 年期前瞻績效回測統計')
+  sheet.getRange('A2:F2').merge().setValue('📈 歷史位階分佈與 1 年期前瞻績效回測統計 (Single Source of Truth 數據驗證)')
        .setFontWeight('bold').setFontSize(12).setBackground('#f1f5f9').setFontColor('#1e1b4b');
 
   setTableHeader(
@@ -419,16 +420,43 @@ function buildLabBacktestSheet(sheet) {
     '#312e81'
   );
 
+  // 1. 純公式寫入 (B4:E8) - 含精準有效分母勝率計算與 IFERROR 防爆保護
   const tierFormulas = [
-    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', '=IF($B$9>0, B4/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B4), "N/A")'],
-    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', '=IF($B$9>0, B5/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B5), "N/A")'],
-    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A6)', '=IF($B$9>0, B6/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B6), "N/A")'],
-    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A7)', '=IF($B$9>0, B7/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B7), "N/A")'],
-    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A8)', '=IF($B$9>0, B8/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B8), "N/A")']
+    [
+      '=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', 
+      '=IF($B$9>0, B4/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', 
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+    ],
+    [
+      '=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', 
+      '=IF($B$9>0, B5/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', 
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+    ],
+    [
+      '=COUNTIF(HISTORY_LOG!$F$3:$F, A6)', 
+      '=IF($B$9>0, B6/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I), "N/A")', 
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+    ],
+    [
+      '=COUNTIF(HISTORY_LOG!$F$3:$F, A7)', 
+      '=IF($B$9>0, B7/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I), "N/A")', 
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+    ],
+    [
+      '=COUNTIF(HISTORY_LOG!$F$3:$F, A8)', 
+      '=IF($B$9>0, B8/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I), "N/A")', 
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+    ]
   ];
 
   sheet.getRange('B4:E8').setFormulas(tierFormulas);
 
+  // 2. 純文字寫入 (A4:A8 及 F4:F8) - 遵守 v0.2.1 嚴格 API 分離原則
   sheet.getRange('A4:A8').setValues([
     ['極度恐慌'],
     ['恐慌'],
@@ -438,18 +466,20 @@ function buildLabBacktestSheet(sheet) {
   ]);
 
   sheet.getRange('F4:F8').setValues([
-    ['歷史長線勝率極高，大盤超跌區'],
-    ['具備優良風險報酬比，適合定額加碼'],
-    ['常態分佈分區，隨大盤長期成長'],
-    ['回檔風險提高，前瞻報酬吸引力下降'],
-    ['極高修正風險，宜防守現金']
+    ['歷史長線勝率極高，大盤超跌極致加碼區'],
+    ['具備優良風險報酬比，長線勝率顯著偏高'],
+    ['常態分佈通道，穩健隨大盤長期成長'],
+    ['回檔風險提高，1年期前瞻報酬吸引力下降'],
+    ['歷史修正風險極高，宜嚴格防守提高現金']
   ]);
 
+  // 3. 統計合計列 (A9:F9)
   sheet.getRange('A9').setValue('合計 (Total)').setFontWeight('bold');
   sheet.getRange('B9').setFormula('=SUM(B4:B8)').setFontWeight('bold');
   sheet.getRange('C9').setFormula('=SUM(C4:C8)').setFontWeight('bold');
   sheet.getRange('A9:F9').setBackground('#e0e7ff');
 
+  // 格式化設定
   sheet.getRange('B4:B9').setNumberFormat('#,##0');
   sheet.getRange('C4:C9').setNumberFormat('0.0%');
   sheet.getRange('D4:E8').setNumberFormat('+0.00%;-0.00%;0.00%');
@@ -459,11 +489,11 @@ function buildLabBacktestSheet(sheet) {
   sheet.setColumnWidth(3, 110);
   sheet.setColumnWidth(4, 160);
   sheet.setColumnWidth(5, 160);
-  sheet.setColumnWidth(6, 280);
+  sheet.setColumnWidth(6, 320);
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板 - 含 EWT 夜盤漲跌%)
+// 5. DASHBOARD (日常觀察儀表板)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
