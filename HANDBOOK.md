@@ -1,4 +1,4 @@
-# HANDBOOK.md (v0.1.1)
+# HANDBOOK.md (v0.1.2)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -9,11 +9,11 @@
 - **Presentation Layer**: GAS Web App / Google Sheet Dashboard
 
 ## ③ Database Schema
-1. `RAW_HISTORY`: Date, TWII, VIX, MA60, MA240, Dist60, Dist240
+1. `RAW_HISTORY`: Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope (季線5日斜率), Dist60_Delta (5日動能)
 2. `THRESHOLD_CONFIG`: Metric, P10 (極度恐慌), P25 (恐慌), P75 (順風), P90 (過熱)
 3. `LAB_BACKTEST`: Phase, Count, WinRate_1Y, AvgReturn_1Y, MaxDrawdown
-4. `DASHBOARD`: 市場位階, 資金池訊號, 建議策略, 更新時間
-5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, Market_Phase, Action_Signal
+4. `DASHBOARD`: 市場位階, 趨勢斜率, 動能燈號, 資金池訊號, 建議策略, 更新時間
+5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, VIX, Market_Phase, MA60_Slope, Dist60_Delta, Return_1Y
 6. `DECISION_LOG`: 日期, 當時位階/訊號, 策略動作, 執行說明 (無金額純策略), 策略符合度, 策略思考與備註
 
 ## ④ Function Library
@@ -22,7 +22,7 @@
 - `seedSampleData()`: 寫入基礎測試數據
 
 ## ⑤ Decision Engine
-- 單一判定邏輯：依據 `RAW_HISTORY` 最新之 `Dist60` 與 `Dist240`，對照 `THRESHOLD_CONFIG` 門檻得出 `Market_Phase`。
+- 單一判定邏輯：依據 `RAW_HISTORY` 最新之 `Dist60` 與 `Dist240`，對照 `THRESHOLD_CONFIG` 門檻得出 `Market_Phase`；配合 `MA60_Slope` 與 `Dist60_Delta` 判定趨勢加速度。
 
 ## ⑥ AI Agents
 無
@@ -40,7 +40,7 @@
 Sprint 1: 建置 Market Engine V3 核心 Google Sheet 6 大分頁基礎結構與說明 (Step 1 已完成)。
 
 ## ⑩ Current Version
-v0.1.1
+v0.1.2
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG)
@@ -51,9 +51,11 @@ v0.1.1
 ---
 ### 施工紀錄 (Audit Trail)
 - **已完成項目**: 
-  1. 專案初始化、HANDBOOK v0.1.0/v0.1.1 建立。
+  1. 專案初始化、HANDBOOK v0.1.0 ~ v0.1.2 建立。
   2. 完成 Google Sheet 6 大分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`) 基礎結構、A1 白話文說明及自動化公式建置。
-  3. 完成 Google Apps Script (`clasp push`) 腳本部署與選單註冊。
+  3. 依據需求簡化 `HISTORY_LOG`（移除股票/現金比欄位），並於 `RAW_HISTORY`、`HISTORY_LOG` 及 `DASHBOARD` 新增「季線5日斜率 % (MA60_Slope)」與「5日乖離動能 (Dist60_Delta)」指標及趨勢燈號。
+  4. 完成 Google Apps Script (`clasp push`) 腳本部署與選單註冊。
 - **目前停止位置**: Milestone 1 / Step 1 完成。
 - **下一步施工位置**: Milestone 1 / Step 2 (載入/清洗 RAW_HISTORY 歷史數據與校正 THRESHOLD_CONFIG 分位數參數)。
+
 
