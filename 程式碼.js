@@ -394,12 +394,12 @@ function buildDashboardSheet(sheet) {
 }
 
 // ==========================================
-// 6. DECISION_LOG (交易決策紀錄)
+// 6. DECISION_LOG (策略決策紀錄 - 無個人金流純策略模板)
 // ==========================================
 function buildDecisionLogSheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【交易決策紀錄】供投資人手動記錄依據 Market Engine 訊號所執行的實際交易動作、標的與操作檢討。', 
+    '【策略決策紀錄】供投資人記錄依據 Market Engine 位階訊號所執行的策略動作類別、紀律執行點與心得檢討（本表為純策略模板，不記錄任何個人金流與私密金額）。', 
     'F', 
     '#0f172a'
   );
@@ -407,22 +407,22 @@ function buildDecisionLogSheet(sheet) {
   setTableHeader(
     sheet, 
     'A2:F2', 
-    ['交易日期 (Date)', '當時市場位階/訊號', '執行動作 (Action)', '交易標的與金額/數量', '策略符合度', '交易備註與心得檢討'], 
+    ['日期 (Date)', '當時市場位階/訊號', '策略動作 (買進/賣出/再平衡/觀望)', '執行說明 (無金額純策略)', '策略符合度', '策略思考與檢討備註'], 
     '#334155'
   );
 
   const sampleRows = [
-    [new Date('2026-07-16'), '恐慌', '買進 / 分批加碼', '0050 ETF ($100,000)', '符合 (Compliant)', '季線乖離率達到 -10.2%，依照位階紀律執行第 1 批加碼。'],
-    [new Date('2026-06-01'), '順風/中性', '定期再平衡', '0050 / 現金按 55:45 再平衡', '符合 (Compliant)', '維持正常通道配置，無特別加減碼。']
+    [new Date('2026-07-16'), '恐慌', '分批加碼', '核心大盤部位權重調整', '符合 (Compliant)', '季線乖離率達到 -10.2%，依照位階紀律執行加碼。'],
+    [new Date('2026-06-01'), '順風/中性', '定期再平衡', '核心與防禦部位按 55:45 再平衡', '符合 (Compliant)', '維持正常通道配置，無特別加減碼。']
   ];
 
   sheet.getRange(3, 1, sampleRows.length, 6).setValues(sampleRows);
 
   // 格式
   sheet.getRange('A3:A50').setNumberFormat('yyyy-mm-dd');
-  sheet.setColumnWidth(1, 130);
-  sheet.setColumnWidth(2, 150);
-  sheet.setColumnWidth(3, 160);
+  sheet.setColumnWidth(1, 120);
+  sheet.setColumnWidth(2, 140);
+  sheet.setColumnWidth(3, 210);
   sheet.setColumnWidth(4, 220);
   sheet.setColumnWidth(5, 140);
   sheet.setColumnWidth(6, 350);

@@ -14,7 +14,7 @@
 3. `LAB_BACKTEST`: Phase, Count, WinRate_1Y, AvgReturn_1Y, MaxDrawdown
 4. `DASHBOARD`: 市場位階, 資金池訊號, 建議策略, 更新時間
 5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, Market_Phase, Action_Signal
-6. `DECISION_LOG`: 日期, 訊號, 執行, 備註
+6. `DECISION_LOG`: 日期, 當時位階/訊號, 策略動作, 執行說明 (無金額純策略), 策略符合度, 策略思考與備註
 
 ## ④ Function Library
 - `onOpen()`: 註冊 UI 選單
