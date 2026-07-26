@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.1.6 (修復公式剖析錯誤 & 移除 THRESHOLD_CONFIG 建議持股比例)
+ * Version: v0.1.7 (修復二次初始化合併儲存格衝突 Exception)
  */
 
 /**
@@ -54,16 +54,23 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.6) 6大分頁建置完成！\n已修正公式剖析問題，並成功依需求移除股票/現金比例欄位。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.7) 6大分頁建置完成！\n已成功解除舊有儲存格合併限制，初始化 100% 順暢。');
 }
 
 /**
- * 取得或新建指定名稱的分頁
+ * 取得或新建指定名稱的分頁 (包含解除合併保護機制)
  */
 function setupSheet(ss, name, rows, cols) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
+  } else {
+    // 解除舊有的所有合併儲存格，徹底防止二次初始化發生合併範圍衝突 Exception
+    try {
+      sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
+    } catch (e) {
+      // 忽略空分頁 breakApart 異常
+    }
   }
   return sheet;
 }
@@ -72,6 +79,7 @@ function setupSheet(ss, name, rows, cols) {
  * 設定標頭 Banner (第1列白話文說明)
  */
 function setHeaderBanner(sheet, text, lastColChar, bgColor = '#1e293b') {
+  sheet.getRange('1:1').breakApart();
   sheet.getRange(`A1:${lastColChar}1`).merge();
   const range = sheet.getRange('A1');
   range.setValue(text);
@@ -98,7 +106,7 @@ function setTableHeader(sheet, rangeStr, headers, bgColor = '#334155') {
 }
 
 // ==========================================
-// 1. THRESHOLD_CONFIG (門檻對照表 - 動態分位數連動，去比例純門檻)
+// 1. THRESHOLD_CONFIG (門檻對照表 - 動態分位數連動)
 // ==========================================
 function buildThresholdConfigSheet(sheet) {
   setHeaderBanner(
@@ -108,6 +116,7 @@ function buildThresholdConfigSheet(sheet) {
     '#0f172a'
   );
 
+  sheet.getRange('2:2').breakApart();
   sheet.getRange('A2:G2').merge().setValue('📊 市場五大位階門檻對照矩陣 (分位數連動校正表)')
        .setFontWeight('bold').setFontSize(12).setBackground('#f1f5f9').setFontColor('#0f172a');
   sheet.setRowHeight(2, 30);
@@ -119,7 +128,7 @@ function buildThresholdConfigSheet(sheet) {
     '#1e293b'
   );
 
-  // 1. 寫入純文字代號、名稱與策略指引 (使用 setValues 避免公式剖析錯誤)
+  // 1. 寫入純文字代號、名稱與策略指引
   const metaValues = [
     ['T1', '極度恐慌', '市場處於歷史最後 10% 嚴重超跌區。建議分批強力加碼核心大盤與優質權值股。'],
     ['T2', '恐慌', '市場處於 P10~P25 低估區。建議維持中高持股水位，定期定額或逢低加碼。'],
@@ -131,7 +140,7 @@ function buildThresholdConfigSheet(sheet) {
   sheet.getRange('A4:B8').setValues(metaValues.map(r => [r[0], r[1]]));
   sheet.getRange('G4:G8').setValues(metaValues.map(r => [r[2]]));
 
-  // 2. 寫入動態分位數公式 (C4:F8)
+  // 2. 寫入動態分位數公式
   const tierFormulas = [
     [-9.99, '=C12', -9.99, '=D12'],
     ['=C12', '=C13', '=D12', '=D13'],
@@ -150,6 +159,7 @@ function buildThresholdConfigSheet(sheet) {
   }
 
   // 區塊 2: 歷史數據分位數實測統計 (校正基準點)
+  sheet.getRange('10:10').breakApart();
   sheet.getRange('A10:E10').merge().setValue('📐 歷史數據分位數實測統計 (Single Source of Truth 數據源頭)')
        .setFontWeight('bold').setFontSize(12).setBackground('#0f172a').setFontColor('#ffffff');
   sheet.setRowHeight(10, 30);
@@ -400,6 +410,7 @@ function buildLabBacktestSheet(sheet) {
     '#1e1b4b'
   );
 
+  sheet.getRange('2:2').breakApart();
   sheet.getRange('A2:F2').merge().setValue('📈 歷史位階分佈與 1 年期前瞻績效回測統計')
        .setFontWeight('bold').setFontSize(12).setBackground('#f1f5f9').setFontColor('#1e1b4b');
 
@@ -451,6 +462,7 @@ function buildDashboardSheet(sheet) {
     '#0f172a'
   );
 
+  sheet.getRange('3:3').breakApart();
   sheet.getRange('A3:E3').merge().setValue('📊 市場最新數據與趨勢動態概覽 (Latest Indicators & Slope)')
        .setFontWeight('bold').setFontSize(12).setBackground('#1e293b').setFontColor('#ffffff');
 
@@ -481,15 +493,18 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B9').setNumberFormat('0.00');
   sheet.getRange('B10:B11').setNumberFormat('+0.00%;-0.00%;0.00%');
 
+  sheet.getRange('13:13').breakApart();
   sheet.getRange('A13:E13').merge().setValue('🎯 今日市場位階與配置決策卡片')
        .setFontWeight('bold').setFontSize(12).setBackground('#0284c7').setFontColor('#ffffff');
 
   sheet.getRange('A14').setValue('今日市場位階').setFontWeight('bold');
+  sheet.getRange('14:14').breakApart();
   sheet.getRange('B14:E14').merge().setFormula(
     '=IFS(OR(B7<THRESHOLD_CONFIG!D4, B8<THRESHOLD_CONFIG!F4), THRESHOLD_CONFIG!B4, OR(B7<THRESHOLD_CONFIG!D5, B8<THRESHOLD_CONFIG!F5), THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, OR(B7>THRESHOLD_CONFIG!C7, B8>THRESHOLD_CONFIG!E7), THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B8)'
   ).setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center').setBackground('#e0f2fe').setFontColor('#0369a1');
 
   sheet.getRange('A15').setValue('核心策略行動指引').setFontWeight('bold');
+  sheet.getRange('15:15').breakApart();
   sheet.getRange('B15:E15').merge().setFormula('=VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE)')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
 
