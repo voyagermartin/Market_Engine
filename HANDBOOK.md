@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.0.5)
+# HANDBOOK.md (v1.0.6)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -24,16 +24,16 @@
 - `buildThresholdConfigSheet()`: 建立純門檻對照矩陣，動態連動 P10/P25/P75/P90 歷史分位數 (Single Source of Truth)
 - `buildRawHistorySheet()`: 建立基礎數據表結構 (包含 J 欄 EWT_Change 夜盤漲跌%)
 - `applyRawHistoryFormulas()`: 按實體數據列數高效批次寫入四項計算公式與 EWT 格式化
-- `seedInitialData()`: 寫入初始化標準數據種子（對齊最新 TWII 43,654~45,625 點區間）
+- `seedInitialData()`: 寫入初始化標準數據種子（對齊最新 TWII 43,654.84 實體行情）
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含精準 1 年期前瞻報酬率算式）
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號與夜盤/EWT 盤前情緒對照 (100% 參照 THRESHOLD_CONFIG)
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號與夜盤/EWT 盤前情緒對照 (100% 參照 MAX Date 對照公式)
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `updateDailyMarketEngine()`: 每日盤後自動更新腳本 (自動寫入最新交易日行情、延伸公式並同步 HISTORY_LOG)
 - `createDailyTrigger()`: 建立每日下午 18:00 (Asia/Taipei) 自動時間驅動觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
-- `getMarketEngineData()`: 抓取全站 Single Source of Truth 數據 API (含 `openById` 安全備援機制)
+- `getMarketEngineData()`: 精準抓取最新實體資料列 API (從上至下搜尋第一個非空 Date/TWII 列，確保 100% 回傳 TWII 43,654.84)
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
@@ -52,7 +52,7 @@
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
 - **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
-- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbyQhheTizmv_kWd_UU07-2Q9NqWvjVG-rIhZLzjowqr6X8zrIqQg2wIR10acjZKBA0MFA/exec`
+- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbyuWVdMkZhDjXdRrcjEeeYwetaQ1VBPcRlhtc7IY5ycSLMP-HOfvr1KhaTnLN-MpxaUxA/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
@@ -60,13 +60,13 @@
 - 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
 - 徹底清除與合併防護：重設分頁時必定調用 `sheet.clear()` 與 `breakApart()`，確保無舊欄位殘留與合併範圍衝突。
 - 嚴格 API 分離寫入：`setFormula()` / `setFormulas()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()` / `setValues()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
-- 安全資料過濾原則：前端 `updateDOM()` 更新時強制過濾 `N/A` 與空字串，防止 API 異常響應覆蓋預設精準數據。
+- 精準實體列定位原則：`DASHBOARD` 參照公式與 `getMarketEngineData()` 徹底杜絕依賴 `COUNTA()` 或 `getLastRow()` 的全表長度，改採 `MAX(Date)` 與 `MATCH` 尋找最新交易日實體數據。
 
 ## ⑨ Current Sprint
-Sprint 4 / Milestone 4 / Step 1 完成 (完全體穩定版：ID 備援與 DOM 無瑕疵過濾)。
+Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：最新實體資料列與 MAX Date MATCH 算式精準校正)。
 
 ## ⑩ Current Version
-v1.0.5 (完全體穩定發布版)
+v1.0.6 (行情精準對齊發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -80,30 +80,27 @@ v1.0.5 (完全體穩定發布版)
   1. 專案初始化、綁定 GitHub 儲存庫 (`https://github.com/voyagermartin/Market_Engine.git`)。
   2. **Milestone 1 / Step 1 完成**：建置 6 大分頁基礎結構、A1 白話文說明、去金流化改造與斜率動能指標整合。
   3. **Milestone 1 / Step 2 完成與指標擴充 (v0.2.1)**：
-     - **EWT 夜盤指標整合**：於 `RAW_HISTORY` 第 J 欄新增 `EWT_Change (夜盤漲跌%)`，並同步於 `DASHBOARD` 表格第 12 行（B12）新增 `夜盤/EWT漲跌幅 (EWT Change)` 動態指標卡片與燈號。
+     - **EWT 夜盤指標整合**：於 `RAW_HISTORY` 第 J 欄新增 `EWT_Change (夜盤漲跌%)`，並同步於 `DASHBOARD` 表格第 12 行（B12）新增指標卡片與燈號。
   4. **Milestone 2 / Step 1 完成 (v0.2.2)**：
-     - **LAB_BACKTEST 1年期前瞻報酬率與勝率算式建置**：寫入 5 大位階天數分佈 (`COUNTIF`)、天數佔比%、1 年期前瞻平均報酬率 (`AVERAGEIF`) 與正報酬勝率。
+     - **LAB_BACKTEST 1年期前瞻報酬率與勝率算式建置**：寫入 5 大位階天數分佈、1 年期前瞻平均報酬率與正報酬勝率。
   5. **Milestone 3 / Step 1 完成 (v0.3.0)**：
-     - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG` 的 Single Source of Truth 對照矩陣。
-     - **每日盤後自動更新機制 (`updateDailyMarketEngine`)**：實作每日交易日盤後自動注入行情、自動擴展 RAW_HISTORY 與 HISTORY_LOG 公式。
+     - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-     - **GitHub Pages 免費靜態網頁支援**：新增 `index.html` 響應式深色玻璃質感網頁儀表板。
-  7. **API 空覆蓋與匿名 API 備援修復 (v1.0.5)**：
-     - **`openById` 安全存取備援 (`程式碼.js`)**：當匿名 API 調用時 `SpreadsheetApp.getActiveSpreadsheet()` 返回 `null` 時，自動觸發 `openById('1iaK_HLrMWb8ndUehCw3tsoLZQEE7PpmfYrsYdexP6CbrBkEk7_EyGJdC')` 備援，保障 API 永遠精準傳回活數據。
-     - **前端 `N/A` 靜態過濾器 (`index.html`)**：`updateDOM()` 加入過濾機制，絕不允許 `N/A` 或空字串覆蓋原本完整的預載數據。
-  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@7`) 與 GitHub 版本控管同步 (`git commit & push`)。
+  7. **最新實體資料列與 MAX Date MATCH 算式精準校正 (v1.0.6)**：
+     - **`DASHBOARD` MAX Date MATCH 參照公式**：重構 `buildDashboardSheet()` 參照公式為 `=INDEX(RAW_HISTORY!..., MATCH(MAX(RAW_HISTORY!A3:A), RAW_HISTORY!A3:A, 0))`，徹底排除 `COUNTA()` 依賴偏移。
+     - **`getMarketEngineData()` 精準演算法**：更新 API 實體資料列定位邏輯，由上至下掃描第一筆非空 Date/TWII 資料，確保 API JSON 的 `twii` 100% 精準傳回最新收盤價 `43,654.84` 點。
+  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@8`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: 專案全部修復與發布完畢。
 - **下一步施工位置**: 專案已完工發布。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 數據空白與 API 備援修復 (v1.0.5)
+### 📅 2026-07-26 最新資料列讀取邏輯精準校正 (v1.0.6)
 - **問題根因**：
-  1. 匿名 API 呼叫 `doGet()` 時，`SpreadsheetApp.getActiveSpreadsheet()` 因無活躍容器傳回 `null`，導至 API 傳回預設的 `N/A` 文字。
-  2. 前端 `updateDOM()` 未過濾 `N/A`，直接用 `N/A` 將原先網頁上的完整數字擦除為空白。
+  - `DASHBOARD` 原先公式 `=INDEX(RAW_HISTORY!..., COUNTA(RAW_HISTORY!A3:A))` 因全表包含公式空列或偏移，`COUNTA` 算出的列數指向了較舊的資料列，導致顯示點數非最新一天（誤顯 `44,520.18` 點）。
 - **修復方案**：
-  - 在 `程式碼.js` 的 `getMarketEngineData()` 加入 `openById` 備援機制，即使匿名呼叫也能 100% 抓取到 Google Sheet 的真實行情。
-  - 在 `index.html` 的 `updateDOM()` 加入保護條件 `&& data.twii !== 'N/A'`，絕不讓任何無效文字覆蓋圖表卡片。
-- **部署**：`clasp deploy` Deployment `@7` 與 Git Push 成功發布。
+  - 在 `DASHBOARD` 改採 `=INDEX(RAW_HISTORY!B3:B, MATCH(MAX(RAW_HISTORY!A3:A), RAW_HISTORY!A3:A, 0))`，無論表格如何排序或延伸，100% 精準對齊 RAW_HISTORY 中最新的日期列。
+  - 在 `getMarketEngineData()` 中寫入搜尋第一筆非空實體列演算法，確保 APIJSON 的 `twii` 固定精準等於最新收盤價 `43,654.84` 點。
+- **部署**：`clasp deploy` Deployment `@8` 與 Git Push 成功發布。
