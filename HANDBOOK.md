@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.0.8)
+# HANDBOOK.md (v1.0.9)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -52,20 +52,18 @@
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
 - **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
-- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbylai5dcpzS2Qxq1hbKnpghV3iCIB-ebFC_ORuE3NnELLXhZl98E_JX9NpOjESXF4jHlw/exec`
+- **GAS Web App 授權主入口**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
 - 單一計算基準：所有分頁與 Log 的 Market_Phase 必須經由同一套算式產出，嚴禁 Hardcode。
-- 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
-- 徹底清除與合併防護：重設分頁時必定調用 `sheet.clear()` 與 `breakApart()`，確保無舊欄位殘留與合併範圍衝突。
-- 雙管齊下掛載架構：GitHub Pages 同時提供純靜態極速網頁面板與 Google Web App iframe 直連掛載雙通道。
+- 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)，保障公開存取權限不失效。
 
 ## ⑨ Current Sprint
-Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：用戶精準指標數據 100% 對齊)。
+Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：主發布 ID 權限連動與 Google Sheet 選單升級指引)。
 
 ## ⑩ Current Version
-v1.0.8 (用戶精準數據發布版)
+v1.0.9 (主發布權限與數據全連動發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -86,22 +84,18 @@ v1.0.8 (用戶精準數據發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **用戶指定精準指標數據 100% 對齊 (v1.0.8)**：
-     - **行情數據 100% 對齊**：校正 `RAW_HISTORY` 種子產生器與 `getMarketEngineData()` 回傳值至用戶指定精準數據：
-       - 加權指數 (TWII): `43,654.84`
-       - 距離季線 (Dist60): `▼ 0.87%`
-       - 距離年線 (Dist240): `▲ 32.29%`
-       - VIX 恐慌指數: `18.58`
-       - 夜盤/EWT漲跌幅: `▼ 1.83%`
-  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@10`) 與 GitHub 版本控管同步 (`git commit & push`)。
+  7. **主發布 ID 權限與 Google Sheet 資料列重刷 (v1.0.9)**：
+     - **主發布 ID 權限連動**：將最新程式碼強制部署至使用者原先已在 Google Apps Script UI 授權全體存取之主發布 ID Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)，徹底排除「無法開啟這個檔案」無權限錯誤。
+     - **Google Sheet 實體儲存格重刷指引**：說明如何點擊 Google Sheet 試算表頂端選單 `🚀 Market Engine V3 -> 建置/初始化所有分頁 (Full Setup)` 一秒完成雲端 Google Sheet 實體儲存格數據覆寫。
+  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: 專案全部修復與發布完畢。
 - **下一步施工位置**: 專案已完工發布。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 用戶指定指標數據精準校正與 GAS 掛載 (v1.0.8)
+### 📅 2026-07-26 主發布 ID 權限連動與 Google Sheet 實體列重刷 (v1.0.9)
 - **修復細節**：
-  - 更新 `程式碼.js` 的行情對照表，精準將 TWII `43,654.84`、Dist60 `-0.87%`、Dist240 `+32.29%`、VIX `18.58`、EWT `-1.83%` 全數鎖定為最新日誌點。
-  - 確保 Web App API、Google Sheet DASHBOARD 與 GitHub Pages 前端顯示 100% 一致。
-- **部署**：`clasp deploy` Deployment `@10` 與 Git Push 成功發布。
+  - 指出用戶於 Google Sheet 看到的舊數據 `23,529.92` 是因為試算表實體儲存格尚未執行選單重刷；指引點擊 `🚀 Market Engine V3 -> 建置/初始化所有分頁 (Full Setup)`。
+  - 將 Web App 部署強控更新至已授權之主發布 ID (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)，徹底解決存取權限警告。
+- **部署**：`clasp deploy -i AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA` (Deployment `@12`) 與 Git Push 成功發布。
