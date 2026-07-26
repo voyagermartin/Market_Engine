@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.4.0 (雙 AI 導航腳本完整合體：老巴盤前 generateMorningNavigation + 小羅盤後 generateAfternoonNavigation)
+ * Version: v1.5.0 (Milestone 5 / Step 2 - 導入休市日 isMarketOpen 判定與 AI 導航連動)
  */
 
 /**
@@ -18,10 +18,60 @@ function onOpen() {
     .addSeparator()
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
     .addItem('☕ 執行小羅盤後 AI 導航 (generateAfternoonNavigation)', 'generateAfternoonNavigation')
+    .addItem('📅 測試休市日判定狀態 (isMarketOpen Test)', 'testMarketOpenStatus')
     .addSeparator()
     .addItem('🚀 擴展載入 2008~2026 18年完整歷史數據', 'seedFullHistoricalData')
     .addItem('更新/套用計算公式與樣式', 'applyFormulasAndStyles')
     .addToUi();
+}
+
+/**
+ * 判斷指定日期是否為台股交易日 (含週休二日與台灣國定假日)
+ * @param {Date} [targetDate] 可選指定日期，預設為台北時間當天
+ * @return {{ isOpen: boolean, reason: string }}
+ */
+function isMarketOpen(targetDate) {
+  const d = targetDate ? new Date(targetDate) : new Date();
+  
+  // 轉為 Asia/Taipei 當地日期與星期 (1 = Mon, 7 = Sun)
+  const dayStr = Utilities.formatDate(d, 'Asia/Taipei', 'u');
+  const dayNum = parseInt(dayStr, 10);
+
+  if (dayNum === 6 || dayNum === 7) {
+    return { isOpen: false, reason: '週休二日' };
+  }
+
+  // Google Calendar 台灣節日 ID 查詢
+  try {
+    const cal = CalendarApp.getCalendarById('zh-TW.taiwan#holiday@group.v.calendar.google.com');
+    if (cal) {
+      const year = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'yyyy'), 10);
+      const month = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'MM'), 10) - 1;
+      const day = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'dd'), 10);
+      
+      const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0));
+      const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59));
+      
+      const events = cal.getEvents(startOfDay, endOfDay);
+      if (events && events.length > 0) {
+        const title = events[0].getTitle();
+        return { isOpen: false, reason: `國定假日 (${title})` };
+      }
+    }
+  } catch (err) {
+    Logger.log('Calendar API Warning: ' + err);
+  }
+
+  return { isOpen: true, reason: '正常交易日' };
+}
+
+/**
+ * 手動測試休市日狀態彈窗
+ */
+function testMarketOpenStatus() {
+  const status = isMarketOpen(new Date());
+  const dateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd (E)');
+  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}`);
 }
 
 /**
@@ -61,7 +111,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.4.0) 更新完成！\n已全面整合老巴盤前 (generateMorningNavigation) 與小羅盤後 (generateAfternoonNavigation) 雙 AI 導航！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.5.0) 更新完成！\n已成功導入休市日 isMarketOpen() 判定與 AI 導航連動！');
 }
 
 /**
@@ -661,11 +711,11 @@ function buildDecisionLogSheet(sheet) {
 }
 
 // ==========================================
-// 7. 老巴盤前 AI 導航腳本 (generateMorningNavigation - V3 完全體)
+// 7. 老巴盤前 AI 導航腳本 (generateMorningNavigation - V3 完全體 + 休市日連動)
 // ==========================================
 
 /**
- * 升級版老巴盤前 AI 導航腳本 (對齊 V3 Database Schema)
+ * 升級版老巴盤前 AI 導航腳本 (對齊 V3 Database Schema & 休市日判定)
  */
 function generateMorningNavigation() {
   const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_WEB_GEMINI_API_KEY");
@@ -682,6 +732,12 @@ function generateMorningNavigation() {
   if (!rawSheet || !dashSheet || !historyLogSheet) {
     Logger.log("⚠️ 分頁未完整建置");
     return;
+  }
+
+  const marketStatus = isMarketOpen(new Date());
+  let holidayNotice = "";
+  if (!marketStatus.isOpen) {
+    holidayNotice = `【今日台股休市提醒】今日台股休市（原因：${marketStatus.reason}）。請勿分析當日成交量與盤中買賣行為，請將重點聚焦在「夜盤EWT情緒」、「VIX國際風險」與「下個交易日觀察方向」。\n`;
   }
 
   // 從 RAW_HISTORY 讀取最新 7 個交易日資料 (Row 3 為最新一天)
@@ -714,7 +770,7 @@ function generateMorningNavigation() {
   }
 
   const prompt = `
-【市場環境資訊】
+${holidayNotice}【市場環境資訊】
 交易日期：${dateStr}
 加權指數收盤：${twiiClose}
 今日市場位階：${currentPhase}
@@ -732,7 +788,7 @@ ${phaseTrack}
 你是「巴菲特」。
 你是 Market Engine V3 的盤前市場解譯員。
 你的任務不是預測市場漲跌，也不是提供投資建議。
-你的任務是：協助投資人理解市場目前所處的位置、市場情緒如何演變、以及開盤後值得關注的方向。
+你的任務是：協助投資人理解市場目前所處的位置、市場情緒如何演變、以及開盤/休市後值得關注的方向。
 請將數據翻譯成一般人能理解的白話語言。重點是建立市場感知能力，而非提供答案。
 
 ────────────────
@@ -747,7 +803,7 @@ ${phaseTrack}
 請先判斷今天最值得投資人注意的是哪一項資訊（候選：夜盤EWT、VIX變化、MA60斜率、乖離動能）。請不要平均介紹所有數據，聚焦在最重要的一項。若夜盤與市場位階矛盾，請直接指出矛盾。
 
 【今天可能面臨的狀況】
-說明今天開盤後最可能優先反映哪些情緒或因素（例如：夜盤大跌可能先承受賣壓，但位階處於恐慌區展現韌性）。描述「可能先反映什麼」，不要預測漲跌。
+說明今天最可能優先反映哪些情緒或因素。描述「可能先反映什麼」，不要預測漲跌。
 
 【老巴早餐的一句話】
 用一句貼近巴菲特風格的提醒，重點放在投資心態與紀律，不要使用過度誇張的比喻。
@@ -794,11 +850,11 @@ ${phaseTrack}
 }
 
 // ==========================================
-// 8. 小羅盤後 AI 導航腳本 (generateAfternoonNavigation - V3 完全體)
+// 8. 小羅盤後 AI 導航腳本 (generateAfternoonNavigation - V3 完全體 + 休市日連動)
 // ==========================================
 
 /**
- * 升級版小羅盤後 AI 導航腳本 (對齊 V3 Database Schema)
+ * 升級版小羅盤後 AI 導航腳本 (對齊 V3 Database Schema & 休市日判定)
  */
 function generateAfternoonNavigation() {
   const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_WEB_GEMINI_API_KEY");
@@ -815,6 +871,12 @@ function generateAfternoonNavigation() {
   if (!rawSheet || !dashSheet || !historyLogSheet) {
     Logger.log("⚠️ 分頁未完整建置");
     return;
+  }
+
+  const marketStatus = isMarketOpen(new Date());
+  let holidayNotice = "";
+  if (!marketStatus.isOpen) {
+    holidayNotice = `【今日台股休市提醒】今日台股休市（原因：${marketStatus.reason}）。請勿分析當日成交量與當日買賣，請將重點聚焦在「夜盤EWT情緒」、「VIX國際風險」與「下個交易日觀察方向」。\n`;
   }
 
   // 從 RAW_HISTORY 讀取最新 7 個交易日資料 (Row 3 為最新一天，Row 4 為昨天)
@@ -849,7 +911,7 @@ function generateAfternoonNavigation() {
   }
 
   const prompt = `
-【Market Engine V3 數據】
+${holidayNotice}【Market Engine V3 數據】
 交易日期：${dateStr}
 今日加權收盤：${twiiClose}
 昨日加權收盤：${yesterday[1]}
@@ -948,8 +1010,12 @@ function updateMorningMarketEngine() {
   const rawSheet = ss.getSheetByName('RAW_HISTORY');
   if (!rawSheet) return;
 
-  const today = new Date();
-  if (today.getDay() === 0 || today.getDay() === 6) return;
+  const status = isMarketOpen(new Date());
+  if (!status.isOpen) {
+    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，執行休市 AI 導航。`);
+    generateMorningNavigation();
+    return;
+  }
 
   const newEwtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000) / 10000;
   rawSheet.getRange(3, 10).setValue(newEwtChange);
@@ -958,7 +1024,7 @@ function updateMorningMarketEngine() {
   generateMorningNavigation();
 
   SpreadsheetApp.flush();
-  Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + today);
+  Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + new Date());
 }
 
 /**
@@ -970,8 +1036,12 @@ function updateAfternoonMarketEngine() {
   const historyLogSheet = ss.getSheetByName('HISTORY_LOG');
   if (!rawSheet || !historyLogSheet) return;
 
-  const today = new Date();
-  if (today.getDay() === 0 || today.getDay() === 6) return;
+  const status = isMarketOpen(new Date());
+  if (!status.isOpen) {
+    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，僅執行 AI 導航更新，免向 HISTORY_LOG 寫入重複無效資料。`);
+    generateAfternoonNavigation();
+    return;
+  }
 
   const totalRows = Math.max(3, rawSheet.getLastRow());
   applyRawHistoryFormulas(rawSheet, 3, totalRows);
@@ -981,7 +1051,7 @@ function updateAfternoonMarketEngine() {
   generateAfternoonNavigation();
 
   SpreadsheetApp.flush();
-  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + today);
+  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + new Date());
 }
 
 /**
@@ -1051,7 +1121,7 @@ function doGet(e) {
 }
 
 /**
- * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區判定 07:30 老巴 / 14:30 小羅值班)
+ * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
 function getMarketEngineData() {
   let ss = null;
@@ -1069,13 +1139,19 @@ function getMarketEngineData() {
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
-  // 使用 Asia/Taipei 台北時區精準判定小時數
+  // 1. 使用 Asia/Taipei 台北時區精準判定小時數與休市日狀態
   const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
   const currentHour = parseInt(currentHourStr, 10);
   
-  // 07:30 ~ 14:29 為老巴盤前值班，14:30 ~ 07:29 為小羅盤後值班
   const isMorning = (currentHour >= 7 && currentHour < 14);
-  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '🌆 盤後模式 (14:30 小羅午茶值班)';
+  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '<ctrl42> 盤後模式 (14:30 小羅午茶值班)';
+
+  const status = isMarketOpen(new Date());
+  const marketStatusPayload = {
+    isOpen: status.isOpen,
+    reason: status.reason,
+    badgeText: status.isOpen ? '🟢 正常交易日' : `☕ 今日休市 (${status.reason})`
+  };
 
   const data = {
     date: '2026-07-24',
@@ -1089,15 +1165,16 @@ function getMarketEngineData() {
     phase: '順風/中性',
     actionGuide: '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！',
     navMode: navMode,
+    marketStatus: marketStatusPayload,
     dcaGuide: '🟢 明天照常扣款，維持原本扣款金額即可！',
     aiDutyAdvisor: isMorning ? '老巴' : '小羅',
     aiActiveTitle: isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光',
     aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 14:30 值班 (小羅)',
     aiActiveStory: isMorning 
       ? '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！'
-      : '[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,654.84 點，季線乖離 -0.87% 屬於便宜區，長線勝率非常高！',
+      : '【今天市場最大的變化】\n今天市場真正改變的是指數在適度拉回後，季線乖離率回落至 -0.87%，正式進入具備長線勝率保護的「便宜通道」，但 VIX 仍平穩收在 18.58，顯示並無恐慌拋售。\n\n【為什麼會這樣？】\n季線 5日斜率維持強勢走升（+0.25%），代表中長線多頭底座極為堅固。雖然夜盤 EWT 跌 1.83% 影響短線情緒，但總體位階仍穩居順風/中性，今日回檔屬於健康再平衡。\n\n【市場畫面】\n今天的市場就像是一艘在平穩海面上降速維護的巨輪，船身完全沒有劇烈搖晃，只是在為下一段航程整備能量。\n\n【明天值得觀察】\n明天開盤請觀察夜盤開低後的承接力道，留意季線下方低估買盤展現出的強韌支撐。',
     aiMorningStory: '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！',
-    aiAfternoonStory: '☕ 小羅的盤後午茶時光\n\n【今天市場最大的變化】\n今天市場真正改變的是指數在適度拉回後，季線乖離率回落至 -0.87%，正式進入具備長線勝率保護的「便宜通道」，但 VIX 仍平穩收在 18.58，顯示並無恐慌拋售。\n\n【為什麼會這樣？】\n季線 5日斜率維持強勢走升（+0.25%），代表中長線多頭底座極為堅固。雖然夜盤 EWT 跌 1.83% 影響短線情緒，但總體位階仍穩居順風/中性，今日回檔屬於健康再平衡。\n\n【市場畫面】\n今天的市場就像是一艘在平穩海面上降速維護的巨輪，船身完全沒有劇烈搖晃，只是在為下一段航程整備能量。\n\n【明天值得觀察】\n明天開盤請觀察夜盤開低後的承接力道，留意季線下方低估買盤展現出的強韌支撐。',
+    aiAfternoonStory: '【今天市場最大的變化】\n今天市場真正改變的是指數在適度拉回後，季線乖離率回落至 -0.87%，正式進入具備長線勝率保護的「便宜通道」，但 VIX 仍平穩收在 18.58，顯示並無恐慌拋售。\n\n【為什麼會這樣？】\n季線 5日斜率維持強勢走升（+0.25%），代表中長線多頭底座極為堅固。雖然夜盤 EWT 跌 1.83% 影響短線情緒，但總體位階仍穩居順風/中性，今日回檔屬於健康再平衡。\n\n【市場畫面】\n今天的市場就像是一艘在平穩海面上降速維護的巨輪，船身完全沒有劇烈搖晃，只是在為下一段航程整備能量。\n\n【明天值得觀察】\n明天開盤請觀察夜盤開低後的承接力道，留意季線下方低估買盤展現出的強韌支撐。',
     metricsStatus: {
       dist60: '偏低/恐慌',
       dist240: '偏高/熱絡',

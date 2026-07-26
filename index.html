@@ -309,8 +309,9 @@
       </div>
       <div class="status-badge">
         <span class="status-dot"></span>
+        <span id="marketStatusTag" style="font-weight: 700; color: #2dd4bf; margin-right: 8px;">🟢 正常交易日</span>
         <span id="navMode" style="font-weight: 700; color: #38bdf8; margin-right: 6px;">🌅 盤前模式</span>
-        Single Source of Truth Live (<span id="dataDate">2026-07-24</span>)
+        (<span id="dataDate">2026-07-24</span>)
       </div>
     </header>
 
@@ -494,6 +495,15 @@
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
       if (data.dcaGuide && data.dcaGuide !== 'N/A') document.getElementById('dcaGuide').textContent = data.dcaGuide;
+
+      // 交易日狀態標籤 (🟢 正常交易日 vs ☕ 今日休市)
+      if (data.marketStatus) {
+        const tag = document.getElementById('marketStatusTag');
+        if (tag) {
+          tag.textContent = data.marketStatus.badgeText || (data.marketStatus.isOpen ? '🟢 正常交易日' : `☕ 今日休市 (${data.marketStatus.reason})`);
+          tag.style.color = data.marketStatus.isOpen ? '#2dd4bf' : '#fb7185';
+        }
+      }
 
       // 單一 AI 顧問值班卡片輪播 (Asia/Taipei 時區：07:30 老巴早餐 / 14:30 小羅午茶)
       let currentHour = 20;
