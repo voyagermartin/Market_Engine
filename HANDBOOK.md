@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.0)
+# HANDBOOK.md (v1.6.1)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -68,9 +68,12 @@
   - 專用模型: `gemini-1.5-flash`
   - 輸出位置: `DASHBOARD` `B24` (小羅午茶卡片) 與 `HISTORY_LOG` 第 3 列 K 欄 (`AI_Afternoon_Story`)
 
-## ⑦ Dashboard / UI (v1.6.0 品牌與護眼大升級)
+## ⑦ Dashboard / UI (v1.6.1 招財 3D 牛市圖示版)
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3` (含休市日測試)
+- **招財 App 圖示與 Favicon (v1.6.1)**:
+  - **3D 招財金牛與牛市上升 K 線強效 Icon** (`favicon.png` / `icon.png`)
+  - 象徵金牛奔騰、財富增長、長線必勝的強大視覺與吸金質感！
 - **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
   - **品牌人設**: `巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)`
   - **字級護眼**: 核心指引與 AI 觀點顯著放大至 `1.2rem ~ 1.25rem`，`line-height: 1.85`
@@ -85,10 +88,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Sprint 5 / Step 1 完工發布 (品牌人設升級、字級放大護眼、觀念導航與頁尾警語)。
+v1.6.1 招財 3D 金牛與牛市趨勢 Icon 設計與全站發布。
 
 ## ⑩ Current Version
-v1.6.0 (Sprint 5 Step 1 品牌與護眼體驗發布版)
+v1.6.1 (招財 3D 牛市圖示與 Favicon 發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -96,7 +99,7 @@ v1.6.0 (Sprint 5 Step 1 品牌與護眼體驗發布版)
 - Milestone 3: 核心判定 Engine & 儀表板建置 (DASHBOARD & HISTORY_LOG) 【已完成】
 - Milestone 4: 舊資料遷移、Web App 部署與 GitHub Pages 開啟 【已完成】
 - Milestone 5: 雙時段自動更新、每月定期定額扣款卡與 AI 解讀單一值班輪播 【已完成】
-- Sprint 5: 品牌人設升級、字級放大護眼、觀念導航與頁尾警語 【已完成 - Sprint 5 Step 1】
+- Sprint 5: 品牌人設升級、字級放大護眼、觀念導航、頁尾警語與招財 3D Icon 【已完成】
 
 ---
 ### 施工紀錄 (Audit Trail)
@@ -119,16 +122,18 @@ v1.6.0 (Sprint 5 Step 1 品牌與護眼體驗發布版)
      - **觀念導航**：新增 `🧭 觀念導航與指標說明` 卡片（含 ⚙️ 工具箱與 🏛️ 紀律/機會/命運 三大哲學）。
      - **頁尾警語**：新增溫馨琥珀金免責聲明與風險提示卡片。
      - **溫柔人味視覺**：全站調配 Warm Amber Gold 微光暗色調體驗。
-  9. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Sprint 5 Step 1 完工發布。
+  9. **招財 3D 金牛與牛市上升 K 線圖示發布 (v1.6.1)**：
+     - **generate_image 產出**：打造包含金屬質感 3D 招財金牛、綠色牛市強勢上升 K 線與金幣流動的超高顏值 App Icon (`favicon.png` / `icon.png`)。
+     - **全站整合**：於 `index.html` 頂部品牌標題與 `<head>` 瀏覽器標籤頁完整連動顯示。
+  10. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
+- **目前停止位置**: Sprint 5 招財圖示與全站升級完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 品牌人設升級、字級放大護眼、觀念導航與頁尾警語 (v1.6.0)
-- **視覺與品牌升級**：
-  - 頂部與 AI 卡片確立為 `巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)`。
-  - 將核心行動指引、扣款卡與 AI 觀點文字顯著放大（`1.15rem ~ 1.25rem`），提升閱讀舒適度。
-  - 打造 `🧭 觀念導航` 區塊與溫馨琥珀金頁尾免責聲明。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@24`) 與 Git Push 成功發布。
+### 📅 2026-07-26 招財 3D 牛市圖示與全站升級 (v1.6.1)
+- **圖示設計與部署**：
+  - 運用 `generate_image` 設計象徵財富暴增、牛市奔騰的黑金 3D 金牛與綠色強勢上升箭頭 Icon。
+  - 將 `favicon.png` 與 `icon.png` 部署至專案根目錄，完美替換原本的預設 Emoji。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@25`) 與 Git Push 成功發布。
