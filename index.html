@@ -309,6 +309,7 @@
       </div>
       <div class="status-badge">
         <span class="status-dot"></span>
+        <span id="navMode" style="font-weight: 700; color: #38bdf8; margin-right: 6px;">🌅 盤前模式</span>
         Single Source of Truth Live (<span id="dataDate">2026-07-24</span>)
       </div>
     </header>
@@ -328,6 +329,17 @@
         <div class="action-body" id="actionGuide">
           市場處於 P25~P75 正常常態通道。建議續抱核心部位，維持標準再平衡。
         </div>
+      </div>
+    </div>
+
+    <!-- DCA Decision Card (Milestone 5) -->
+    <div class="glass-card" style="margin-bottom: 24px; border-left: 4px solid #14b8a6; padding: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #2dd4bf; margin: 0;">📅 每月定期定額扣款決策卡 (Monthly DCA Card)</h3>
+        <span style="font-size: 12px; color: #94a3b8;">扣款決策日：每月 6 / 16 / 26 日 (17:30前)</span>
+      </div>
+      <div id="dcaGuide" style="font-size: 15px; font-weight: 700; color: #f8fafc; background: rgba(20, 184, 166, 0.15); padding: 12px 16px; border-radius: 8px;">
+        🟢 建議維持正常定期定額扣款
       </div>
     </div>
 
@@ -381,6 +393,23 @@
         <div class="metric-val-row">
           <span class="metric-val" id="valEwtChange">▼ 1.83%</span>
           <span class="metric-tag" id="tagEwtChange">⚠️ 夜盤急跌</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Story Agent Section (Milestone 5) -->
+    <h2 class="section-title">🤖 AI 市場解讀專區 (AI Story Agent Schema)</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px;">
+      <div class="glass-card" style="border-top: 3px solid #818cf8; padding: 16px;">
+        <div style="font-size: 14px; font-weight: 700; color: #a5b4fc; margin-bottom: 8px;">🤖 AI 盤前晨報解讀</div>
+        <div id="aiMorningStory" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+          [AI Agent 晨報] 夜盤 EWT 呈現 -1.83% 急跌，開盤宜留意季線下尋支撐，維持紀律性分批觀察。
+        </div>
+      </div>
+      <div class="glass-card" style="border-top: 3px solid #c084fc; padding: 16px;">
+        <div style="font-size: 14px; font-weight: 700; color: #e9d5ff; margin-bottom: 8px;">☕ AI 盤後午茶解讀</div>
+        <div id="aiAfternoonStory" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+          [AI Agent 午茶] 今日加權指數收在 43,654.84 點，季線乖離率位居 -0.87% 低估通道，長線具備優良勝率空間。
         </div>
       </div>
     </div>
@@ -456,8 +485,12 @@
     function updateDOM(data) {
       if (!data) return;
       if (data.date && data.date !== 'N/A') document.getElementById('dataDate').textContent = data.date;
+      if (data.navMode && data.navMode !== 'N/A') document.getElementById('navMode').textContent = data.navMode;
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
+      if (data.dcaGuide && data.dcaGuide !== 'N/A') document.getElementById('dcaGuide').textContent = data.dcaGuide;
+      if (data.aiMorningStory && data.aiMorningStory !== 'N/A') document.getElementById('aiMorningStory').textContent = data.aiMorningStory;
+      if (data.aiAfternoonStory && data.aiAfternoonStory !== 'N/A') document.getElementById('aiAfternoonStory').textContent = data.aiAfternoonStory;
       
       if (data.twii && data.twii !== 'N/A') document.getElementById('valTwii').textContent = data.twii;
       if (data.dist60 && data.dist60 !== 'N/A') document.getElementById('valDist60').textContent = data.dist60;
