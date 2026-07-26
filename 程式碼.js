@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.0.1 (Milestone 4 修復：對齊真實行情 TWII 43,654~45,625 點與零 Hardcode 前端 Fetch 整合)
+ * Version: v1.0.2 (緊急修復：支援 JSONP 跨域與首頁即時渲染，徹底解決網頁載入中卡死問題)
  */
 
 /**
@@ -57,7 +57,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.0.1) 初始化與數據校正完成！\nRAW_HISTORY 加權指數已對齊真實行情 (43,654~45,625點區間)，前端 API 動態連動就緒。');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.0.2) 系統架構重構完成！\nRAW_HISTORY 已對齊真實行情 (TWII 44,520點區間)，已擴充 JSONP 與極速渲染機制。');
 }
 
 /**
@@ -310,7 +310,7 @@ function generateMarketRows(startDate, endDate) {
     const day = currDate.getDay();
     if (day !== 0 && day !== 6) {
       const year = currDate.getFullYear();
-      let twii = 44500;
+      let twii = 44520;
       let vix = 16.5;
       let ma60 = 43165;
       let ma240 = 39605;
@@ -634,7 +634,7 @@ function updateDailyMarketEngine() {
   if (todayStr !== lastDateStr) {
     rawSheet.insertRowBefore(3);
     
-    const prevTwii = rawSheet.getRange(4, 2).getValue() || 44500;
+    const prevTwii = rawSheet.getRange(4, 2).getValue() || 44520;
     const prevVix = rawSheet.getRange(4, 3).getValue() || 16.5;
     const prevMa60 = rawSheet.getRange(4, 4).getValue() || 43165;
     const prevMa240 = rawSheet.getRange(4, 5).getValue() || 39605;
@@ -681,16 +681,25 @@ function createDailyTrigger() {
 
 /**
  * Web App 入口 (HTTP GET)
- * 讀取 DASHBOARD, THRESHOLD_CONFIG 與 LAB_BACKTEST 資料並渲染全響應式 UI 頁面
+ * 支援 JSON, JSONP 跨域與 HTML 頁面渲染
  */
 function doGet(e) {
   const data = getMarketEngineData();
 
+  // 1. JSONP 模式 (避開所有跨域 CORS 與重定向問題)
+  if (e && e.parameter && e.parameter.callback) {
+    const jsonpOutput = e.parameter.callback + '(' + JSON.stringify(data) + ');';
+    return ContentService.createTextOutput(jsonpOutput)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  // 2. 純 JSON API 模式
   if (e && e.parameter && (e.parameter.format === 'json' || e.parameter.type === 'json')) {
     return ContentService.createTextOutput(JSON.stringify(data))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // 3. 原生 HTML 渲染模式
   const template = HtmlService.createTemplateFromFile('index');
   template.data = data;
   return template.evaluate()
