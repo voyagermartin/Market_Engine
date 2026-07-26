@@ -712,9 +712,19 @@ function doGet(e) {
  * 抓取 Market Engine 全站數據 API (直接抓取 DASHBOARD)
  */
 function getMarketEngineData() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const dashboardSheet = ss.getSheetByName('DASHBOARD');
-  const backtestSheet = ss.getSheetByName('LAB_BACKTEST');
+  let ss = null;
+  try {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {}
+  
+  if (!ss) {
+    try {
+      ss = SpreadsheetApp.openById('1iaK_HLrMWb8ndUehCw3tsoLZQEE7PpmfYrsYdexP6CbrBkEk7_EyGJdC');
+    } catch (e) {}
+  }
+
+  const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
+  const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
   const data = {
     date: 'N/A',
