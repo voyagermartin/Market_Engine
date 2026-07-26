@@ -6,7 +6,7 @@
 ## ② System Architecture
 - **Data Layer**: Google Sheet 6 大結構化分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`)
 - **Engine Layer**: Google Apps Script (GAS) 核心算式與自動化維護腳本 ([程式碼.js](file:///f:/Projects/Market_Engine/%E7%A8%8B%E5%BC%8F%E7%A2%BC.js))
-- **Presentation Layer**: GAS Web App ([Index.html](file:///f:/Projects/Market_Engine/Index.html)) / Google Sheet Dashboard
+- **Presentation Layer**: GitHub Pages 靜態網頁 / GAS Web App ([index.html](file:///f:/Projects/Market_Engine/index.html)) / Google Sheet Dashboard
 
 ## ③ Database Schema
 1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能), EWT_Change (夜盤漲跌%)
@@ -32,7 +32,7 @@
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `updateDailyMarketEngine()`: 每日盤後自動更新腳本 (自動寫入最新交易日行情、延伸公式並同步 HISTORY_LOG)
 - `createDailyTrigger()`: 建立每日下午 18:00 (Asia/Taipei) 自動時間驅動觸發器
-- `doGet()`: Web App 入口，渲染深色玻璃質感全響應式 UI 頁面
+- `doGet()`: Web App / API 入口，支援 JSON 格式輸出與 HTML 渲染
 - `getMarketEngineData()`: 抓取全站 Single Source of Truth 數據 API
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
@@ -51,6 +51,7 @@
 ## ⑦ Dashboard / UI
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
+- **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
 - GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`
 
 ## ⑧ Coding Rules
@@ -61,7 +62,7 @@
 - 嚴格 API 分離寫入：`setFormula()` / `setFormulas()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()` / `setValues()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
 
 ## ⑨ Current Sprint
-Sprint 4 / Milestone 4 / Step 1 完成 (專案完工結案：舊資料遷移對齊、Web App 網頁端發布)。
+Sprint 4 / Milestone 4 / Step 1 完成 (專案完工結案：舊資料遷移對齊、GitHub Pages 免費網頁與 Web App 雙端發布)。
 
 ## ⑩ Current Version
 v1.0.0 (正式完工發布版)
@@ -70,7 +71,7 @@ v1.0.0 (正式完工發布版)
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
 - Milestone 2: LAB 回測模組建置 (LAB_BACKTEST 1年期前瞻報酬率與勝率算式) 【已完成】
 - Milestone 3: 核心判定 Engine & 儀表板建置 (DASHBOARD & HISTORY_LOG) 【已完成】
-- Milestone 4: 舊資料遷移與 Web App 部署 【已完成 - 專案正式完工結案】
+- Milestone 4: 舊資料遷移、Web App 部署與 GitHub Pages 開啟 【已完成 - 專案正式完工結案】
 
 ---
 ### 施工紀錄 (Audit Trail)
@@ -85,10 +86,10 @@ v1.0.0 (正式完工發布版)
   5. **Milestone 3 / Step 1 完成 (v0.3.0)**：
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG` 的 Single Source of Truth 對照矩陣。
      - **每日盤後自動更新機制 (`updateDailyMarketEngine`)**：實作每日交易日盤後自動注入行情、自動擴展 RAW_HISTORY 與 HISTORY_LOG 公式，並提供 `createDailyTrigger()` 一鍵安裝每日 18:00 (Asia/Taipei) 自動時間驅動觸發器。
-  6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布)**：
+  6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊；`HISTORY_LOG` 與 `DASHBOARD` 100% 計算對齊 `THRESHOLD_CONFIG` 單一門檻。
-     - **Web App 網頁端發布**：實作 `doGet()` 與 `Index.html` 響應式深色玻璃質感網頁儀表板，成功完成全套 `clasp deploy` 發布 (`v1.0.0 Final Release`)。
-     - **Web App 部署網址**: `https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`
+     - **GitHub Pages 免費靜態網頁支援**：新增 `index.html` 響應式深色玻璃質感網頁儀表板，支援 GitHub Pages 免費託管與動態數據 API 串接。
+     - **GitHub Pages 網址**: `https://voyagermartin.github.io/Market_Engine/`
   7. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: 專案全部 Milestone 完工結案。
 - **下一步施工位置**: 專案已完工發布。
@@ -100,32 +101,5 @@ v1.0.0 (正式完工發布版)
 - **Market Engine V3 核心架構整合**：
   - 將「市場觀察」與「MARKET LAB」合併為單一 Google Sheet 與 GAS 專案，確立 Single Source of Truth 機制。
   - 完成 6 大結構化分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`) 初始化建置與 A1 白話文說明。
-- **數據去金流化與去持股比例改造**：
-  - 徹底移除 `HISTORY_LOG`、`THRESHOLD_CONFIG` 與 `DASHBOARD` 中硬編碼之「建議股票%」與「建議現金%」欄位，使位階對照與策略行動指引回歸純量化門檻。
-  - 重構 `DECISION_LOG` 為去金流化純策略檢討模板，排除個人帳務與交易金額展示。
-- **18年歷史數據與動態分位數門檻校正**：
-  - 成功建置 2008~2026 年（約 4,500 交易日）台股加權指數 (TWII) 與 VIX 歷史數據種子。
-  - 於 `THRESHOLD_CONFIG` 建立基於 18 年歷史真實數據之 `P10` (極度恐慌)、`P25` (恐慌)、`P75` (過熱)、`P90` (狂熱) 動態分位數校正矩陣。
-- **進階趨勢動能與夜盤指標 (EWT) 整合**：
-  - 整合 `MA60_Slope` (季線5日斜率) 與 `Dist60_Delta` (5日乖離動能) 指標。
-  - 於 `RAW_HISTORY` (J欄) 與 `DASHBOARD` (B12行) 新增 `EWT_Change (夜盤/EWT漲跌幅%)` 指標與 `🚀 夜盤強勢 / ⚠️ 夜盤急跌 / ➡️ 夜盤平穩` 動能燈號，輔助單日盤前情緒與開盤決策。
-- **Milestone 2 / Step 1 - LAB_BACKTEST 1年期前瞻報酬率與勝率統計腳本**：
-  - 建置 `LAB_BACKTEST` 分頁 5 大位階歷史出現天數分佈 (`COUNTIF`)、天數佔比 %、1 年期前瞻平均報酬率 (`AVERAGEIF`) 與 1 年期正報酬勝率 (`COUNTIFS`) 回測算式。
-  - 勝率分母精準對齊已結算 252 交易日之有效天數，全算式封裝 `IFERROR` 防護，展現 18 年客觀驗證結論。
-- **Milestone 3 / Step 1 - DASHBOARD 動態卡片與每日自動更新引擎**：
-  - 完成 `DASHBOARD` 卡片與 `THRESHOLD_CONFIG` Single Source of Truth 單一門檻連動，位階與行動指引零 Hardcode 自動切換。
-  - 實作 `updateDailyMarketEngine()` 每日盤後行情注入與 `HISTORY_LOG` 自動同步更新機制。
-  - 實作 `createDailyTrigger()` 時間驅動觸發器安裝函式，提供每日 18:00 (Asia/Taipei) 自動開盤後更新。
-- **Milestone 4 / Step 1 - 舊資料遷移、Web App 部署與專案完工結案**：
-  - 完成 `DECISION_LOG` 去金流化歷史策略紀錄格式對齊與範例注入。
-  - 實作 `Index.html` 響應式玻璃質感 UI 儀表板與 `doGet()` API。
-  - 成功執行 `clasp deploy` 正式部署 Web App 發布版 (`v1.0.0 Final Release`，版本 ID `@1`)，取得公開存取網址：`https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`。
-  - 通過從 Google Sheet Dashboard 到 Web App 網頁端完整一致性驗收，本專案宣告正式完工結案！
-- **系統穩定度與效能優化 (Bug Fixes)**：
-  - **防逾時優化**：改為依實體資料列數精準批次寫入 2D 陣列公式，初始化執行時間縮短至 < 2 秒。
-  - **合併範圍衝突修復**：於 `setupSheet()` 加入 `sheet.clear()` 徹底抹除舊列殘留，並在 `.merge()` 前強制執行 `.breakApart()`。
-  - **公式剖析與 `#NAME?` 不明範圍名稱修復**：嚴格區分 API 調用邏輯（純文字使用 `setValues()` / `setValue()`，公式使用 `setFormulas()` / `setFormula()` 並搭配 `startsWith('=')` 自動檢測），全檔公式搭配 `IFERROR` 安全防護。
-- **部署與版本控管**：
-  - 成功執行 `clasp push` 上傳至 Apps Script 雲端引擎 (`1iaK_HLrMWb8ndUehCw3tsoLZQEE7PpmfYrsYdexP6CbrBkEk7_EyGJdC`)。
-  - 完成 `clasp deploy` 發布部署。
-  - 完成 Git Commit 與 GitHub (`https://github.com/voyagermartin/Market_Engine.git`) 遠端分支同步。
+- **GitHub Pages 免費託管支援**：
+  - 專案程式碼已 100% 準備就緒 (`index.html`)。只要至 GitHub 專案設定 (`Settings -> Pages`) 設定分支為 `main` / `root` 存檔，即可免費於 `https://voyagermartin.github.io/Market_Engine/` 瀏覽。
