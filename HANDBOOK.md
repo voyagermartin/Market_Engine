@@ -132,8 +132,20 @@ v1.6.1 (招財 3D 牛市圖示與 Favicon 發布版)
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 招財 3D 牛市圖示與全站升級 (v1.6.1)
-- **圖示設計與部署**：
-  - 運用 `generate_image` 設計象徵財富暴增、牛市奔騰的黑金 3D 金牛與綠色強勢上升箭頭 Icon。
-  - 將 `favicon.png` 與 `icon.png` 部署至專案根目錄，完美替換原本的預設 Emoji。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@25`) 與 Git Push 成功發布。
+### 📅 2026-07-26 全站架構升級、休市連動、品牌人設與護眼體驗完整發布 (v1.1.0 ~ v1.6.1)
+- **核心架構與 AI 導航升級 (v1.1.0 ~ v1.4.2)**：
+  - 新增「若明天要執行定期定額扣款」DCA 決策卡 (`B20`) 與動態買進/觀望邏輯。
+  - 安裝每日 07:30 (老巴盤前) 與 14:30 (小羅盤後) 雙時段自動觸發器 (`createDailyTrigger`)。
+  - 升級 `generateMorningNavigation()` 與 `generateAfternoonNavigation()`，100% 對齊 V3 Database Schema，從 RAW_HISTORY 實體列取數，連動 Single Source of Truth 位階並雙向備份至 HISTORY_LOG (`J3` / `K3`)。
+  - 修正舊觸發器別名 `updateDailyMarketEngine()` 指向盤後更新，徹底解決雲端報錯；網頁端加入正則標題去重，排版更流暢。
+- **休市日判定與情緒連動 (v1.5.0 ~ v1.5.1)**：
+  - 實作 `isMarketOpen(targetDate)` Helper 函式，採用台北時區原生 JavaScript `getDay()` 精準過濾週六/週日及 Google Calendar 台灣國定假日。
+  - 雙 AI 導航腳本連動休市日 Prompt，自動聚焦於「夜盤 EWT 情緒」、「VIX 國際風險」與「下個交易日觀察方向」。
+  - 盤後更新自動跳過休市日的 HISTORY_LOG append 操作，防範無效數據列。
+  - 網頁頂部動態狀態列實時呈現 `☕ 今日休市` 與 `🟢 正常交易日`。
+- **品牌人設、護眼體驗與招財 3D Icon (v1.6.0 ~ v1.6.1)**：
+  - 品牌升級為 `巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)`，確立「日夜巡邏看盤・嚴謹分析市場・陪伴守護資產的專屬 AI 專家小組」定位。
+  - 全站字級放大（核心指引與 AI 觀點放大至 `1.2rem ~ 1.25rem`，`line-height: 1.85`），大幅提升長輩與日常護眼閱讀體驗。
+  - 新增 `🧭 觀念導航與指標說明` 區塊（含 ⚙️ 工具箱與 🏛️ 紀律、機會、命運 三大策略哲學）及頁尾 `⚠️ 免責聲明與風險提示` 卡片。
+  - 打造 Warm Amber Gold 溫柔暗色調視覺，並生成 3D 招財金牛與牛市上升 K 線圖示 (`favicon.png` / `icon.png`)，完成全站與發布綁定。
+- **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@25`) 與 GitHub `main` 分支推播。
