@@ -397,26 +397,15 @@
       </div>
     </div>
 
-    <!-- AI Story Agent Section (v1.2.1: 巴菲特‧索羅斯 雙時段輪播) -->
-    <h2 class="section-title">🤖 AI 顧問 巴菲特‧索羅斯 觀點 (AI Market Insights)</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px;">
-      <div class="glass-card" style="border-top: 3px solid #818cf8; padding: 18px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-          <span style="font-size: 15px; font-weight: 700; color: #a5b4fc;">🍔 老巴的盤前早餐時間</span>
-          <span style="font-size: 11px; background: rgba(99, 102, 241, 0.2); color: #c7d2fe; padding: 2px 8px; border-radius: 12px;">盤前 07:30 觀察</span>
-        </div>
-        <div id="aiMorningStory" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-          [老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！
-        </div>
+    <!-- AI Story Agent Section (v1.2.2: 單一 AI 顧問值班輪播) -->
+    <h2 class="section-title">🤖 AI 顧問值班觀點 (AI Advisor on Duty)</h2>
+    <div class="glass-card" id="aiAdvisorCard" style="border-top: 3px solid #818cf8; padding: 20px; margin-bottom: 32px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <span style="font-size: 16px; font-weight: 700; color: #a5b4fc;" id="aiActiveTitle">🍔 老巴的盤前早餐時間</span>
+        <span style="font-size: 11px; background: rgba(99, 102, 241, 0.2); color: #c7d2fe; padding: 4px 10px; border-radius: 12px;" id="aiActiveBadge">盤前 07:30 值班 (老巴)</span>
       </div>
-      <div class="glass-card" style="border-top: 3px solid #c084fc; padding: 18px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-          <span style="font-size: 15px; font-weight: 700; color: #e9d5ff;">☕ 小羅的盤後午茶時光</span>
-          <span style="font-size: 11px; background: rgba(168, 85, 247, 0.2); color: #e9d5ff; padding: 2px 8px; border-radius: 12px;">盤後 14:30 總結</span>
-        </div>
-        <div id="aiAfternoonStory" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-          [小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,654.84 點，季線乖離 -0.87% 屬於便宜區，長線勝率非常高！
-        </div>
+      <div id="aiActiveStory" style="font-size: 14px; color: #f8fafc; line-height: 1.6;">
+        [老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！
       </div>
     </div>
 
@@ -495,8 +484,30 @@
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
       if (data.dcaGuide && data.dcaGuide !== 'N/A') document.getElementById('dcaGuide').textContent = data.dcaGuide;
-      if (data.aiMorningStory && data.aiMorningStory !== 'N/A') document.getElementById('aiMorningStory').textContent = data.aiMorningStory;
-      if (data.aiAfternoonStory && data.aiAfternoonStory !== 'N/A') document.getElementById('aiAfternoonStory').textContent = data.aiAfternoonStory;
+
+      // 單一 AI 顧問值班卡片輪播 (07:30 老巴早餐 / 14:30 小羅午茶)
+      const currentHour = (new Date()).getHours();
+      const isMorning = (currentHour >= 5 && currentHour < 14);
+
+      let title = isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光';
+      let badge = isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 14:30 值班 (小羅)';
+      let story = isMorning 
+        ? (data.aiMorningStory || '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！')
+        : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,654.84 點，季線乖離 -0.87% 屬於便宜區，長線勝率非常高！');
+      let border = isMorning ? '#818cf8' : '#c084fc';
+      let titleColor = isMorning ? '#a5b4fc' : '#e9d5ff';
+
+      const card = document.getElementById('aiAdvisorCard');
+      if (card) card.style.borderTopColor = border;
+
+      const tElem = document.getElementById('aiActiveTitle');
+      if (tElem) { tElem.textContent = title; tElem.style.color = titleColor; }
+
+      const bElem = document.getElementById('aiActiveBadge');
+      if (bElem) bElem.textContent = badge;
+
+      const sElem = document.getElementById('aiActiveStory');
+      if (sElem) sElem.textContent = story;
       
       if (data.twii && data.twii !== 'N/A') document.getElementById('valTwii').textContent = data.twii;
       if (data.dist60 && data.dist60 !== 'N/A') document.getElementById('valDist60').textContent = data.dist60;

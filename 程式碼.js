@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.2.1 (小修復：策略白話化、明天定期定額邏輯、AI 顧問「老巴早餐/小羅午茶」輪播)
+ * Version: v1.2.2 (小修正：AI 顧問「老巴早餐 / 小羅午茶」單一值班卡片輪播)
  */
 
 /**
@@ -13,8 +13,8 @@ function onOpen() {
     .addItem('建置/初始化所有分頁 (Full Setup)', 'setupMarketEngineV3')
     .addSeparator()
     .addItem('⏰ 安裝雙時段自動更新觸發器 (07:30 & 14:30)', 'createDailyTrigger')
-    .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐)', 'updateMorningMarketEngine')
-    .addItem('<ctrl42> 執行盤後更新測試 (14:30 Afternoon 小羅午茶)', 'updateAfternoonMarketEngine')
+    .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
+    .addItem('🌆 執行盤後更新測試 (14:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addSeparator()
     .addItem('🚀 擴展載入 2008~2026 18年完整歷史數據', 'seedFullHistoricalData')
     .addItem('更新/套用計算公式與樣式', 'applyFormulasAndStyles')
@@ -46,7 +46,7 @@ function setupMarketEngineV3() {
   const backtestSheet = setupSheet(ss, 'LAB_BACKTEST', 20, 6);
   buildLabBacktestSheet(backtestSheet);
 
-  // 6. 建立 DASHBOARD (日常觀察儀表板 - 含定期定額卡與 AI 顧問老巴/小羅)
+  // 6. 建立 DASHBOARD (日常觀察儀表板 - 含定期定額卡與 AI 顧問單一值班輪播)
   const dashboardSheet = setupSheet(ss, 'DASHBOARD', 35, 8);
   buildDashboardSheet(dashboardSheet);
 
@@ -58,7 +58,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.2.1) 更新完成！\n行動指引白話化、明天定期定額邏輯與 AI 顧問「老巴早餐/小羅午茶」輪播完成。');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.2.2) 更新完成！\nAI 顧問已改為 07:30 老巴早餐 / 14:30 小羅午茶單一卡片值班輪播！');
 }
 
 /**
@@ -108,7 +108,7 @@ function setTableHeader(sheet, rangeStr, headers, bgColor = '#334155') {
 }
 
 // ==========================================
-// 1. THRESHOLD_CONFIG (門檻對照表 - 小學生也能聽懂的超白話行動指引)
+// 1. THRESHOLD_CONFIG (門檻對照表 - 小學生超白話行動指引)
 // ==========================================
 function buildThresholdConfigSheet(sheet) {
   setHeaderBanner(
@@ -130,7 +130,6 @@ function buildThresholdConfigSheet(sheet) {
     '#1e293b'
   );
 
-  // 小學生也能聽懂的超白話行動指引
   const metaValues = [
     ['T1', '極度恐慌', '股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！'],
     ['T2', '恐慌', '股市打折中！價格很划算，維持定期定額並可以逢低多買一點！'],
@@ -518,12 +517,12 @@ function buildLabBacktestSheet(sheet) {
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板 - 含「若明天要執行定期定額」與 AI 顧問老巴/小羅輪播)
+// 5. DASHBOARD (日常觀察儀表板 - 含單一 AI 顧問值班卡片)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【日常觀察儀表板】即時抓取最新 RAW_HISTORY 數據、顯示雙時段模式、明天定期定額扣款卡與 AI 顧問「巴菲特‧索羅斯」領銜解讀。', 
+    '【日常觀察儀表板】即時抓取最新 RAW_HISTORY 數據、顯示雙時段模式、明天定期定額扣款卡與 AI 顧問「巴菲特‧索羅斯」值班解讀。', 
     'E', 
     '#0f172a'
   );
@@ -583,7 +582,7 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B16:E16').merge().setFormula('=IFERROR(VLOOKUP(B15, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE), "等待最新數據對照")')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
 
-  // 小修復：若明天要執行定期定額扣款
+  // 若明天要執行定期定額扣款
   sheet.getRange('18:18').breakApart();
   sheet.getRange('A18:E18').merge().setValue('📅 定期定額扣款決策卡 (若明天要執行定期定額扣款)')
        .setFontWeight('bold').setFontSize(12).setBackground('#0d9488').setFontColor('#ffffff');
@@ -599,9 +598,9 @@ function buildDashboardSheet(sheet) {
     '=IF(OR(B15="恐慌", B15="極度恐慌"), "🚀 明天照常扣款，並且可以加碼多買一點！", IF(B15="順風/中性", "🟢 明天照常扣款，維持原本扣款金額即可！", "⚠️ 明天建議暫停扣款，把錢存起來等打折！"))'
   ).setFontWeight('bold').setFontSize(12).setBackground('#ecfdf5').setFontColor('#065f46');
 
-  // 小修復：AI 顧問「巴菲特‧索羅斯」領銜解讀
+  // AI 顧問值班觀點 (單一卡片輪播)
   sheet.getRange('22:22').breakApart();
-  sheet.getRange('A22:E22').merge().setValue('🤖 AI 顧問 巴菲特‧索羅斯 觀點 (AI Story Carousel)')
+  sheet.getRange('A22:E22').merge().setValue('🤖 AI 顧問 巴菲特‧索羅斯 值班觀點')
        .setFontWeight('bold').setFontSize(12).setBackground('#4f46e5').setFontColor('#ffffff');
 
   sheet.getRange('A23').setValue('🍔 老巴的盤前早餐時間').setFontWeight('bold');
@@ -663,7 +662,7 @@ function buildDecisionLogSheet(sheet) {
 // ==========================================
 
 /**
- * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間)
+ * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
  */
 function updateMorningMarketEngine() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -677,11 +676,11 @@ function updateMorningMarketEngine() {
   rawSheet.getRange(3, 10).setValue(newEwtChange);
 
   SpreadsheetApp.flush();
-  Logger.log('Morning Market Engine update (07:30 - 老巴早餐) completed for ' + today);
+  Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + today);
 }
 
 /**
- * 盤後更新 (每日 14:30 Asia/Taipei - 小羅午茶時光)
+ * 盤後更新 (每日 14:30 Asia/Taipei - 小羅午茶時光值班)
  */
 function updateAfternoonMarketEngine() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -697,7 +696,7 @@ function updateAfternoonMarketEngine() {
   applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
 
   SpreadsheetApp.flush();
-  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶) completed for ' + today);
+  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + today);
 }
 
 /**
@@ -712,7 +711,7 @@ function createDailyTrigger() {
     }
   }
 
-  // 1. 盤前 07:30 觸發器
+  // 1. 盤前 07:30 觸發器 (老巴早餐值班)
   ScriptApp.newTrigger('updateMorningMarketEngine')
     .timeBased()
     .everyDays(1)
@@ -721,7 +720,7 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  // 2. 盤後 14:30 觸發器
+  // 2. 盤後 14:30 觸發器 (小羅午茶值班)
   ScriptApp.newTrigger('updateAfternoonMarketEngine')
     .timeBased()
     .everyDays(1)
@@ -730,7 +729,7 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  SpreadsheetApp.getUi().alert('✅ 成功安裝雙時段自動更新觸發器！\n• 盤前觸發器：每日 07:30 (老巴早餐時間)\n• 盤後觸發器：每日 14:30 (小羅午茶時光)');
+  SpreadsheetApp.getUi().alert('✅ 成功安裝雙時段自動更新觸發器！\n• 07:30 盤前更新：老巴早餐時間值班\n• 14:30 盤後更新：小羅午茶時光值班');
 }
 
 // ==========================================
@@ -767,7 +766,7 @@ function doGet(e) {
 }
 
 /**
- * 抓取 Market Engine 全站數據 API (含白話文、明天定期定額與老巴/小羅 AI 顧問輪播)
+ * 抓取 Market Engine 全站數據 API (單一 AI 顧問值班輪播)
  */
 function getMarketEngineData() {
   let ss = null;
@@ -786,8 +785,8 @@ function getMarketEngineData() {
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
   const currentHour = (new Date()).getHours();
-  const isMorning = (currentHour >= 5 && currentHour < 13);
-  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐)' : '🌆 盤後模式 (14:30 小羅午茶)';
+  const isMorning = (currentHour >= 5 && currentHour < 14);
+  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '<ctrl42> 盤後模式 (14:30 小羅午茶值班)';
 
   const data = {
     date: '2026-07-24',
@@ -802,7 +801,9 @@ function getMarketEngineData() {
     actionGuide: '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！',
     navMode: navMode,
     dcaGuide: '🟢 明天照常扣款，維持原本扣款金額即可！',
+    aiDutyAdvisor: isMorning ? '老巴' : '小羅',
     aiActiveTitle: isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光',
+    aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 14:30 值班 (小羅)',
     aiActiveStory: isMorning 
       ? '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！'
       : '[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,654.84 點，季線乖離 -0.87% 屬於便宜區，長線勝率非常高！',
@@ -834,7 +835,7 @@ function getMarketEngineData() {
     }
   }
 
-  // 2. 抓取 DASHBOARD 今日位階、DCA 扣款卡與 AI 顧問老巴/小羅
+  // 2. 抓取 DASHBOARD 今日位階、DCA 扣款卡與 AI 顧問
   if (dashboardSheet) {
     const p = dashboardSheet.getRange('B15').getDisplayValue();
     const g = dashboardSheet.getRange('B16').getDisplayValue();

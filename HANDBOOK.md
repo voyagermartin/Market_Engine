@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.2.1)
+# HANDBOOK.md (v1.2.2)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -12,7 +12,7 @@
 1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能), EWT_Change (夜盤漲跌%)
 2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正，去持股比例小學生超白話門檻)
 3. `LAB_BACKTEST`: 位階名稱, 歷史天數 (Count), 天數佔比 (%), 1年期平均報酬率 (%), 1年期正報酬勝率 (%), 驗證說明與結論
-4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引, 定期定額扣款決策卡 (若明天要執行扣款), AI 顧問「巴菲特‧索羅斯」領銜解讀
+4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引, 定期定額扣款決策卡 (若明天要執行扣款), AI 顧問單一值班卡片 (07:30 老巴 / 14:30 小羅輪播)
 5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, VIX, 今日位階, MA60_Slope (季線斜率), Dist60_Delta (5日動能), 1年期前瞻報酬率, AI_Morning_Story, AI_Afternoon_Story
 6. `DECISION_LOG`: 日期 (Date), 當時市場位階/訊號, 策略動作 (買進/賣出/再平衡/觀望), 執行說明 (無金額純策略), 策略符合度 (符合/偏離), 策略思考與檢討備註
 
@@ -28,13 +28,13 @@
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含精準 1 年期前瞻報酬率算式）
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問老巴/小羅觀點
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問單一值班卡片
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
-- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 與老巴早餐模式)
-- `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與小羅午茶模式)
+- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 與老巴早餐值班模式)
+- `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與小羅午茶值班模式)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
-- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (含 DCA 扣款卡與 AI 顧問老巴/小羅 payload)
+- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (含 DCA 扣款卡與 AI 顧問單一值班 payload)
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
@@ -52,9 +52,9 @@
   - 過熱 / 狂熱 $\rightarrow$ ⚠️ `明天建議暫停扣款，把錢存起來等打折！`
 
 ## ⑥ AI Agents
-- **AI 顧問 巴菲特‧索羅斯 觀點 (AI Story Carousel)**：
-  - `🍔 老巴的盤前早餐時間` (07:30 盤前觀察)：聚焦夜盤 EWT、開盤撿便宜點與情緒觀察。
-  - `☕ 小羅的盤後午茶時光` (14:30 盤後總結)：聚焦收盤點位、季線乖離位階與歷史勝率評估。
+- **AI 顧問 巴菲特‧索羅斯 單一值班輪播 (AI Advisor Duty Rotation)**：
+  - **盤前時段 (07:30 ~ 14:30)**：畫面上**僅顯示** `🍔 老巴的盤前早餐時間` (老巴值班，聚焦夜盤與開盤撿便宜點)。
+  - **盤後時段 (14:30 ~ 07:30)**：畫面上**僅顯示** `☕ 小羅的盤後午茶時光` (小羅值班，聚焦收盤點位與盤後總結)。
 
 ## ⑦ Dashboard / UI
 - Google Sheet `DASHBOARD` 視覺化對照卡片
@@ -69,17 +69,17 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 1 完美修復完成 (行動指引白話化、明天定期定額邏輯與 AI 顧問老巴/小羅觀點發布)。
+Milestone 5 / Step 1 完美完成 (AI 顧問老巴/小羅單一值班卡片輪播修正完成)。
 
 ## ⑩ Current Version
-v1.2.1 (AI 顧問與白話策略校正發布版)
+v1.2.2 (AI 顧問單一值班輪播發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
 - Milestone 2: LAB 回測模組建置 (LAB_BACKTEST 1年期前瞻報酬率與勝率算式) 【已完成】
 - Milestone 3: 核心判定 Engine & 儀表板建置 (DASHBOARD & HISTORY_LOG) 【已完成】
 - Milestone 4: 舊資料遷移、Web App 部署與 GitHub Pages 開啟 【已完成】
-- Milestone 5: 雙時段自動更新、每月定期定額扣款卡與 AI 解讀預留架構 【已完成 - Milestone 5 Step 1】
+- Milestone 5: 雙時段自動更新、每月定期定額扣款卡與 AI 解讀單一值班輪播 【已完成 - Milestone 5 Step 1】
 
 ---
 ### 施工紀錄 (Audit Trail)
@@ -94,12 +94,10 @@ v1.2.1 (AI 顧問與白話策略校正發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 1 細節小修正完成 (v1.2.1)**：
-     - **白話文行動指引**：將 5 大位階行動指引全數升級為「小學生也能聽懂」的一句話超白話建議。
-     - **「若明天要執行定期定額扣款」決策卡**：將扣款提示改為更符合實際需求的「若明天要執行扣款」判斷邏輯。
-     - **AI 顧問「巴菲特‧索羅斯」觀點輪播**：盤前顯示「🍔 老巴的盤前早餐時間」、盤後顯示「☕ 小羅的盤後午茶時光」，使解讀焦點清晰不混淆。
+  7. **Milestone 5 / Step 1 AI 顧問單一值班輪播 (v1.2.2)**：
+     - **單一值班卡片切換**：畫面上改為僅呈現「單一 AI 顧問值班卡片」。07:30 盤前由老巴 (`老巴的盤前早餐時間`) 值班，14:30 盤後由小羅 (`小羅的盤後午茶時光`) 值班，責任解讀 100% 清晰不混淆。
   8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 5 Step 1 完美修復完成。
+- **目前停止位置**: Milestone 5 Step 1 完美完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
@@ -120,8 +118,8 @@ v1.2.1 (AI 顧問與白話策略校正發布版)
 - **完工與版本控管同步**：
   - 成功執行 `clasp push` (Apps Script 雲端同步) 與 `git push origin main` (推播至 GitHub `main` 分支)。
 
-### 📅 2026-07-26 行動指引白話化、明天定期定額與 AI 顧問「老巴/小羅」 (v1.2.1)
-- **行動指引超白話化**：五大位階行動指引全數改成小學生也能理解的直白建議。
-- **扣款卡邏輯修正**：改為「若明天要執行定期定額扣款」提示，輸出「明天照常扣款」、「加碼多買一點」或「暫停扣款存錢」指引。
-- **AI 顧問領銜輪播**：盤前呈現「🍔 老巴的盤前早餐時間」，盤後呈現「☕ 小羅的盤後午茶時光」，責任解讀清晰明確。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@14`) 與 Git Push 成功發布。
+### 📅 2026-07-26 AI 顧問老巴/小羅單一值班卡片輪播修正 (v1.2.2)
+- **單一值班卡片輪播**：
+  - 將畫面原本同時呈現老巴與小羅雙卡片改為「單一 AI 顧問值班卡片」。
+  - 07:30 盤前更新後**僅由老巴值班** (老巴的盤前早餐時間)，14:30 盤後更新後**換小羅值班** (小羅的盤後午茶時光)，徹底終結雙卡混淆。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@15`) 與 Git Push 成功發布。
