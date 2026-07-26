@@ -32,7 +32,7 @@
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `updateDailyMarketEngine()`: 每日盤後自動更新腳本 (自動寫入最新交易日行情、延伸公式並同步 HISTORY_LOG)
 - `createDailyTrigger()`: 建立每日下午 18:00 (Asia/Taipei) 自動時間驅動觸發器
-- `doGet()`: Web App / API 入口，支援 JSON 格式輸出與 HTML 渲染
+- `doGet()`: Web App / API 入口，支援 JSON 跨域 API (`?format=json`) 與 HTML 渲染
 - `getMarketEngineData()`: 抓取全站 Single Source of Truth 數據 API
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
@@ -52,7 +52,7 @@
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
 - **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
-- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`
+- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
@@ -60,6 +60,7 @@
 - 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
 - 徹底清除與合併防護：重設分頁時必定調用 `sheet.clear()` 與 `breakApart()`，確保無舊欄位殘留與合併範圍衝突。
 - 嚴格 API 分離寫入：`setFormula()` / `setFormulas()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()` / `setValues()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
+- 檔名大小寫規範：GitHub Pages (Linux 伺服器) 對檔名大小寫極度敏感，入口檔案必須為全小寫 `index.html`，以杜絕 404 Not Found 錯誤。
 
 ## ⑨ Current Sprint
 Sprint 4 / Milestone 4 / Step 1 完成 (專案完工結案：舊資料遷移對齊、GitHub Pages 免費網頁與 Web App 雙端發布)。
@@ -89,6 +90,7 @@ v1.0.0 (正式完工發布版)
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊；`HISTORY_LOG` 與 `DASHBOARD` 100% 計算對齊 `THRESHOLD_CONFIG` 單一門檻。
      - **GitHub Pages 免費靜態網頁支援**：新增 `index.html` 響應式深色玻璃質感網頁儀表板，支援 GitHub Pages 免費託管與動態數據 API 串接。
+     - **Linux 404 防護修復**：強制將 Git 列管之 `Index.html` 重命名為全小寫 `index.html`，符合 Linux 檔案系統大小寫檢驗。
      - **GitHub Pages 網址**: `https://voyagermartin.github.io/Market_Engine/`
   7. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: 專案全部 Milestone 完工結案。
@@ -103,3 +105,14 @@ v1.0.0 (正式完工發布版)
   - 完成 6 大結構化分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`) 初始化建置與 A1 白話文說明。
 - **GitHub Pages 免費託管支援**：
   - 專案程式碼已 100% 準備就緒 (`index.html`)。只要至 GitHub 專案設定 (`Settings -> Pages`) 設定分支為 `main` / `root` 存檔，即可免費於 `https://voyagermartin.github.io/Market_Engine/` 瀏覽。
+
+### 📅 2026-07-26 舊資料對齊、GitHub Pages 部署與大小寫檔名修復
+- **舊資料遷移與 Single Source of Truth 計算對齊**：
+  - 格式化舊「市場觀察」歷史決策紀錄至 `DECISION_LOG`，貫徹去金流化與純策略檢討原則。
+  - 確保 `HISTORY_LOG` 與 `DASHBOARD` 100% 連動 `THRESHOLD_CONFIG`，消除歷史與當前位階判定歧義。
+- **Web App API 雙模動態渲染 (`doGet`)**：
+  - 在 `程式碼.js` 中擴充 `doGet(e)` 支援 `?format=json` 跨域 API 輸出與 HTML 網頁渲染雙模式，供 GitHub Pages 前端動態 `fetch()` 抓取最新數據。
+- **GitHub Pages Linux 大小寫檔名 404 防護與 Git 修正**：
+  - 發現控制台預先警告之 GitHub Pages (Linux) 預設首頁大小寫敏感問題（`Index.html` vs `index.html`）。
+  - 透過 `git mv Index.html temp_index.html` 與 `git mv temp_index.html index.html` 正確將 Git 版本庫歷史紀錄中的檔名修正為全小寫 `index.html`，徹底消滅 404 Not Found 隱患。
+  - 成功執行 `clasp push` (Apps Script 雲端同步)、`clasp deploy` (Web App 發布部署 ID `@2`) 與 `git push origin main`。
