@@ -309,7 +309,7 @@
       </div>
       <div class="status-badge">
         <span class="status-dot"></span>
-        Single Source of Truth Live (<span id="dataDate"><?= data.date ?></span>)
+        Single Source of Truth Live (<span id="dataDate">2026-07-24</span>)
       </div>
     </header>
 
@@ -317,7 +317,7 @@
     <div class="hero-grid">
       <div class="glass-card phase-card">
         <div class="phase-title">今日市場位階 (Market Phase)</div>
-        <div class="phase-badge" id="phaseBadge"><?= data.phase ?></div>
+        <div class="phase-badge" id="phaseBadge">順風/中性</div>
         <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">基於 18 年動態分位數連動校正</div>
       </div>
       <div class="glass-card action-guide-card">
@@ -326,7 +326,7 @@
           <span>核心策略行動指引</span>
         </div>
         <div class="action-body" id="actionGuide">
-          <?= data.actionGuide ?>
+          市場處於 P25~P75 正常常態通道。建議續抱核心部位，維持標準再平衡。
         </div>
       </div>
     </div>
@@ -337,50 +337,50 @@
       <div class="metric-card">
         <div class="metric-name">台股加權指數 (TWII)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valTwii"><?= data.twii ?></span>
+          <span class="metric-val" id="valTwii">44,520.18</span>
           <span class="metric-tag" id="tagTwii">即時收盤價</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">季線乖離率 (Dist60)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valDist60"><?= data.dist60 ?></span>
-          <span class="metric-tag" id="tagDist60"><?= data.metricsStatus.dist60 ?></span>
+          <span class="metric-val" id="valDist60">+3.14%</span>
+          <span class="metric-tag" id="tagDist60">偏高/熱絡</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">年線乖離率 (Dist240)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valDist240"><?= data.dist240 ?></span>
-          <span class="metric-tag" id="tagDist240"><?= data.metricsStatus.dist240 ?></span>
+          <span class="metric-val" id="valDist240">+12.40%</span>
+          <span class="metric-tag" id="tagDist240">偏高/熱絡</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">VIX 恐慌指數</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valVix"><?= data.vix ?></span>
-          <span class="metric-tag" id="tagVix"><?= data.metricsStatus.vix ?></span>
+          <span class="metric-val" id="valVix">16.50</span>
+          <span class="metric-tag" id="tagVix">✅ 平穩</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">季線 5日斜率 (MA60 Slope)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valMa60Slope"><?= data.ma60Slope ?></span>
-          <span class="metric-tag" id="tagMa60Slope"><?= data.metricsStatus.ma60Slope ?></span>
+          <span class="metric-val" id="valMa60Slope">+0.42%</span>
+          <span class="metric-tag" id="tagMa60Slope">📈 強勢走升</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">5日乖離動能 (Dist60 Delta)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valDist60Delta"><?= data.dist60Delta ?></span>
-          <span class="metric-tag" id="tagDist60Delta"><?= data.metricsStatus.dist60Delta ?></span>
+          <span class="metric-val" id="valDist60Delta">+0.15%</span>
+          <span class="metric-tag" id="tagDist60Delta">➡️ 動能平穩</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">夜盤/EWT漲跌幅 (EWT Change)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valEwtChange"><?= data.ewtChange ?></span>
-          <span class="metric-tag" id="tagEwtChange"><?= data.metricsStatus.ewtChange ?></span>
+          <span class="metric-val" id="valEwtChange">+1.20%</span>
+          <span class="metric-tag" id="tagEwtChange">🚀 夜盤強勢</span>
         </div>
       </div>
     </div>
@@ -400,59 +400,46 @@
           </tr>
         </thead>
         <tbody id="backtestTableBody">
-          <? if (data.backtest && data.backtest.length > 0) { ?>
-            <? for (var i = 0; i < data.backtest.length; i++) { ?>
-              <tr>
-                <td style="font-weight: 700; color: var(--accent-blue);"><?= data.backtest[i].name ?></td>
-                <td><?= data.backtest[i].count ?></td>
-                <td><?= data.backtest[i].percentage ?></td>
-                <td style="font-weight: 600;"><?= data.backtest[i].avgReturn ?></td>
-                <td class="win-rate"><?= data.backtest[i].winRate ?></td>
-                <td style="color: var(--text-muted);"><?= data.backtest[i].conclusion ?></td>
-              </tr>
-            <? } ?>
-          <? } else { ?>
-            <tr>
-              <td style="font-weight: 700; color: var(--accent-blue);">極度恐慌</td>
-              <td>450</td>
-              <td>10.0%</td>
-              <td style="font-weight: 600;">+38.50%</td>
-              <td class="win-rate">98.20%</td>
-              <td style="color: var(--text-muted);">歷史長線勝率極高，大盤超跌極致加碼區</td>
-            </tr>
-            <tr>
-              <td style="font-weight: 700; color: var(--accent-blue);">恐慌</td>
-              <td>675</td>
-              <td>15.0%</td>
-              <td style="font-weight: 600;">+21.40%</td>
-              <td class="win-rate">92.50%</td>
-              <td style="color: var(--text-muted);">具備優良風險報酬比，長線勝率顯著偏高</td>
-            </tr>
-            <tr>
-              <td style="font-weight: 700; color: var(--accent-blue);">順風/中性</td>
-              <td>2,250</td>
-              <td>50.0%</td>
-              <td style="font-weight: 600;">+11.80%</td>
-              <td class="win-rate">79.60%</td>
-              <td style="color: var(--text-muted);">常態分佈通道，穩健隨大盤長期成長</td>
-            </tr>
-            <tr>
-              <td style="font-weight: 700; color: var(--accent-blue);">過熱</td>
-              <td>675</td>
-              <td>15.0%</td>
-              <td style="font-weight: 600;">+2.10%</td>
-              <td class="win-rate">54.30%</td>
-              <td style="color: var(--text-muted);">回檔風險提高，1年期前瞻報酬吸引力下降</td>
-            </tr>
-            <tr>
-              <td style="font-weight: 700; color: var(--accent-blue);">狂熱</td>
-              <td>450</td>
-              <td>10.0%</td>
-              <td style="font-weight: 600;">-8.40%</td>
-              <td class="win-rate">32.10%</td>
-              <td style="color: var(--text-muted);">歷史修正風險極高，宜嚴格防守提高現金</td>
-            </tr>
-          <? } ?>
+          <tr>
+            <td style="font-weight: 700; color: var(--accent-blue);">極度恐慌</td>
+            <td>450</td>
+            <td>10.0%</td>
+            <td style="font-weight: 600;">+38.50%</td>
+            <td class="win-rate">98.20%</td>
+            <td style="color: var(--text-muted);">歷史長線勝率極高，大盤超跌極致加碼區</td>
+          </tr>
+          <tr>
+            <td style="font-weight: 700; color: var(--accent-blue);">恐慌</td>
+            <td>675</td>
+            <td>15.0%</td>
+            <td style="font-weight: 600;">+21.40%</td>
+            <td class="win-rate">92.50%</td>
+            <td style="color: var(--text-muted);">具備優良風險報酬比，長線勝率顯著偏高</td>
+          </tr>
+          <tr>
+            <td style="font-weight: 700; color: var(--accent-blue);">順風/中性</td>
+            <td>2,250</td>
+            <td>50.0%</td>
+            <td style="font-weight: 600;">+11.80%</td>
+            <td class="win-rate">79.60%</td>
+            <td style="color: var(--text-muted);">常態分佈通道，穩健隨大盤長期成長</td>
+          </tr>
+          <tr>
+            <td style="font-weight: 700; color: var(--accent-blue);">過熱</td>
+            <td>675</td>
+            <td>15.0%</td>
+            <td style="font-weight: 600;">+2.10%</td>
+            <td class="win-rate">54.30%</td>
+            <td style="color: var(--text-muted);">回檔風險提高，1年期前瞻報酬吸引力下降</td>
+          </tr>
+          <tr>
+            <td style="font-weight: 700; color: var(--accent-blue);">狂熱</td>
+            <td>450</td>
+            <td>10.0%</td>
+            <td style="font-weight: 600;">-8.40%</td>
+            <td class="win-rate">32.10%</td>
+            <td style="color: var(--text-muted);">歷史修正風險極高，宜嚴格防守提高現金</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -463,72 +450,58 @@
   </div>
 
   <script>
-    // 解決連線問題：若是靜態環境，處理預設文字替換
-    (function() {
-      const dateEl = document.getElementById('dataDate');
-      if (dateEl && dateEl.textContent.includes('<?=')) {
-        dateEl.textContent = '2026-07-24';
+    // 背景異步動態數據更新 (JSONP 機制，完全繞過 CORS)
+    const GAS_API_BASE = 'https://script.google.com/macros/s/AKfycbwyvpCJgDWSAyIF519ekRatR1Kwm8E68jxcL9qvGUbncdqFV9VFMNFJ2n3H4Gfksu-6Pg/exec';
+
+    function updateDOM(data) {
+      if (!data) return;
+      if (data.date) document.getElementById('dataDate').textContent = data.date;
+      if (data.phase) document.getElementById('phaseBadge').textContent = data.phase;
+      if (data.actionGuide) document.getElementById('actionGuide').textContent = data.actionGuide;
+      
+      if (data.twii) document.getElementById('valTwii').textContent = data.twii;
+      if (data.dist60) document.getElementById('valDist60').textContent = data.dist60;
+      if (data.dist240) document.getElementById('valDist240').textContent = data.dist240;
+      if (data.vix) document.getElementById('valVix').textContent = data.vix;
+      if (data.ma60Slope) document.getElementById('valMa60Slope').textContent = data.ma60Slope;
+      if (data.dist60Delta) document.getElementById('valDist60Delta').textContent = data.dist60Delta;
+      if (data.ewtChange) document.getElementById('valEwtChange').textContent = data.ewtChange;
+
+      if (data.metricsStatus) {
+        if (data.metricsStatus.dist60) document.getElementById('tagDist60').textContent = data.metricsStatus.dist60;
+        if (data.metricsStatus.dist240) document.getElementById('tagDist240').textContent = data.metricsStatus.dist240;
+        if (data.metricsStatus.vix) document.getElementById('tagVix').textContent = data.metricsStatus.vix;
+        if (data.metricsStatus.ma60Slope) document.getElementById('tagMa60Slope').textContent = data.metricsStatus.ma60Slope;
+        if (data.metricsStatus.dist60Delta) document.getElementById('tagDist60Delta').textContent = data.metricsStatus.dist60Delta;
+        if (data.metricsStatus.ewtChange) document.getElementById('tagEwtChange').textContent = data.metricsStatus.ewtChange;
       }
-      const badgeEl = document.getElementById('phaseBadge');
-      if (badgeEl && badgeEl.textContent.includes('<?=')) {
-        badgeEl.textContent = '順風/中性';
+
+      if (data.backtest && data.backtest.length > 0) {
+        const tbody = document.getElementById('backtestTableBody');
+        tbody.innerHTML = '';
+        data.backtest.forEach(row => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-weight: 700; color: var(--accent-blue);">${row.name}</td>
+            <td>${row.count}</td>
+            <td>${row.percentage}</td>
+            <td style="font-weight: 600;">${row.avgReturn}</td>
+            <td class="win-rate">${row.winRate}</td>
+            <td style="color: var(--text-muted);">${row.conclusion}</td>
+          `;
+          tbody.appendChild(tr);
+        });
       }
-      const actionEl = document.getElementById('actionGuide');
-      if (actionEl && actionEl.textContent.includes('<?=')) {
-        actionEl.textContent = '市場處於 P25~P75 正常常態通道。建議續抱核心部位，維持標準再平衡。';
-      }
-      const twiiEl = document.getElementById('valTwii');
-      if (twiiEl && twiiEl.textContent.includes('<?=')) {
-        twiiEl.textContent = '44,520.18';
-      }
-      const dist60El = document.getElementById('valDist60');
-      if (dist60El && dist60El.textContent.includes('<?=')) {
-        dist60El.textContent = '+3.14%';
-      }
-      const tagDist60El = document.getElementById('tagDist60');
-      if (tagDist60El && tagDist60El.textContent.includes('<?=')) {
-        tagDist60El.textContent = '偏高/熱絡';
-      }
-      const dist240El = document.getElementById('valDist240');
-      if (dist240El && dist240El.textContent.includes('<?=')) {
-        dist240El.textContent = '+12.40%';
-      }
-      const tagDist240El = document.getElementById('tagDist240');
-      if (tagDist240El && tagDist240El.textContent.includes('<?=')) {
-        tagDist240El.textContent = '偏高/熱絡';
-      }
-      const vixEl = document.getElementById('valVix');
-      if (vixEl && vixEl.textContent.includes('<?=')) {
-        vixEl.textContent = '16.50';
-      }
-      const tagVixEl = document.getElementById('tagVix');
-      if (tagVixEl && tagVixEl.textContent.includes('<?=')) {
-        tagVixEl.textContent = '✅ 平穩';
-      }
-      const slopeEl = document.getElementById('valMa60Slope');
-      if (slopeEl && slopeEl.textContent.includes('<?=')) {
-        slopeEl.textContent = '+0.42%';
-      }
-      const tagSlopeEl = document.getElementById('tagMa60Slope');
-      if (tagSlopeEl && tagSlopeEl.textContent.includes('<?=')) {
-        tagSlopeEl.textContent = '📈 強勢走升';
-      }
-      const deltaEl = document.getElementById('valDist60Delta');
-      if (deltaEl && deltaEl.textContent.includes('<?=')) {
-        deltaEl.textContent = '+0.15%';
-      }
-      const tagDeltaEl = document.getElementById('tagDist60Delta');
-      if (tagDeltaEl && tagDeltaEl.textContent.includes('<?=')) {
-        tagDeltaEl.textContent = '➡️ 動能平穩';
-      }
-      const ewtEl = document.getElementById('valEwtChange');
-      if (ewtEl && ewtEl.textContent.includes('<?=')) {
-        ewtEl.textContent = '+1.20%';
-      }
-      const tagEwtEl = document.getElementById('tagEwtChange');
-      if (tagEwtEl && tagEwtEl.textContent.includes('<?=')) {
-        tagEwtEl.textContent = '🚀 夜盤強勢';
-      }
+    }
+
+    // 透過動態 <script> 標籤 (JSONP) 進行背景更新
+    (function fetchLiveUpdates() {
+      window.onMarketDataCallback = function(data) {
+        updateDOM(data);
+      };
+      const script = document.createElement('script');
+      script.src = GAS_API_BASE + '?callback=onMarketDataCallback';
+      document.body.appendChild(script);
     })();
   </script>
 </body>
