@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.3.0 (老巴盤前 AI 導航腳本 generateMorningNavigation 完全體對齊 V3 Schema)
+ * Version: v1.4.0 (雙 AI 導航腳本完整合體：老巴盤前 generateMorningNavigation + 小羅盤後 generateAfternoonNavigation)
  */
 
 /**
@@ -17,6 +17,8 @@ function onOpen() {
     .addItem('🌆 執行盤後更新測試 (14:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addSeparator()
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
+    .addItem('☕ 執行小羅盤後 AI 導航 (generateAfternoonNavigation)', 'generateAfternoonNavigation')
+    .addSeparator()
     .addItem('🚀 擴展載入 2008~2026 18年完整歷史數據', 'seedFullHistoricalData')
     .addItem('更新/套用計算公式與樣式', 'applyFormulasAndStyles')
     .addToUi();
@@ -59,7 +61,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.3.0) 更新完成！\n已升級老巴盤前 AI 導航 generateMorningNavigation() 完全體！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.4.0) 更新完成！\n已全面整合老巴盤前 (generateMorningNavigation) 與小羅盤後 (generateAfternoonNavigation) 雙 AI 導航！');
 }
 
 /**
@@ -792,7 +794,143 @@ ${phaseTrack}
 }
 
 // ==========================================
-// 8. 雙時段自動更新機制 (Daily Dual Triggers: Morning 07:30 & Afternoon 14:30)
+// 8. 小羅盤後 AI 導航腳本 (generateAfternoonNavigation - V3 完全體)
+// ==========================================
+
+/**
+ * 升級版小羅盤後 AI 導航腳本 (對齊 V3 Database Schema)
+ */
+function generateAfternoonNavigation() {
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_WEB_GEMINI_API_KEY");
+  if (!apiKey) {
+    Logger.log("⚠️ 尚未設定 MARKET_WEB_GEMINI_API_KEY");
+    return;
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const rawSheet = ss.getSheetByName("RAW_HISTORY");
+  const dashSheet = ss.getSheetByName("DASHBOARD");
+  const historyLogSheet = ss.getSheetByName("HISTORY_LOG");
+
+  if (!rawSheet || !dashSheet || !historyLogSheet) {
+    Logger.log("⚠️ 分頁未完整建置");
+    return;
+  }
+
+  // 從 RAW_HISTORY 讀取最新 7 個交易日資料 (Row 3 為最新一天，Row 4 為昨天)
+  const rawData = rawSheet.getRange(3, 1, 7, 10).getValues(); 
+  if (rawData.length < 2 || !rawData[0][0]) {
+    Logger.log("RAW_HISTORY 資料不足以比對昨日與今日");
+    return;
+  }
+
+  const today = rawData[0];     // [Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change]
+  const yesterday = rawData[1]; 
+
+  const dateStr = Utilities.formatDate(new Date(today[0]), "Asia/Taipei", "yyyy-MM-dd");
+  const twiiClose = today[1];
+  const vix = today[2];
+  const dist60 = (Number(today[5]) * 100).toFixed(2) + "%";
+  const dist240 = (Number(today[6]) * 100).toFixed(2) + "%";
+  const ma60Slope = (Number(today[7]) * 100).toFixed(2) + "%";
+  const dist60Delta = (Number(today[8]) * 100).toFixed(2) + "%";
+  const ewtChange = (Number(today[9]) * 100).toFixed(2) + "%";
+
+  // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
+  const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
+
+  // 組裝 7 日市場軌跡
+  let phaseTrack = "";
+  for (let i = rawData.length - 1; i >= 0; i--) {
+    if (rawData[i][0]) {
+      const d = Utilities.formatDate(new Date(rawData[i][0]), "Asia/Taipei", "MM/dd");
+      phaseTrack += `${d} TWII:${rawData[i][1]}\n`;
+    }
+  }
+
+  const prompt = `
+【Market Engine V3 數據】
+交易日期：${dateStr}
+今日加權收盤：${twiiClose}
+昨日加權收盤：${yesterday[1]}
+今日市場位階：${currentPhase}
+季線乖離率(Dist60)：${dist60}
+年線乖離率(Dist240)：${dist240}
+季線5日斜率(MA60 Slope)：${ma60Slope}
+5日乖離動能(Dist60 Delta)：${dist60Delta}
+VIX恐慌指數：${vix}
+夜盤EWT漲跌：${ewtChange}
+
+【近 7 日市場軌跡】
+${phaseTrack}
+
+────────────────
+你是「小羅」。
+你是 Market Engine V3 的市場行為觀察員。
+你不是主播，也不是分析師，而是一位收盤後坐在咖啡館整理今天市場筆記、擅長觀察細節的人。
+你的任務不是預測市場，而是回答：今天市場真正發生了什麼？哪些事情改變了？哪些事情沒有改變？協助讀者理解今天的情緒與動能與昨天相比出現了哪些變化。
+
+────────────────
+請輸出：
+
+☕ 小羅的盤後午茶時光
+
+【今天市場最大的變化】
+請回答：今天真正改變的是什麼？不要平均介紹所有數據，找出今天最值得注意的最大變化。
+
+【為什麼會這樣？】
+利用市場位階、VIX、夜盤EWT、乖離動能與斜率進行交叉解讀。若指標彼此互相矛盾，請直接指出。
+
+【市場畫面】
+請把今天的市場翻譯成一個可以想像的白話畫面或生動比喻（例如：像是一艘在大霧中航行但引擎運轉平穩的船），而不是解釋技術指標。
+
+【明天值得觀察】
+不預測漲跌。回答：下一個交易日，最值得觀察的哪一件事？為什麼？
+
+────────────────
+限制：
+* 約 220~320 字
+* 使用繁體中文
+* 不要條列
+* 不要預測漲跌或給予投資建議
+* 不要直接解釋技術指標名稱
+* 優先描述市場行為與情緒變化，保持感性而客觀的小羅語氣
+`;
+
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }]
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    const result = JSON.parse(response.getContentText());
+    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts[0].text) {
+      const aiText = result.candidates[0].content.parts[0].text;
+      
+      // 寫入 DASHBOARD 的 AI 小羅午茶區域 (B24)
+      dashSheet.getRange("B24").setValue(aiText);
+
+      // 同步備份至 HISTORY_LOG 的 AI_Afternoon_Story 欄位 (K欄 / 第11欄)
+      historyLogSheet.getRange(3, 11).setValue(aiText);
+      Logger.log("小羅午茶成功生成並寫入！");
+    } else {
+      throw new Error("API 傳回空內容: " + response.getContentText());
+    }
+  } catch (err) {
+    dashSheet.getRange("B24").setValue("☕ 小羅今晚沒來咖啡館，市場觀察暫停一次。");
+    Logger.log("Gemini API Error: " + err);
+  }
+}
+
+// ==========================================
+// 9. 雙時段自動更新機制 (Daily Dual Triggers: Morning 07:30 & Afternoon 14:30)
 // ==========================================
 
 /**
@@ -832,6 +970,9 @@ function updateAfternoonMarketEngine() {
   applyRawHistoryFormulas(rawSheet, 3, totalRows);
   applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
 
+  // 自動觸發小羅盤後 AI 導航生成
+  generateAfternoonNavigation();
+
   SpreadsheetApp.flush();
   Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + today);
 }
@@ -870,7 +1011,7 @@ function createDailyTrigger() {
 }
 
 // ==========================================
-// 9. Web App 網頁端渲染 Engine (HTTP GET)
+// 10. Web App 網頁端渲染 Engine (HTTP GET)
 // ==========================================
 
 /**
