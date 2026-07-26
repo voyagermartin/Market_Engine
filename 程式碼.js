@@ -673,7 +673,13 @@ function createDailyTrigger() {
  * 讀取 DASHBOARD, THRESHOLD_CONFIG 與 LAB_BACKTEST 資料並渲染全響應式 UI 頁面
  */
 function doGet(e) {
-  const template = HtmlService.createTemplateFromFile('Index');
+  if (e && e.parameter && (e.parameter.format === 'json' || e.parameter.type === 'json')) {
+    const data = getMarketEngineData();
+    return ContentService.createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const template = HtmlService.createTemplateFromFile('index');
   template.data = getMarketEngineData();
   return template.evaluate()
     .setTitle('Market Engine V3 - 市場觀察與策略實驗室')
