@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.1.9 (一對一精密修復：sheet.clear徹底清舊列、setFormulas防錯、LAB_BACKTEST純文字分離)
+ * Version: v0.2.0 (修復 DASHBOARD Column D 文字誤用 setFormula 引發 #NAME? 不明範圍名稱報錯)
  */
 
 /**
@@ -54,7 +54,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.9) 6大分頁建置完成！\n已100%清除舊列殘留、修復 LAB_BACKTEST 與 THRESHOLD_CONFIG 公式剖析錯誤。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.2.0) 6大分頁建置完成！\n已成功修復 DASHBOARD 不明範圍名稱 #NAME? 錯誤，頁面完全正常運作。');
 }
 
 /**
@@ -65,7 +65,6 @@ function setupSheet(ss, name, rows, cols) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
   } else {
-    // 徹底抹除舊版殘留內容與格式 (防止如舊「建議現金%」列殘留在畫面上)
     sheet.clear();
     try {
       sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
@@ -105,7 +104,7 @@ function setTableHeader(sheet, rangeStr, headers, bgColor = '#334155') {
 }
 
 // ==========================================
-// 1. THRESHOLD_CONFIG (門檻對照表 - 嚴格公式/文字分離)
+// 1. THRESHOLD_CONFIG (門檻對照表)
 // ==========================================
 function buildThresholdConfigSheet(sheet) {
   setHeaderBanner(
@@ -127,7 +126,6 @@ function buildThresholdConfigSheet(sheet) {
     '#1e293b'
   );
 
-  // 1. 純文字寫入 (A4:B8 及 G4:G8)
   const metaValues = [
     ['T1', '極度恐慌', '市場處於歷史最後 10% 嚴重超跌區。建議分批強力加碼核心大盤與優質權值股。'],
     ['T2', '恐慌', '市場處於 P10~P25 低估區。建議維持中高持股水位，定期定額或逢低加碼。'],
@@ -139,7 +137,6 @@ function buildThresholdConfigSheet(sheet) {
   sheet.getRange('A4:B8').setValues(metaValues.map(r => [r[0], r[1]]));
   sheet.getRange('G4:G8').setValues(metaValues.map(r => [r[2]]));
 
-  // 2. 純公式寫入 (C4:F8，確保每一項均為合法公式字串)
   const tierFormulas = [
     ['=-9.99', '=C12', '=-9.99', '=D12'],
     ['=C12', '=C13', '=D12', '=D13'],
@@ -151,13 +148,11 @@ function buildThresholdConfigSheet(sheet) {
   sheet.getRange('C4:F8').setFormulas(tierFormulas);
   sheet.getRange('C4:F8').setNumberFormat('+0.00%;-0.00%;0.00%');
 
-  // 底色標記
   const rowColors = ['#dcfce7', '#e0f2fe', '#f8fafc', '#ffedd5', '#fee2e2'];
   for (let i = 0; i < rowColors.length; i++) {
     sheet.getRange(`A${4+i}:G${4+i}`).setBackground(rowColors[i]);
   }
 
-  // 區塊 2: 歷史數據分位數實測統計 (帶有 IFERROR 安全防爆機制)
   sheet.getRange('10:10').breakApart();
   sheet.getRange('A10:E10').merge().setValue('📐 歷史數據分位數實測統計 (Single Source of Truth 數據源頭)')
        .setFontWeight('bold').setFontSize(12).setBackground('#0f172a').setFontColor('#ffffff');
@@ -288,7 +283,6 @@ function seedFullHistoricalData() {
   rawSheet.getRange(3, 1, rows.length, 5).setValues(rows);
   applyRawHistoryFormulas(rawSheet, 3, 2 + rows.length);
 
-  // 同步更新 HISTORY_LOG 公式
   const logSheet = ss.getSheetByName('HISTORY_LOG');
   if (logSheet) {
     applyHistoryLogFormulas(logSheet, 3, 2 + rows.length);
@@ -338,7 +332,7 @@ function generateMarketRows(startDate, endDate) {
 }
 
 // ==========================================
-// 3. HISTORY_LOG (歷史位階日誌 - 高效能對齊)
+// 3. HISTORY_LOG (歷史位階日誌)
 // ==========================================
 function buildHistoryLogSheet(sheet) {
   setHeaderBanner(
@@ -399,7 +393,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
 }
 
 // ==========================================
-// 4. LAB_BACKTEST (門檻驗證與回測 - 嚴格公式/文字分離寫入)
+// 4. LAB_BACKTEST (門檻驗證與回測)
 // ==========================================
 function buildLabBacktestSheet(sheet) {
   setHeaderBanner(
@@ -420,7 +414,6 @@ function buildLabBacktestSheet(sheet) {
     '#312e81'
   );
 
-  // 1. 純公式寫入 (B4:E8)
   const tierFormulas = [
     ['=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', '=IF($B$9>0, B4/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B4), "N/A")'],
     ['=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', '=IF($B$9>0, B5/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B5), "N/A")'],
@@ -431,7 +424,6 @@ function buildLabBacktestSheet(sheet) {
 
   sheet.getRange('B4:E8').setFormulas(tierFormulas);
 
-  // 2. 純文字寫入 (A4:A8 及 F4:F8)
   sheet.getRange('A4:A8').setValues([
     ['極度恐慌'],
     ['恐慌'],
@@ -448,7 +440,6 @@ function buildLabBacktestSheet(sheet) {
     ['極高修正風險，宜防守現金']
   ]);
 
-  // 3. 合計列
   sheet.getRange('A9').setValue('合計 (Total)').setFontWeight('bold');
   sheet.getRange('B9').setFormula('=SUM(B4:B8)').setFontWeight('bold');
   sheet.getRange('C9').setFormula('=SUM(C4:C8)').setFontWeight('bold');
@@ -467,7 +458,7 @@ function buildLabBacktestSheet(sheet) {
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板 - 乾淨去比例版)
+// 5. DASHBOARD (日常觀察儀表板)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
@@ -498,7 +489,14 @@ function buildDashboardSheet(sheet) {
     sheet.getRange(`A${row}`).setValue(metrics[i][0]).setFontWeight('bold');
     sheet.getRange(`B${row}`).setFormula(metrics[i][1]);
     sheet.getRange(`C${row}`).setValue(metrics[i][2]);
-    sheet.getRange(`D${row}`).setFormula(metrics[i][3]);
+    
+    // 關鍵修復：如果是公式以 '=' 開頭才調用 setFormula，純文字一律調用 setValue 防範 #NAME? 不明範圍名稱報錯
+    if (typeof metrics[i][3] === 'string' && metrics[i][3].startsWith('=')) {
+      sheet.getRange(`D${row}`).setFormula(metrics[i][3]);
+    } else {
+      sheet.getRange(`D${row}`).setValue(metrics[i][3]);
+    }
+    
     sheet.getRange(`E${row}`).setValue(metrics[i][4]);
   }
 

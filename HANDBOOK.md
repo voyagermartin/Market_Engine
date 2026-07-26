@@ -1,4 +1,4 @@
-# HANDBOOK.md (v0.1.9)
+# HANDBOOK.md (v0.2.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -27,8 +27,8 @@
 - `seedInitialData()`: 寫入初始化標準數據種子（約 600 交易日，極速載入）
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入
-- `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
-- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與趨勢動能燈號
+- `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表
+- `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與趨勢動能燈號 (帶有公式與純文字動態寫入判斷)
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
@@ -51,13 +51,13 @@
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
 - 單一計算基準：所有分頁與 Log 的 Market_Phase 必須經由同一套算式產出，嚴禁 Hardcode。
 - 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
-- 嚴格 API 分離寫入：`setFormulas()` 僅用於合法公式字串；純文字一律採用 `setValues()`，徹底防止「公式剖析錯誤」。
+- 嚴格 API 分離寫入：`setFormula()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
 
 ## ⑨ Current Sprint
-Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，完成全檔舊列抹除與公式/文字嚴格分離)。
+Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，修復 DASHBOARD 不明範圍名稱 #NAME? 錯誤)。
 
 ## ⑩ Current Version
-v0.1.9
+v0.2.0
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -70,10 +70,10 @@ v0.1.9
 - **已完成項目**: 
   1. 專案初始化、綁定 GitHub 儲存庫 (`https://github.com/voyagermartin/Market_Engine.git`)。
   2. **Milestone 1 / Step 1 完成**：建置 6 大分頁基礎結構、A1 白話文說明、去金流化改造與斜率動能指標整合。
-  3. **Milestone 1 / Step 2 完成與精密修復 (v0.1.9)**：
-     - **Issue 1 修復 (LAB_BACKTEST 公式剖析錯誤)**：將 `LAB_BACKTEST` 的 B4:E8（公式）與 F4:F8（中文結論）分離，純文字改用 `setValues()` 寫入，徹底修復驗證說明與結論剖析錯誤。
-     - **Issue 2 修復 (建議現金%殘留)**：於 `setupSheet()` 加入 `sheet.clear()`，初始化前強制抹除舊分頁所有殘留儲存格（包含舊 A16 列），確保 `DASHBOARD` 畫面 100% 乾淨無殘留。
-     - **Issue 3 修復 (THRESHOLD_CONFIG 公式剖析錯誤)**：門檻公式 `tierFormulas` 統一改為標準公式字串 (`'=-9.99'`, `'=9.99'`)，防範區域語系解析異常。
+  3. **Milestone 1 / Step 2 完成與修復 (v0.2.0)**：
+     - **#NAME? 不明範圍名稱修復**：修復 `DASHBOARD` 中 `Trading Date` 與 `加權指數` 行之 D 欄純文字 (`最新交易日`, `市場價格`) 誤調用 `setFormula()` 被當成自訂 Range 參照拋出 `#NAME?` 的問題。改為檢查字串是否以 `=` 開頭，純文字自動調用 `setValue()` 寫入。
+     - **LAB_BACKTEST 公式剖析修復**：F4:F8 結論文字純文字寫入。
+     - **舊欄位抹除保護**：`setupSheet()` 自動執行 `sheet.clear()` 確保無殘留列。
   4. 完成所有 Google Apps Script 雲端推播 (`clasp push`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收與一對一精準修復)。
+- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收與修復測試)。
 - **下一步施工位置**: Milestone 2 / Step 1 (建置 LAB_BACKTEST 1年期前瞻報酬率計算腳本)。
