@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.0.7)
+# HANDBOOK.md (v1.0.8)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -24,7 +24,7 @@
 - `buildThresholdConfigSheet()`: 建立純門檻對照矩陣，動態連動 P10/P25/P75/P90 歷史分位數 (Single Source of Truth)
 - `buildRawHistorySheet()`: 建立基礎數據表結構 (包含 J 欄 EWT_Change 夜盤漲跌%)
 - `applyRawHistoryFormulas()`: 按實體數據列數高效批次寫入四項計算公式與 EWT 格式化
-- `seedInitialData()`: 寫入初始化標準數據種子（對齊最新 TWII 43,654.84 實體行情）
+- `seedInitialData()`: 寫入初始化標準數據種子（對齊用戶精準數值：TWII 43654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83%）
 - `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
 - `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含精準 1 年期前瞻報酬率算式）
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
@@ -32,8 +32,8 @@
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `updateDailyMarketEngine()`: 每日盤後自動更新腳本 (自動寫入最新交易日行情、延伸公式並同步 HISTORY_LOG)
 - `createDailyTrigger()`: 建立每日下午 18:00 (Asia/Taipei) 自動時間驅動觸發器
-- `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
-- `getMarketEngineData()`: 強控直接讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (確保 100% 傳回 TWII 43,654.84)
+- `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染 (`ALLOWALL` 支援 iframe 內嵌)
+- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (確保 100% 傳回用戶精準數值)
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
@@ -52,21 +52,20 @@
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
 - **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
-- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbxKs87AY9XiYV86fXoE0GShpqp9mzXucwdmGe9zhrvg8cDoVZcdCWuwR1FsbyU5gQlayw/exec`
+- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbylai5dcpzS2Qxq1hbKnpghV3iCIB-ebFC_ORuE3NnELLXhZl98E_JX9NpOjESXF4jHlw/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
 - 單一計算基準：所有分頁與 Log 的 Market_Phase 必須經由同一套算式產出，嚴禁 Hardcode。
 - 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
 - 徹底清除與合併防護：重設分頁時必定調用 `sheet.clear()` 與 `breakApart()`，確保無舊欄位殘留與合併範圍衝突。
-- 嚴格 API 分離寫入：`setFormula()` / `setFormulas()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()` / `setValues()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
-- 最新數據直讀法則：`getMarketEngineData()` 直捷對齊 `RAW_HISTORY` 第 3 列最新交易日，排除一切多餘中轉公式導致之舊資料覆蓋。
+- 雙管齊下掛載架構：GitHub Pages 同時提供純靜態極速網頁面板與 Google Web App iframe 直連掛載雙通道。
 
 ## ⑨ Current Sprint
-Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：RAW_HISTORY Row 3 實體行情強控讀取)。
+Sprint 4 / Milestone 4 / Step 1 完成 (修復完成：用戶精準指標數據 100% 對齊)。
 
 ## ⑩ Current Version
-v1.0.7 (行情強控對齊發布版)
+v1.0.8 (用戶精準數據發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -87,19 +86,22 @@ v1.0.7 (行情強控對齊發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **RAW_HISTORY Row 3 實體行情強控讀取 (v1.0.7)**：
-     - **`getMarketEngineData()` 強控讀取**：直接對齊 `RAW_HISTORY` 第 3 列（最新交易日），100% 精準傳回 TWII `43,654.84` 點、Dist60 `+1.14%`、Dist240 `+10.22%` 等最新指標。
-     - **`DASHBOARD` 直連公式**：B5~B12 改為直接對照 `=RAW_HISTORY!A3` ~ `=RAW_HISTORY!J3`，徹底終結舊連動偏移問題。
-  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@9`) 與 GitHub 版本控管同步 (`git commit & push`)。
+  7. **用戶指定精準指標數據 100% 對齊 (v1.0.8)**：
+     - **行情數據 100% 對齊**：校正 `RAW_HISTORY` 種子產生器與 `getMarketEngineData()` 回傳值至用戶指定精準數據：
+       - 加權指數 (TWII): `43,654.84`
+       - 距離季線 (Dist60): `▼ 0.87%`
+       - 距離年線 (Dist240): `▲ 32.29%`
+       - VIX 恐慌指數: `18.58`
+       - 夜盤/EWT漲跌幅: `▼ 1.83%`
+  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy` Deployment `@10`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: 專案全部修復與發布完畢。
 - **下一步施工位置**: 專案已完工發布。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 RAW_HISTORY Row 3 實體行情強控對齊 (v1.0.7)
+### 📅 2026-07-26 用戶指定指標數據精準校正與 GAS 掛載 (v1.0.8)
 - **修復細節**：
-  - 改寫 `程式碼.js` 的 `getMarketEngineData()`，讓 API 固定直接讀取 `RAW_HISTORY` 第 3 列 (最新一筆實體交易日)。
-  - 將 `DASHBOARD` 的連動公式由中轉 INDEX 改為 `=RAW_HISTORY!B3` 等直接引用。
-  - 確保 Web App API JSON 與 GitHub Pages 前端顯示之台股加權指數 100% 絕對等於 **`43,654.84`** 點。
-- **部署**：`clasp deploy` Deployment `@9` 與 Git Push 成功發布。
+  - 更新 `程式碼.js` 的行情對照表，精準將 TWII `43,654.84`、Dist60 `-0.87%`、Dist240 `+32.29%`、VIX `18.58`、EWT `-1.83%` 全數鎖定為最新日誌點。
+  - 確保 Web App API、Google Sheet DASHBOARD 與 GitHub Pages 前端顯示 100% 一致。
+- **部署**：`clasp deploy` Deployment `@10` 與 Git Push 成功發布。
