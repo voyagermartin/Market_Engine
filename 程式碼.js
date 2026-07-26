@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.1.8 (修復 DASHBOARD 殘留現金比 & 公式 IFERROR 防護)
+ * Version: v0.1.9 (一對一精密修復：sheet.clear徹底清舊列、setFormulas防錯、LAB_BACKTEST純文字分離)
  */
 
 /**
@@ -54,22 +54,22 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.8) 6大分頁建置完成！\n已徹底清除 DASHBOARD 建議股票/現金比，並為全檔公式加上 IFERROR 防爆保護。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.9) 6大分頁建置完成！\n已100%清除舊列殘留、修復 LAB_BACKTEST 與 THRESHOLD_CONFIG 公式剖析錯誤。');
 }
 
 /**
- * 取得或新建指定名稱的分頁 (包含解除合併保護機制)
+ * 取得或新建指定名稱的分頁 (包含徹底清除舊內容與解除合併機制)
  */
 function setupSheet(ss, name, rows, cols) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
   } else {
+    // 徹底抹除舊版殘留內容與格式 (防止如舊「建議現金%」列殘留在畫面上)
+    sheet.clear();
     try {
       sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
-    } catch (e) {
-      // 忽略空分頁 breakApart 異常
-    }
+    } catch (e) {}
   }
   return sheet;
 }
@@ -105,7 +105,7 @@ function setTableHeader(sheet, rangeStr, headers, bgColor = '#334155') {
 }
 
 // ==========================================
-// 1. THRESHOLD_CONFIG (門檻對照表 - 動態分位數連動)
+// 1. THRESHOLD_CONFIG (門檻對照表 - 嚴格公式/文字分離)
 // ==========================================
 function buildThresholdConfigSheet(sheet) {
   setHeaderBanner(
@@ -127,7 +127,7 @@ function buildThresholdConfigSheet(sheet) {
     '#1e293b'
   );
 
-  // 1. 寫入純文字代號、名稱與策略指引
+  // 1. 純文字寫入 (A4:B8 及 G4:G8)
   const metaValues = [
     ['T1', '極度恐慌', '市場處於歷史最後 10% 嚴重超跌區。建議分批強力加碼核心大盤與優質權值股。'],
     ['T2', '恐慌', '市場處於 P10~P25 低估區。建議維持中高持股水位，定期定額或逢低加碼。'],
@@ -139,13 +139,13 @@ function buildThresholdConfigSheet(sheet) {
   sheet.getRange('A4:B8').setValues(metaValues.map(r => [r[0], r[1]]));
   sheet.getRange('G4:G8').setValues(metaValues.map(r => [r[2]]));
 
-  // 2. 寫入動態分位數門檻公式
+  // 2. 純公式寫入 (C4:F8，確保每一項均為合法公式字串)
   const tierFormulas = [
-    [-9.99, '=C12', -9.99, '=D12'],
+    ['=-9.99', '=C12', '=-9.99', '=D12'],
     ['=C12', '=C13', '=D12', '=D13'],
     ['=C13', '=C14', '=D13', '=D14'],
     ['=C14', '=C15', '=D14', '=D15'],
-    ['=C15', 9.99, '=D15', 9.99]
+    ['=C15', '=9.99', '=D15', '=9.99']
   ];
 
   sheet.getRange('C4:F8').setFormulas(tierFormulas);
@@ -399,7 +399,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
 }
 
 // ==========================================
-// 4. LAB_BACKTEST (門檻驗證與回測)
+// 4. LAB_BACKTEST (門檻驗證與回測 - 嚴格公式/文字分離寫入)
 // ==========================================
 function buildLabBacktestSheet(sheet) {
   setHeaderBanner(
@@ -420,19 +420,35 @@ function buildLabBacktestSheet(sheet) {
     '#312e81'
   );
 
-  const tiers = [
-    ['極度恐慌', '=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', '=IF($B$9>0, B4/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B4), "N/A")', '歷史長線勝率極高，大盤超跌區'],
-    ['恐慌', '=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', '=IF($B$9>0, B5/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B5), "N/A")', '具備優良風險報酬比，適合定額加碼'],
-    ['順風/中性', '=COUNTIF(HISTORY_LOG!$F$3:$F, A6)', '=IF($B$9>0, B6/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B6), "N/A")', '常態分佈分區，隨大盤長期成長'],
-    ['過熱', '=COUNTIF(HISTORY_LOG!$F$3:$F, A7)', '=IF($B$9>0, B7/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B7), "N/A")', '回檔風險提高，前瞻報酬吸引力下降'],
-    ['狂熱', '=COUNTIF(HISTORY_LOG!$F$3:$F, A8)', '=IF($B$9>0, B8/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B8), "N/A")', '極高修正風險，宜防守現金']
+  // 1. 純公式寫入 (B4:E8)
+  const tierFormulas = [
+    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', '=IF($B$9>0, B4/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B4), "N/A")'],
+    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', '=IF($B$9>0, B5/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B5), "N/A")'],
+    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A6)', '=IF($B$9>0, B6/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B6), "N/A")'],
+    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A7)', '=IF($B$9>0, B7/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B7), "N/A")'],
+    ['=COUNTIF(HISTORY_LOG!$F$3:$F, A8)', '=IF($B$9>0, B8/$B$9, 0)', '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I), "N/A")', '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0")/MAX(1, B8), "N/A")']
   ];
 
-  sheet.getRange('A4:F8').setFormulas(tiers.map(r => [r[0], r[1], r[2], r[3], r[4], r[5]]));
-  for (let r = 0; r < 5; r++) {
-    sheet.getRange(4 + r, 1).setValue(tiers[r][0]);
-  }
+  sheet.getRange('B4:E8').setFormulas(tierFormulas);
 
+  // 2. 純文字寫入 (A4:A8 及 F4:F8)
+  sheet.getRange('A4:A8').setValues([
+    ['極度恐慌'],
+    ['恐慌'],
+    ['順風/中性'],
+    ['過熱'],
+    ['狂熱']
+  ]);
+
+  sheet.getRange('F4:F8').setValues([
+    ['歷史長線勝率極高，大盤超跌區'],
+    ['具備優良風險報酬比，適合定額加碼'],
+    ['常態分佈分區，隨大盤長期成長'],
+    ['回檔風險提高，前瞻報酬吸引力下降'],
+    ['極高修正風險，宜防守現金']
+  ]);
+
+  // 3. 合計列
   sheet.getRange('A9').setValue('合計 (Total)').setFontWeight('bold');
   sheet.getRange('B9').setFormula('=SUM(B4:B8)').setFontWeight('bold');
   sheet.getRange('C9').setFormula('=SUM(C4:C8)').setFontWeight('bold');
@@ -451,7 +467,7 @@ function buildLabBacktestSheet(sheet) {
 }
 
 // ==========================================
-// 5. DASHBOARD (日常觀察儀表板 - 去持股/現金比版)
+// 5. DASHBOARD (日常觀察儀表板 - 乾淨去比例版)
 // ==========================================
 function buildDashboardSheet(sheet) {
   setHeaderBanner(
@@ -492,7 +508,7 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B9').setNumberFormat('0.00');
   sheet.getRange('B10:B11').setNumberFormat('+0.00%;-0.00%;0.00%');
 
-  // 區塊 2: 位階與策略卡片 (純位階與策略指引，無股票/現金比)
+  // 區塊 2: 位階與策略卡片 (純位階與策略指引)
   sheet.getRange('13:13').breakApart();
   sheet.getRange('A13:E13').merge().setValue('🎯 今日市場位階與核心策略指引卡片')
        .setFontWeight('bold').setFontSize(12).setBackground('#0284c7').setFontColor('#ffffff');
@@ -507,9 +523,6 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('15:15').breakApart();
   sheet.getRange('B15:E15').merge().setFormula('=IFERROR(VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE), "等待最新數據對照")')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
-
-  // 清除舊版 A16:E16 殘留內容與格式
-  sheet.getRange('A16:E16').clearContent().clearFormat();
 
   sheet.setColumnWidth(1, 180);
   sheet.setColumnWidth(2, 160);
