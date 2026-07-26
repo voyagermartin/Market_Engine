@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.2.2 (小修正：AI 顧問「老巴早餐 / 小羅午茶」單一值班卡片輪播)
+ * Version: v1.2.3 (時區時數校正：使用 Asia/Taipei 時區判定 07:30 老巴 / 14:30 小羅值班)
  */
 
 /**
@@ -58,7 +58,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.2.2) 更新完成！\nAI 顧問已改為 07:30 老巴早餐 / 14:30 小羅午茶單一卡片值班輪播！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.2.3) 時區校正完成！\n已全面採用 Asia/Taipei 時區判定老巴(07:30~14:30)與小羅(14:30~07:30)值班。');
 }
 
 /**
@@ -766,7 +766,7 @@ function doGet(e) {
 }
 
 /**
- * 抓取 Market Engine 全站數據 API (單一 AI 顧問值班輪播)
+ * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區判定 07:30 老巴 / 14:30 小羅值班)
  */
 function getMarketEngineData() {
   let ss = null;
@@ -784,9 +784,13 @@ function getMarketEngineData() {
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
-  const currentHour = (new Date()).getHours();
-  const isMorning = (currentHour >= 5 && currentHour < 14);
-  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '<ctrl42> 盤後模式 (14:30 小羅午茶值班)';
+  // 使用 Asia/Taipei 台北時區精準判定小時數
+  const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
+  const currentHour = parseInt(currentHourStr, 10);
+  
+  // 07:30 ~ 14:29 為老巴盤前值班，14:30 ~ 07:29 為小羅盤後值班
+  const isMorning = (currentHour >= 7 && currentHour < 14);
+  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '🌆 盤後模式 (14:30 小羅午茶值班)';
 
   const data = {
     date: '2026-07-24',

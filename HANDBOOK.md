@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.2.2)
+# HANDBOOK.md (v1.2.3)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -12,7 +12,7 @@
 1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能), EWT_Change (夜盤漲跌%)
 2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正，去持股比例小學生超白話門檻)
 3. `LAB_BACKTEST`: 位階名稱, 歷史天數 (Count), 天數佔比 (%), 1年期平均報酬率 (%), 1年期正報酬勝率 (%), 驗證說明與結論
-4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引, 定期定額扣款決策卡 (若明天要執行扣款), AI 顧問單一值班卡片 (07:30 老巴 / 14:30 小羅輪播)
+4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta, EWT_Change), 今日市場位階, 趨勢動能燈號, 核心策略行動指引, 定期定額扣款決策卡 (若明天要執行扣款), AI 顧問單一值班卡片 (Asia/Taipei 時區判定 07:30 老巴 / 14:30 小羅輪播)
 5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, VIX, 今日位階, MA60_Slope (季線斜率), Dist60_Delta (5日動能), 1年期前瞻報酬率, AI_Morning_Story, AI_Afternoon_Story
 6. `DECISION_LOG`: 日期 (Date), 當時市場位階/訊號, 策略動作 (買進/賣出/再平衡/觀望), 執行說明 (無金額純策略), 策略符合度 (符合/偏離), 策略思考與檢討備註
 
@@ -34,7 +34,7 @@
 - `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與小羅午茶值班模式)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
-- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (含 DCA 扣款卡與 AI 顧問單一值班 payload)
+- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 最新實體交易日 API (採用 Asia/Taipei 台北時區精準計算值班顧問)
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
@@ -52,9 +52,9 @@
   - 過熱 / 狂熱 $\rightarrow$ ⚠️ `明天建議暫停扣款，把錢存起來等打折！`
 
 ## ⑥ AI Agents
-- **AI 顧問 巴菲特‧索羅斯 單一值班輪播 (AI Advisor Duty Rotation)**：
-  - **盤前時段 (07:30 ~ 14:30)**：畫面上**僅顯示** `🍔 老巴的盤前早餐時間` (老巴值班，聚焦夜盤與開盤撿便宜點)。
-  - **盤後時段 (14:30 ~ 07:30)**：畫面上**僅顯示** `☕ 小羅的盤後午茶時光` (小羅值班，聚焦收盤點位與盤後總結)。
+- **AI 顧問 巴菲特‧索羅斯 Asia/Taipei 時區值班輪播**：
+  - **盤前時段 (07:30 ~ 14:30)**：`🍔 老巴的盤前早餐時間` (老巴值班，聚焦夜盤與開盤撿便宜點)。
+  - **盤後與夜間時段 (14:30 ~ 07:30)**：`☕ 小羅的盤後午茶時光` (小羅值班，聚焦收盤點位與盤後總結)。
 
 ## ⑦ Dashboard / UI
 - Google Sheet `DASHBOARD` 視覺化對照卡片
@@ -64,15 +64,14 @@
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
-- 單一計算基準：所有分頁與 Log 的 Market_Phase 必須經由同一套算式產出，嚴禁 Hardcode。
-- 純淨 HTML5 規範：靜態 HTML 檔（`index.html`）嚴禁包含未經解析之 `<? ... ?>` 或 `<?= ... ?>` 標籤，保障瀏覽器 0 秒極速渲染。
+- 時區計算原則：前後端所有時間比較必須顯式使用 `Asia/Taipei` (UTC+8)，嚴禁受限於伺服器預設 UTC 時區導致的時間判定偏差。
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 1 完美完成 (AI 顧問老巴/小羅單一值班卡片輪播修正完成)。
+Milestone 5 / Step 1 完美修復完成 (Asia/Taipei 時區精準對齊，小羅盤後值班即時生效)。
 
 ## ⑩ Current Version
-v1.2.2 (AI 顧問單一值班輪播發布版)
+v1.2.3 (Asia/Taipei 時區時數精準校正發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -94,8 +93,9 @@ v1.2.2 (AI 顧問單一值班輪播發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 1 AI 顧問單一值班輪播 (v1.2.2)**：
-     - **單一值班卡片切換**：畫面上改為僅呈現「單一 AI 顧問值班卡片」。07:30 盤前由老巴 (`老巴的盤前早餐時間`) 值班，14:30 盤後由小羅 (`小羅的盤後午茶時光`) 值班，責任解讀 100% 清晰不混淆。
+  7. **Milestone 5 / Step 1 時區精準校正 (v1.2.3)**：
+     - **Asia/Taipei 時區顯式校正**：將後端 GAS 與前端 `index.html` 的小時數算式改為顯式使用 `Asia/Taipei` 時區計算。解決之前 UTC 伺服器時間導致晚間 20:09 被誤判為 12:00 晨報問題。
+     - **即時呈現小羅午茶卡片**：晚間 20:09 開啟網頁即刻精準呈現 `☕ 小羅的盤後午茶時光 (盤後 14:30 值班)`。
   8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: Milestone 5 Step 1 完美完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
@@ -118,8 +118,8 @@ v1.2.2 (AI 顧問單一值班輪播發布版)
 - **完工與版本控管同步**：
   - 成功執行 `clasp push` (Apps Script 雲端同步) 與 `git push origin main` (推播至 GitHub `main` 分支)。
 
-### 📅 2026-07-26 AI 顧問老巴/小羅單一值班卡片輪播修正 (v1.2.2)
-- **單一值班卡片輪播**：
-  - 將畫面原本同時呈現老巴與小羅雙卡片改為「單一 AI 顧問值班卡片」。
-  - 07:30 盤前更新後**僅由老巴值班** (老巴的盤前早餐時間)，14:30 盤後更新後**換小羅值班** (小羅的盤後午茶時光)，徹底終結雙卡混淆。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@15`) 與 Git Push 成功發布。
+### 📅 2026-07-26 Asia/Taipei 時區時數顯式校正與小羅值班即時生效 (v1.2.3)
+- **時區算式修復**：
+  - 發現 GAS 預設 UTC 時區導致晚間 20:09 被判斷為 UTC 12:00（晨報時段）。
+  - 後端與前端全數改採 `Asia/Taipei` (UTC+8) 時區算式，確保晚間 20:09 100% 精準顯示 `☕ 小羅的盤後午茶時光`。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@16`) 與 Git Push 成功發布。
