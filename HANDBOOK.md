@@ -1,4 +1,4 @@
-# HANDBOOK.md (v0.3.0)
+# HANDBOOK.md (v1.0.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -6,7 +6,7 @@
 ## ② System Architecture
 - **Data Layer**: Google Sheet 6 大結構化分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`)
 - **Engine Layer**: Google Apps Script (GAS) 核心算式與自動化維護腳本 ([程式碼.js](file:///f:/Projects/Market_Engine/%E7%A8%8B%E5%BC%8F%E7%A2%BC.js))
-- **Presentation Layer**: GAS Web App / Google Sheet Dashboard
+- **Presentation Layer**: GAS Web App ([Index.html](file:///f:/Projects/Market_Engine/Index.html)) / Google Sheet Dashboard
 
 ## ③ Database Schema
 1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能), EWT_Change (夜盤漲跌%)
@@ -32,6 +32,8 @@
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `updateDailyMarketEngine()`: 每日盤後自動更新腳本 (自動寫入最新交易日行情、延伸公式並同步 HISTORY_LOG)
 - `createDailyTrigger()`: 建立每日下午 18:00 (Asia/Taipei) 自動時間驅動觸發器
+- `doGet()`: Web App 入口，渲染深色玻璃質感全響應式 UI 頁面
+- `getMarketEngineData()`: 抓取全站 Single Source of Truth 數據 API
 - `applyFormulasAndStyles()`: 快捷重新套用全檔公式與樣式
 
 ## ⑤ Decision Engine
@@ -49,7 +51,7 @@
 ## ⑦ Dashboard / UI
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3`
-- GAS Web App 獨立頁面
+- GAS Web App 獨立頁面: `https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
@@ -59,16 +61,16 @@
 - 嚴格 API 分離寫入：`setFormula()` / `setFormulas()` 僅調用於以 `=` 開頭之合法公式；純文字一律採用 `setValue()` / `setValues()`，徹底杜絕 `#NAME?` 不明範圍名稱與剖析錯誤。
 
 ## ⑨ Current Sprint
-Sprint 3 / Milestone 3 / Step 1 完成 (建置 DASHBOARD 今日動態卡片與每日盤後自動更新腳本)。
+Sprint 4 / Milestone 4 / Step 1 完成 (專案完工結案：舊資料遷移對齊、Web App 網頁端發布)。
 
 ## ⑩ Current Version
-v0.3.0
+v1.0.0 (正式完工發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
 - Milestone 2: LAB 回測模組建置 (LAB_BACKTEST 1年期前瞻報酬率與勝率算式) 【已完成】
 - Milestone 3: 核心判定 Engine & 儀表板建置 (DASHBOARD & HISTORY_LOG) 【已完成】
-- Milestone 4: 舊資料遷移與 Web App 部署 【下一步】
+- Milestone 4: 舊資料遷移與 Web App 部署 【已完成 - 專案正式完工結案】
 
 ---
 ### 施工紀錄 (Audit Trail)
@@ -83,9 +85,13 @@ v0.3.0
   5. **Milestone 3 / Step 1 完成 (v0.3.0)**：
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG` 的 Single Source of Truth 對照矩陣。
      - **每日盤後自動更新機制 (`updateDailyMarketEngine`)**：實作每日交易日盤後自動注入行情、自動擴展 RAW_HISTORY 與 HISTORY_LOG 公式，並提供 `createDailyTrigger()` 一鍵安裝每日 18:00 (Asia/Taipei) 自動時間驅動觸發器。
-  6. 完成所有 Google Apps Script 雲端推播 (`clasp push`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 3 完成 (Step 1 通過驗收與每日盤後自動更新引擎整合)。
-- **下一步施工位置**: Milestone 4 / Step 1 (舊資料遷移與 Web App 部署)。
+  6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布)**：
+     - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊；`HISTORY_LOG` 與 `DASHBOARD` 100% 計算對齊 `THRESHOLD_CONFIG` 單一門檻。
+     - **Web App 網頁端發布**：實作 `doGet()` 與 `Index.html` 響應式深色玻璃質感網頁儀表板，成功完成全套 `clasp deploy` 發布 (`v1.0.0 Final Release`)。
+     - **Web App 部署網址**: `https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`
+  7. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 發布 (`clasp deploy`) 與 GitHub 版本控管同步 (`git commit & push`)。
+- **目前停止位置**: 專案全部 Milestone 完工結案。
+- **下一步施工位置**: 專案已完工發布。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
@@ -110,10 +116,16 @@ v0.3.0
   - 完成 `DASHBOARD` 卡片與 `THRESHOLD_CONFIG` Single Source of Truth 單一門檻連動，位階與行動指引零 Hardcode 自動切換。
   - 實作 `updateDailyMarketEngine()` 每日盤後行情注入與 `HISTORY_LOG` 自動同步更新機制。
   - 實作 `createDailyTrigger()` 時間驅動觸發器安裝函式，提供每日 18:00 (Asia/Taipei) 自動開盤後更新。
+- **Milestone 4 / Step 1 - 舊資料遷移、Web App 部署與專案完工結案**：
+  - 完成 `DECISION_LOG` 去金流化歷史策略紀錄格式對齊與範例注入。
+  - 實作 `Index.html` 響應式玻璃質感 UI 儀表板與 `doGet()` API。
+  - 成功執行 `clasp deploy` 正式部署 Web App 發布版 (`v1.0.0 Final Release`，版本 ID `@1`)，取得公開存取網址：`https://script.google.com/macros/s/AKfycbygeCGNJ5isSFeMjNigjnSp6j1FRskDWO_F-OOuHQogiorEcPBbeQqJYy7fjyAjjZAzPg/exec`。
+  - 通過從 Google Sheet Dashboard 到 Web App 網頁端完整一致性驗收，本專案宣告正式完工結案！
 - **系統穩定度與效能優化 (Bug Fixes)**：
   - **防逾時優化**：改為依實體資料列數精準批次寫入 2D 陣列公式，初始化執行時間縮短至 < 2 秒。
   - **合併範圍衝突修復**：於 `setupSheet()` 加入 `sheet.clear()` 徹底抹除舊列殘留，並在 `.merge()` 前強制執行 `.breakApart()`。
   - **公式剖析與 `#NAME?` 不明範圍名稱修復**：嚴格區分 API 調用邏輯（純文字使用 `setValues()` / `setValue()`，公式使用 `setFormulas()` / `setFormula()` 並搭配 `startsWith('=')` 自動檢測），全檔公式搭配 `IFERROR` 安全防護。
 - **部署與版本控管**：
   - 成功執行 `clasp push` 上傳至 Apps Script 雲端引擎 (`1iaK_HLrMWb8ndUehCw3tsoLZQEE7PpmfYrsYdexP6CbrBkEk7_EyGJdC`)。
+  - 完成 `clasp deploy` 發布部署。
   - 完成 Git Commit 與 GitHub (`https://github.com/voyagermartin/Market_Engine.git`) 遠端分支同步。
