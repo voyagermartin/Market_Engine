@@ -1,4 +1,4 @@
-# HANDBOOK.md (v0.1.5)
+# HANDBOOK.md (v0.1.6)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -10,9 +10,9 @@
 
 ## ③ Database Schema
 1. `RAW_HISTORY`: Date, TWII (收盤), VIX, MA60, MA240, Dist60 (季線乖離), Dist240 (年線乖離), MA60_Slope (季線5日斜率), Dist60_Delta (5日動能)
-2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 建議股票%, 建議現金%, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正)
+2. `THRESHOLD_CONFIG`: 位階代號, 位階名稱, Dist60下限, Dist60上限, Dist240下限, Dist240上限, 策略建議與行動指引 (Single Source of Truth，含 P10, P25, P75, P90 分位數連動校正，去比例純門檻)
 3. `LAB_BACKTEST`: 位階名稱, 歷史天數, 天數佔比%, 1年期平均報酬率%, 1年期正報酬勝率%, 驗證說明與結論
-4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta), 今日市場位階, 趨勢動能燈號, 建議股票/現金比例, 核心策略行動指引
+4. `DASHBOARD`: 市場最新數據 (Date, TWII, Dist60, Dist240, VIX, MA60_Slope, Dist60_Delta), 今日市場位階, 趨勢動能燈號, 核心策略行動指引
 5. `HISTORY_LOG`: Date, TWII, Dist60, Dist240, VIX, 今日位階, MA60_Slope (季線斜率), Dist60_Delta (5日動能), 1年期前瞻報酬率
 6. `DECISION_LOG`: 日期 (Date), 當時市場位階/訊號, 策略動作 (買進/賣出/再平衡/觀望), 執行說明 (無金額純策略), 策略符合度 (符合/偏離), 策略思考與檢討備註
 
@@ -20,7 +20,7 @@
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3`
 - `setupMarketEngineV3()`: 高效能主初始化建置函式（< 2 秒極速建置防逾時）
 - `setHeaderBanner()` / `setTableHeader()`: 統一繪製分頁第 1 列白話文說明與標題欄位
-- `buildThresholdConfigSheet()`: 建立門檻對照矩陣，動態連動 P10/P25/P75/P90 歷史分位數 (Single Source of Truth)
+- `buildThresholdConfigSheet()`: 建立純門檻對照矩陣，動態連動 P10/P25/P75/P90 歷史分位數 (Single Source of Truth)
 - `buildRawHistorySheet()`: 建立基礎數據表結構
 - `applyRawHistoryFormulas()`: 按實體數據列數高效批次寫入四項計算公式
 - `seedInitialData()`: 寫入初始化標準數據種子（約 600 交易日，極速載入）
@@ -49,14 +49,14 @@
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
 - 單一計算基準：所有分頁與 Log 的 Market_Phase 必須經由同一套算式產出，嚴禁 Hardcode。
-- 去金流化原則：本系統為純策略與量化模型，不記錄任何個人私密金額或帳務。
-- 高效能極速寫入：公式一律針對「有效資料列數」進行單一 2D 陣列批次寫入 (`setFormulas`)，嚴禁在空儲存格鋪設無效公式以防逾時。
+- 去金流化與去比例原則：本系統為純策略與量化模型，不記錄任何個人私密金額、帳務或固定持股比例。
+- 高效能極速寫入：公式一律針對「有效資料列數」進行單一 2D 陣列批次寫入 (`setFormulas`)，純文字嚴禁傳給 `setFormulas` 以防解析錯誤。
 
 ## ⑨ Current Sprint
-Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，效能最佳化突破逾時限制)。
+Sprint 1 / Milestone 1 完成 (試算表基礎架構與 18 年歷史數據分位數校正，修復公式剖析錯誤與去比例優化)。
 
 ## ⑩ Current Version
-v0.1.5
+v0.1.6
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -69,10 +69,10 @@ v0.1.5
 - **已完成項目**: 
   1. 專案初始化、綁定 GitHub 儲存庫 (`https://github.com/voyagermartin/Market_Engine.git`)。
   2. **Milestone 1 / Step 1 完成**：建置 6 大分頁基礎結構、A1 白話文說明、去金流化改造與斜率動能指標整合。
-  3. **Milestone 1 / Step 2 完成與效能修復 (v0.1.5)**：
-     - **問題根因**：原先於空儲存格一次性鋪設 5,000 列複數跨頁公式導致 Google Sheet 重算引擎過載觸發逾時 Exception。
-     - **效能最佳化**：改採「動態範圍單一 2D 陣列批次寫入 (`setFormulas`)」，初始化注入 ~600 列標準種子，並將 18 年全歷史 (4,500 列) 拆分為選單獨立載入，初始化耗時由 30+ 秒降至 **< 2 秒**！
-     - 於 `THRESHOLD_CONFIG` 建立 18年歷史數據 `Dist60` / `Dist240` 分位數 (`P10`, `P25`, `P75`, `P90`) 的動態統計校正矩陣，讓 T1~T5 位階門檻 100% 由數據自動算產出。
+  3. **Milestone 1 / Step 2 完成與修復 (v0.1.6)**：
+     - **去比例優化**：依需求移除 `THRESHOLD_CONFIG` 與 `DASHBOARD` 中的「建議股票%」與「建議現金%」欄位，使位階對照純粹化。
+     - **公式剖析錯誤修復**：修正 `setFormulas()` 將純文字策略說明誤當公式解析的問題，改將 `setFormulas` 專門用於門檻及分位數算式，純文字文字一律採用 `setValues` 寫入。
+     - **18年分位數動態連動**：`THRESHOLD_CONFIG` 建立 18年歷史數據 `Dist60` / `Dist240` 分位數 (`P10`, `P25`, `P75`, `P90`) 動態統計校正矩陣，讓 T1~T5 位階門檻 100% 由數據自動算產出。
   4. 完成所有 Google Apps Script 雲端推播 (`clasp push`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收與效能優化)。
+- **目前停止位置**: Milestone 1 完成 (Step 1 與 Step 2 均已通過驗收、修復與優化)。
 - **下一步施工位置**: Milestone 2 / Step 1 (建置 LAB_BACKTEST 1年期前瞻報酬率計算腳本)。

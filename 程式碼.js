@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v0.1.5 (超高效能版 - 解決大數據公式計算逾時 Exception)
+ * Version: v0.1.6 (修復公式剖析錯誤 & 移除 THRESHOLD_CONFIG 建議持股比例)
  */
 
 /**
@@ -18,13 +18,13 @@ function onOpen() {
 }
 
 /**
- * 主要建置函式：建立或重設 6 個結構化分頁 (高效能初始化，防逾時)
+ * 主要建置函式：建立或重設 6 個結構化分頁
  */
 function setupMarketEngineV3() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   // 1. 建立 THRESHOLD_CONFIG (門檻對照表)
-  const configSheet = setupSheet(ss, 'THRESHOLD_CONFIG', 20, 10);
+  const configSheet = setupSheet(ss, 'THRESHOLD_CONFIG', 20, 8);
   buildThresholdConfigSheet(configSheet);
   
   // 2. 建立 RAW_HISTORY (基礎歷史數據)
@@ -54,7 +54,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.5 高效能版) 6大分頁建置完成！\n初始化已優化完成（耗時 < 2 秒），門檻已連動歷史分位數 P10/P25/P75/P90。');
+  SpreadsheetApp.getUi().alert('✅ Market Engine V3 (v0.1.6) 6大分頁建置完成！\n已修正公式剖析問題，並成功依需求移除股票/現金比例欄位。');
 }
 
 /**
@@ -98,48 +98,55 @@ function setTableHeader(sheet, rangeStr, headers, bgColor = '#334155') {
 }
 
 // ==========================================
-// 1. THRESHOLD_CONFIG (門檻對照表 - 動態分位數連動)
+// 1. THRESHOLD_CONFIG (門檻對照表 - 動態分位數連動，去比例純門檻)
 // ==========================================
 function buildThresholdConfigSheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【位階門檻對照表】定義市場五大位階門檻及配置比例。基於 RAW_HISTORY 歷史分位數(P10, P25, P75, P90)動態校正，全檔統一參照本表 (Single Source of Truth)。', 
-    'I', 
+    '【位階門檻對照表】定義市場五大位階門檻。基於 RAW_HISTORY 歷史分位數(P10, P25, P75, P90)動態校正，全檔統一參照本表 (Single Source of Truth)。', 
+    'G', 
     '#0f172a'
   );
 
-  sheet.getRange('A2:I2').merge().setValue('📊 市場五大位階門檻與資產配置矩陣 (分位數連動對照表)')
+  sheet.getRange('A2:G2').merge().setValue('📊 市場五大位階門檻對照矩陣 (分位數連動校正表)')
        .setFontWeight('bold').setFontSize(12).setBackground('#f1f5f9').setFontColor('#0f172a');
   sheet.setRowHeight(2, 30);
 
   setTableHeader(
     sheet, 
-    'A3:I3', 
-    ['位階代號', '位階名稱', 'Dist60 下限', 'Dist60 上限', 'Dist240 下限', 'Dist240 上限', '建議股票%', '建議現金%', '策略建議與行動指引'], 
+    'A3:G3', 
+    ['位階代號', '位階名稱', 'Dist60 下限', 'Dist60 上限', 'Dist240 下限', 'Dist240 上限', '策略建議與行動指引'], 
     '#1e293b'
   );
 
-  // 門檻表格 (A4:I8) - 動態連結第 12~15 列的分位數統計值
-  const tierFormulas = [
-    ['T1', '極度恐慌', -9.99, '=C12', -9.99, '=D12', 0.90, 0.10, '市場處於歷史最後 10% 嚴重超跌區。建議分批強力加碼核心大盤與優質權值股。'],
-    ['T2', '恐慌', '=C12', '=C13', '=D12', '=D13', 0.75, 0.25, '市場處於 P10~P25 低估區。建議維持中高持股水位，定期定額或逢低加碼。'],
-    ['T3', '順風/中性', '=C13', '=C14', '=D13', '=D14', 0.55, 0.45, '市場處於 P25~P75 正常常態通道。建議續抱核心部位，維持標準再平衡。'],
-    ['T4', '過熱', '=C14', '=C15', '=D14', '=D15', 0.35, 0.65, '市場進入 P75~P90 警戒區。建議分批獲利了結高波段部位，提高現金水位。'],
-    ['T5', '狂熱', '=C15', 9.99, '=D15', 9.99, 0.15, 0.85, '市場突破 P90 歷史狂熱高檔。建議嚴格控管風險，僅保留長線核心，大幅升防禦現金。']
+  // 1. 寫入純文字代號、名稱與策略指引 (使用 setValues 避免公式剖析錯誤)
+  const metaValues = [
+    ['T1', '極度恐慌', '市場處於歷史最後 10% 嚴重超跌區。建議分批強力加碼核心大盤與優質權值股。'],
+    ['T2', '恐慌', '市場處於 P10~P25 低估區。建議維持中高持股水位，定期定額或逢低加碼。'],
+    ['T3', '順風/中性', '市場處於 P25~P75 正常常態通道。建議續抱核心部位，維持標準再平衡。'],
+    ['T4', '過熱', '市場進入 P75~P90 警戒區。建議分批獲利了結高波段部位，提高現金水位。'],
+    ['T5', '狂熱', '市場突破 P90 歷史狂熱高檔。建議嚴格控管風險，僅保留長線核心，大幅提升防禦現金。']
   ];
 
-  sheet.getRange('A4:I8').setFormulas(tierFormulas.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]]));
-  sheet.getRange('A4:A8').setValues([['T1'], ['T2'], ['T3'], ['T4'], ['T5']]);
-  sheet.getRange('B4:B8').setValues([['極度恐慌'], ['恐慌'], ['順風/中性'], ['過熱'], ['狂熱']]);
+  sheet.getRange('A4:B8').setValues(metaValues.map(r => [r[0], r[1]]));
+  sheet.getRange('G4:G8').setValues(metaValues.map(r => [r[2]]));
 
-  // 格式化數字
+  // 2. 寫入動態分位數公式 (C4:F8)
+  const tierFormulas = [
+    [-9.99, '=C12', -9.99, '=D12'],
+    ['=C12', '=C13', '=D12', '=D13'],
+    ['=C13', '=C14', '=D13', '=D14'],
+    ['=C14', '=C15', '=D14', '=D15'],
+    ['=C15', 9.99, '=D15', 9.99]
+  ];
+
+  sheet.getRange('C4:F8').setFormulas(tierFormulas);
   sheet.getRange('C4:F8').setNumberFormat('+0.00%;-0.00%;0.00%');
-  sheet.getRange('G4:H8').setNumberFormat('0%');
 
   // 底色標記
   const rowColors = ['#dcfce7', '#e0f2fe', '#f8fafc', '#ffedd5', '#fee2e2'];
   for (let i = 0; i < rowColors.length; i++) {
-    sheet.getRange(`A${4+i}:I${4+i}`).setBackground(rowColors[i]);
+    sheet.getRange(`A${4+i}:G${4+i}`).setBackground(rowColors[i]);
   }
 
   // 區塊 2: 歷史數據分位數實測統計 (校正基準點)
@@ -155,13 +162,13 @@ function buildThresholdConfigSheet(sheet) {
   );
 
   const percentileFormulas = [
-    ['P10', '極度恐慌校正點 (歷史最後 10% 嚴重超跌)', '=PERCENTILE(RAW_HISTORY!F3:F, 0.10)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.10)', '對應市場極度崩盤與極致超跌買點'],
-    ['P25', '恐慌校正點 (歷史 25% 低估分位)', '=PERCENTILE(RAW_HISTORY!F3:F, 0.25)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.25)', '對應長線風險報酬比極佳加碼區'],
-    ['P75', '順風上限 (歷史 75% 常態分佈上限)', '=PERCENTILE(RAW_HISTORY!F3:F, 0.75)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.75)', '對應市場常態溫和牛市通道上界'],
-    ['P90', '過熱校正點 (歷史前 10% 警戒超漲)', '=PERCENTILE(RAW_HISTORY!F3:F, 0.90)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.90)', '對應市場情緒極度過熱與狂熱頂部']
+    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.10)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.10)'],
+    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.25)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.25)'],
+    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.75)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.75)'],
+    ['=PERCENTILE(RAW_HISTORY!F3:F, 0.90)', '=PERCENTILE(RAW_HISTORY!G3:G, 0.90)']
   ];
 
-  sheet.getRange('A12:E15').setFormulas(percentileFormulas.map(r => [r[0], r[1], r[2], r[3], r[4]]));
+  sheet.getRange('C12:D15').setFormulas(percentileFormulas);
   sheet.getRange('A12:A15').setValues([['P10'], ['P25'], ['P75'], ['P90']]);
   sheet.getRange('B12:B15').setValues([
     ['極度恐慌校正點 (歷史最後 10% 嚴重超跌)'],
@@ -184,6 +191,8 @@ function buildThresholdConfigSheet(sheet) {
   sheet.setColumnWidth(3, 160);
   sheet.setColumnWidth(4, 160);
   sheet.setColumnWidth(5, 320);
+  sheet.setColumnWidth(6, 160);
+  sheet.setColumnWidth(7, 420);
 }
 
 // ==========================================
@@ -241,7 +250,7 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
 }
 
 /**
- * 寫入標準初始化歷史數據 (約 500 行，防逾時超快初始化)
+ * 寫入標準初始化歷史數據 (約 600 行，防逾時超快初始化)
  */
 function seedInitialData(sheet) {
   const targetSheet = sheet || SpreadsheetApp.getActiveSpreadsheet().getSheetByName('RAW_HISTORY');
@@ -480,14 +489,8 @@ function buildDashboardSheet(sheet) {
     '=IFS(OR(B7<THRESHOLD_CONFIG!D4, B8<THRESHOLD_CONFIG!F4), THRESHOLD_CONFIG!B4, OR(B7<THRESHOLD_CONFIG!D5, B8<THRESHOLD_CONFIG!F5), THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, OR(B7>THRESHOLD_CONFIG!C7, B8>THRESHOLD_CONFIG!E7), THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B8)'
   ).setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center').setBackground('#e0f2fe').setFontColor('#0369a1');
 
-  sheet.getRange('A15').setValue('建議股票部位 %').setFontWeight('bold');
-  sheet.getRange('B15').setFormula('=VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$I$8, 6, FALSE)').setNumberFormat('0%').setFontWeight('bold');
-
-  sheet.getRange('A16').setValue('建議現金部位 %').setFontWeight('bold');
-  sheet.getRange('B16').setFormula('=VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$I$8, 7, FALSE)').setNumberFormat('0%').setFontWeight('bold');
-
-  sheet.getRange('A17').setValue('核心策略行動指引').setFontWeight('bold');
-  sheet.getRange('B17:E17').merge().setFormula('=VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$I$8, 8, FALSE)')
+  sheet.getRange('A15').setValue('核心策略行動指引').setFontWeight('bold');
+  sheet.getRange('B15:E15').merge().setFormula('=VLOOKUP(B14, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE)')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
 
   sheet.setColumnWidth(1, 180);
