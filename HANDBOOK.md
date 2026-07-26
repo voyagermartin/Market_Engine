@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.5.1)
+# HANDBOOK.md (v1.6.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -18,8 +18,8 @@
 
 ## ④ Function Library
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3` (含老巴盤前、小羅盤後 AI 導航、休市日測試與雙時段自動更新)
-- `isMarketOpen()`: **【v1.5.1 顯式時區修復】休市日 Helper 函式 (採用 toLocaleString Asia/Taipei 判定週六/週日 dayOfWeek === 0 \|\| 6 與 Google Calendar 國定假日)**
-- `testMarketOpenStatus()`: **休市日狀態手動測驗彈窗**
+- `isMarketOpen()`: 休市日 Helper 函式 (採用 toLocaleString Asia/Taipei 判定週六/週日 dayOfWeek === 0 \|\| 6 與 Google Calendar 國定假日)
+- `testMarketOpenStatus()`: 休市日狀態手動測驗彈窗
 - `setupMarketEngineV3()`: 高效能主初始化建置函式（< 2 秒極速建置防逾時）
 - `setupSheet()`: 取得/建立分頁，執行 `sheet.clear()` 徹底清除舊欄位殘留，並執行 `breakApart()` 防止合併衝突 Exception
 - `setHeaderBanner()` / `setTableHeader()`: 統一繪製分頁第 1 列白話文說明與標題欄位
@@ -55,6 +55,9 @@
   - 過熱 / 狂熱 $\rightarrow$ ⚠️ `明天建議暫停扣款，把錢存起來等打折！`
 
 ## ⑥ AI Agents
+- **品牌定位升級 (Team Branding)**:
+  - **巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)**
+  - 文案定位：`日夜巡邏看盤・嚴謹分析市場・陪伴守護資產的專屬 AI 專家小組`
 - **休市日連動 AI 導航 (Market Open Awareness)**:
   - 自動判斷 `isMarketOpen(targetDate)` (週休二日與國定假日)。
   - 若遇休市日，Prompt 強控：**「不可分析當日成交量與當日買賣，聚焦於夜盤 EWT 情緒、VIX 國際風險與下個交易日觀察方向」**。
@@ -65,10 +68,15 @@
   - 專用模型: `gemini-1.5-flash`
   - 輸出位置: `DASHBOARD` `B24` (小羅午茶卡片) 與 `HISTORY_LOG` 第 3 列 K 欄 (`AI_Afternoon_Story`)
 
-## ⑦ Dashboard / UI
+## ⑦ Dashboard / UI (v1.6.0 品牌與護眼大升級)
 - Google Sheet `DASHBOARD` 視覺化對照卡片
 - Google Sheet 自訂選單 `🚀 Market Engine V3` (含休市日測試)
-- **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/` (頂部狀態列即時顯示 `🟢 正常交易日` 或 `☕ 今日休市`)
+- **GitHub Pages 免費靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
+  - **品牌人設**: `巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)`
+  - **字級護眼**: 核心指引與 AI 觀點顯著放大至 `1.2rem ~ 1.25rem`，`line-height: 1.85`
+  - **觀念導航 (Concept Guide)**: 整合 ⚙️ 工具箱與 🏛️ 三大核心策略哲學 (紀律、機會、命運)
+  - **頁尾警語**: 溫馨琥珀金免責聲明卡片與風險提示
+  - **深色溫柔人味視覺 (Warm Dark Theme)**: 琥珀金/溫暖微光漸層背景與柔和琉璃卡片
 - **GAS Web App 網頁端**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
 ## ⑧ Coding Rules
@@ -77,17 +85,18 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 2 休市日判定時區與頂部標籤修復完成。
+Sprint 5 / Step 1 完工發布 (品牌人設升級、字級放大護眼、觀念導航與頁尾警語)。
 
 ## ⑩ Current Version
-v1.5.1 (休市日判定時區與頂部標籤修復發布版)
+v1.6.0 (Sprint 5 Step 1 品牌與護眼體驗發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
 - Milestone 2: LAB 回測模組建置 (LAB_BACKTEST 1年期前瞻報酬率與勝率算式) 【已完成】
 - Milestone 3: 核心判定 Engine & 儀表板建置 (DASHBOARD & HISTORY_LOG) 【已完成】
 - Milestone 4: 舊資料遷移、Web App 部署與 GitHub Pages 開啟 【已完成】
-- Milestone 5: 雙時段自動更新、每月定期定額扣款卡與 AI 解讀單一值班輪播 【已完成 - Milestone 5 Step 2】
+- Milestone 5: 雙時段自動更新、每月定期定額扣款卡與 AI 解讀單一值班輪播 【已完成】
+- Sprint 5: 品牌人設升級、字級放大護眼、觀念導航與頁尾警語 【已完成 - Sprint 5 Step 1】
 
 ---
 ### 施工紀錄 (Audit Trail)
@@ -103,18 +112,23 @@ v1.5.1 (休市日判定時區與頂部標籤修復發布版)
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
   7. **Milestone 5 / Step 2 休市日判定與 AI 導航連動 (v1.5.0 ~ v1.5.1)**：
-     - **isMarketOpen() 星期算式校正**：修復 SimpleDateFormat `'u'` 誤為年份導致的星期判定偏差，改為 `toLocaleString('en-US', { timeZone: 'Asia/Taipei' })` 取得原生 JavaScript `getDay()`，確保週六/週日 100% 精準識別為 `☕ 今日休市 (週休二日)`。
-     - **網頁頂部標籤預設**：同步更新 `index.html` 靜態預載標籤與動態綁定，週日即刻呈現 `☕ 今日休市 (週休二日)`。
-  8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 5 Step 2 休市日判定完工發布。
+     - **isMarketOpen() 完整過濾**：自動識別週六/週日與國定假日。
+  8. **Sprint 5 / Step 1 品牌人設升級、字級放大護眼與觀念導航 (v1.6.0)**：
+     - **品牌升級**：`巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)` 品牌與副標題確立。
+     - **字級放大**：關鍵行動指引與 AI 故事內文放大至 `1.2rem ~ 1.25rem`，`line-height: 1.85`，極致清晰。
+     - **觀念導航**：新增 `🧭 觀念導航與指標說明` 卡片（含 ⚙️ 工具箱與 🏛️ 紀律/機會/命運 三大哲學）。
+     - **頁尾警語**：新增溫馨琥珀金免責聲明與風險提示卡片。
+     - **溫柔人味視覺**：全站調配 Warm Amber Gold 微光暗色調體驗。
+  9. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
+- **目前停止位置**: Sprint 5 Step 1 完工發布。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 週日休市日判定時區與頂部標籤校正 (v1.5.1)
-- **真因修正**：
-  - 發現原本 `Utilities.formatDate(d, 'Asia/Taipei', 'u')` 的 `'u'` 在 Apps Script 格式化中解析為年份 `2026`，導致未觸發 `6` 或 `7` 的過濾。
-  - 改用 `new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Taipei' })).getDay()`，週日 `0` 與週六 `6` 100% 觸發 `週休二日`。
-  - 網頁頂部即刻正確顯示 `☕ 今日休市 (週休二日)`。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@22`) 與 Git Push 成功發布。
+### 📅 2026-07-26 品牌人設升級、字級放大護眼、觀念導航與頁尾警語 (v1.6.0)
+- **視覺與品牌升級**：
+  - 頂部與 AI 卡片確立為 `巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)`。
+  - 將核心行動指引、扣款卡與 AI 觀點文字顯著放大（`1.15rem ~ 1.25rem`），提升閱讀舒適度。
+  - 打造 `🧭 觀念導航` 區塊與溫馨琥珀金頁尾免責聲明。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@24`) 與 Git Push 成功發布。
