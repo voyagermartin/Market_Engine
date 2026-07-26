@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.4.0)
+# HANDBOOK.md (v1.4.2)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -32,6 +32,7 @@
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `generateMorningNavigation()`: **【v1.3.0 完全體】老巴盤前 AI 導航腳本 (對齊 V3 Schema，生成老巴早餐並寫入 DASHBOARD B23 與 HISTORY_LOG J3)**
 - `generateAfternoonNavigation()`: **【v1.4.0 完全體】小羅盤後 AI 導航腳本 (對齊 V3 Schema，比對今明兩日數據，生成小羅午茶並寫入 DASHBOARD B24 與 HISTORY_LOG K3)**
+- `updateDailyMarketEngine()`: **【v1.4.2 新增別名】舊版觸發器相容別名 (指向 updateAfternoonMarketEngine)**
 - `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 並自動執行老巴 AI 導航)
 - `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與小羅午茶 AI 導航)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
@@ -78,10 +79,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 1 雙 AI 導航腳本完整合體 (`generateMorningNavigation` & `generateAfternoonNavigation` V3 完全體成功上線)。
+Milestone 5 / Step 1 舊觸發器別名與標題去重微調完成。
 
 ## ⑩ Current Version
-v1.4.0 (雙 AI 導航腳本完整合體發布版)
+v1.4.2 (舊觸發器相容與重複標題修復版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -103,36 +104,19 @@ v1.4.0 (雙 AI 導航腳本完整合體發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 1 雙 AI 導航腳本完整合體 (v1.4.0)**：
-     - **generateAfternoonNavigation() 升級完工**：對齊 V3 Schema，比對 `RAW_HISTORY` Row 3 (今日) 與 Row 4 (昨日)，呼叫 Gemini 1.5 Flash 產生小羅午茶觀點，寫入 `DASHBOARD` `B24` 並同步備份至 `HISTORY_LOG` 第 3 列 K 欄 (`AI_Afternoon_Story`)。
-     - **雙時段觸發自動化**：07:30 盤前自動觸發老巴導航，14:30 盤後自動觸發小羅導航。
+  7. **Milestone 5 / Step 1 細項修正 (v1.4.2)**：
+     - **舊觸發器函式別名**：新增 `updateDailyMarketEngine()` 函式，自動轉向指向 `updateAfternoonMarketEngine()`，徹底解決舊有觸發器報錯「找不到指令碼函式：updateDailyMarketEngine」。
+     - **網頁標題去重**：清除網頁內文中重複出現的 `☕ 小羅的盤後午茶時光` 開頭標題行，同時於 `updateDOM` 加入正則過濾，確保畫面簡潔大方。
   8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 5 Step 1 雙 AI 導航合體完成。
+- **目前停止位置**: Milestone 5 Step 1 完美完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 主發布 ID 權限連動與 Google Sheet 實體列重刷 (v1.0.9)
-- **修復細節**：
-  - 指出用戶於 Google Sheet 看到的舊數據 `23,529.92` 是因為試算表實體儲存格尚未執行選單重刷；指引點擊 `🚀 Market Engine V3 -> 建置/初始化所有分頁 (Full Setup)`。
-  - 將 Web App 部署強控更新至已授權之主發布 ID (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)，徹底解決存取權限警告。
-- **部署**：`clasp deploy -i AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA` (Deployment `@12`) 與 Git Push 成功發布。
-
-### 📅 2026-07-26 緊急修復、數據 100% 對齊與 GitHub Pages 完工結案 (v1.1.0)
-- **行情與位階指標精準對齊 (Single Source of Truth)**：
-  - 精準校正 `RAW_HISTORY` 最新交易日數據：加權指數 TWII `43,654.84` 點、距離季線 Dist60 `▼ 0.87%` (偏低/恐慌)、距離年線 Dist240 `▲ 32.29%` (偏高/熱絡)、VIX `18.58`、夜盤 EWT `▼ 1.83%` (夜盤急跌)。
-- **GitHub Pages 前端靜態託管完美發布 (`index.html`)**：
-  - 重構 `index.html` 為 100% 純淨 HTML5 規範，徹底清除無效標籤以排除瀏覽器 DOM 註解解析卡死。
-  - 前端導入極速預載快照與 JSONP 動態異步連線，開啟網頁即刻 0 毫秒呈現最新動態圖表。
-- **完工與版本控管同步**：
-  - 成功執行 `clasp push` (Apps Script 雲端同步) 與 `git push origin main` (推播至 GitHub `main` 分支)。
-
-### 📅 2026-07-26 小羅盤後 AI 導航腳本 generateAfternoonNavigation() 完工 (v1.4.0)
-- **AI 導航雙雄合體**：
-  - 新增並升級對齊 Market Engine V3 的 `generateAfternoonNavigation()`。
-  - 比對 `RAW_HISTORY` Row 3 (今日) 與 Row 4 (昨日) 的 7 日軌跡，取得 `DASHBOARD` `B15` 今日位階。
-  - 呼叫 `gemini-1.5-flash` API，生成約 220~320 字小羅午茶觀點。
-  - 寫入 `DASHBOARD` `B24` 並同步備份至 `HISTORY_LOG` Row 3 K欄 (`AI_Afternoon_Story`)。
-  - 自動串接至 `updateAfternoonMarketEngine()` (每日 14:30 自動執行)。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@18`) 與 Git Push 成功發布。
+### 📅 2026-07-26 舊觸發器函式別名與網頁重複標題修復 (v1.4.2)
+- **舊觸發器修復**：
+  - 新增 `updateDailyMarketEngine()` 宣告並連結至 `updateAfternoonMarketEngine()`，徹底消滅 Google Sheet 遺留之舊觸發器找不到函式警告。
+- **重複標題去重**：
+  - 移除了 `index.html` 內文第一行的重複標題 `☕ 小羅的盤後午茶時光`，並在前端動態綁定加入過濾，排版更洗練好看。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@20`) 與 Git Push 成功發布。

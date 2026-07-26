@@ -405,8 +405,6 @@
         <span style="font-size: 11px; background: rgba(168, 85, 247, 0.2); color: #e9d5ff; padding: 4px 10px; border-radius: 12px;" id="aiActiveBadge">盤後 14:30 值班 (小羅)</span>
       </div>
       <div id="aiActiveStory" style="font-size: 14px; color: #f8fafc; line-height: 1.7; white-space: pre-line;">
-☕ 小羅的盤後午茶時光
-
 【今天市場最大的變化】
 今天市場真正改變的是指數在適度拉回後，季線乖離率回落至 -0.87%，正式進入具備長線勝率保護的「便宜通道」，但 VIX 仍平穩收在 18.58，顯示並無恐慌拋售。
 
@@ -514,6 +512,9 @@
         : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,654.84 點，季線乖離 -0.87% 屬於便宜區，長線勝率非常高！');
       let border = isMorning ? '#818cf8' : '#c084fc';
       let titleColor = isMorning ? '#a5b4fc' : '#e9d5ff';
+
+      // 清除內文開頭重複的標題行 (如 "☕ 小羅的盤後午茶時光" 或 "☀️ 老巴的盤前早餐時間")
+      story = story.replace(/^(☕\s*小羅的盤後午茶時光|☀️\s*老巴的盤前早餐時間|\[老巴.*?\]|\[小羅.*?\])\s*/i, '').trim();
 
       const card = document.getElementById('aiAdvisorCard');
       if (card) card.style.borderTopColor = border;

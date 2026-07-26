@@ -934,6 +934,13 @@ ${phaseTrack}
 // ==========================================
 
 /**
+ * 舊版每日單一時段更新相容別名 (自動指向 updateAfternoonMarketEngine 盤後更新)
+ */
+function updateDailyMarketEngine() {
+  updateAfternoonMarketEngine();
+}
+
+/**
  * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
  */
 function updateMorningMarketEngine() {
