@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.2.3)
+# HANDBOOK.md (v1.3.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -17,7 +17,7 @@
 6. `DECISION_LOG`: 日期 (Date), 當時市場位階/訊號, 策略動作 (買進/賣出/再平衡/觀望), 執行說明 (無金額純策略), 策略符合度 (符合/偏離), 策略思考與檢討備註
 
 ## ④ Function Library
-- `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3` (含雙時段測試與觸發器安裝)
+- `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3` (含雙時段測試、老巴 AI 導航與觸發器安裝)
 - `setupMarketEngineV3()`: 高效能主初始化建置函式（< 2 秒極速建置防逾時）
 - `setupSheet()`: 取得/建立分頁，執行 `sheet.clear()` 徹底清除舊欄位殘留，並執行 `breakApart()` 防止合併衝突 Exception
 - `setHeaderBanner()` / `setTableHeader()`: 統一繪製分頁第 1 列白話文說明與標題欄位
@@ -30,7 +30,8 @@
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
 - `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問單一值班卡片
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
-- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 與老巴早餐值班模式)
+- `generateMorningNavigation()`: **【v1.3.0 新增完全體】老巴盤前 AI 導航腳本 (對齊 V3 Schema，呼叫 Gemini 1.5 Flash 生成老巴早餐並寫入 DASHBOARD B23 與 HISTORY_LOG J3)**
+- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 更新夜盤 EWT 並自動執行老巴 AI 導航)
 - `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 更新收盤行情、VIX 與小羅午茶值班模式)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
@@ -52,6 +53,11 @@
   - 過熱 / 狂熱 $\rightarrow$ ⚠️ `明天建議暫停扣款，把錢存起來等打折！`
 
 ## ⑥ AI Agents
+- **老巴盤前 AI 導航 (generateMorningNavigation)**:
+  - 專用模型: `gemini-1.5-flash`
+  - 抓取數據: `RAW_HISTORY` 最新 7 交易日實體數據 (Row 3 為最新一天)
+  - 正確 Single Source of Truth 位階參照: `DASHBOARD` `B15`
+  - 輸出位置: `DASHBOARD` `B23` (老巴早餐卡片) 與 `HISTORY_LOG` 第 3 列 J 欄 (`AI_Morning_Story`)
 - **AI 顧問 巴菲特‧索羅斯 Asia/Taipei 時區值班輪播**：
   - **盤前時段 (07:30 ~ 14:30)**：`🍔 老巴的盤前早餐時間` (老巴值班，聚焦夜盤與開盤撿便宜點)。
   - **盤後與夜間時段 (14:30 ~ 07:30)**：`☕ 小羅的盤後午茶時光` (小羅值班，聚焦收盤點位與盤後總結)。
@@ -64,14 +70,14 @@
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則 (Rule 1 ~ Rule 16)。
-- 時區計算原則：前後端所有時間比較必須顯式使用 `Asia/Taipei` (UTC+8)，嚴禁受限於伺服器預設 UTC 時區導致的時間判定偏差。
+- 時區計算原則：前後端所有時間比較必須顯式使用 `Asia/Taipei` (UTC+8)。
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 1 完美修復完成 (Asia/Taipei 時區精準對齊，小羅盤後值班即時生效)。
+Milestone 5 / Step 1 完美完成 (`generateMorningNavigation()` V3 完全體與 07:30 盤前觸發自動串接完成)。
 
 ## ⑩ Current Version
-v1.2.3 (Asia/Taipei 時區時數精準校正發布版)
+v1.3.0 (老巴盤前 AI 導航完全體發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -93,9 +99,9 @@ v1.2.3 (Asia/Taipei 時區時數精準校正發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 1 時區精準校正 (v1.2.3)**：
-     - **Asia/Taipei 時區顯式校正**：將後端 GAS 與前端 `index.html` 的小時數算式改為顯式使用 `Asia/Taipei` 時區計算。解決之前 UTC 伺服器時間導致晚間 20:09 被誤判為 12:00 晨報問題。
-     - **即時呈現小羅午茶卡片**：晚間 20:09 開啟網頁即刻精準呈現 `☕ 小羅的盤後午茶時光 (盤後 14:30 值班)`。
+  7. **Milestone 5 / Step 1 老巴 AI 導航完全體 (v1.3.0)**：
+     - **generateMorningNavigation() 升級完工**：精準對齊 V3 Schema，從 `RAW_HISTORY` Row 3 抓取最新 7 交易日數據，參照 `DASHBOARD` `B15` 今日位階，呼叫 Gemini 1.5 Flash 產生老巴早餐解讀，並寫入 `DASHBOARD` `B23` 及同步備份至 `HISTORY_LOG` 第 3 列 J 欄 (`AI_Morning_Story`)。
+     - **盤前 07:30 觸發器自動串接**：已將 `generateMorningNavigation()` 整合進 `updateMorningMarketEngine()`，實現盤前自動觸發。
   8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
 - **目前停止位置**: Milestone 5 Step 1 完美完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
@@ -118,8 +124,11 @@ v1.2.3 (Asia/Taipei 時區時數精準校正發布版)
 - **完工與版本控管同步**：
   - 成功執行 `clasp push` (Apps Script 雲端同步) 與 `git push origin main` (推播至 GitHub `main` 分支)。
 
-### 📅 2026-07-26 Asia/Taipei 時區時數顯式校正與小羅值班即時生效 (v1.2.3)
-- **時區算式修復**：
-  - 發現 GAS 預設 UTC 時區導致晚間 20:09 被判斷為 UTC 12:00（晨報時段）。
-  - 後端與前端全數改採 `Asia/Taipei` (UTC+8) 時區算式，確保晚間 20:09 100% 精準顯示 `☕ 小羅的盤後午茶時光`。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@16`) 與 Git Push 成功發布。
+### 📅 2026-07-26 老巴盤前 AI 導航腳本 generateMorningNavigation() 完全體 (v1.3.0)
+- **AI 導航升級**：
+  - 寫入對齊 Market Engine V3 的 `generateMorningNavigation()`。
+  - 從 `RAW_HISTORY` Row 3 讀取 7 日航跡，取得 `DASHBOARD` `B15` Single Source of Truth 今日位階。
+  - 呼叫 `gemini-1.5-flash` API，生成約 220~320 字老巴早餐觀點。
+  - 寫入 `DASHBOARD` `B23` 並同步備份至 `HISTORY_LOG` Row 3 J欄 (`AI_Morning_Story`)。
+  - 自動串接至 `updateMorningMarketEngine()` (每日 07:30 自動執行)。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@17`) 與 Git Push 成功發布。

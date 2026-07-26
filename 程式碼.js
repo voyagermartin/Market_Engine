@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.2.3 (時區時數校正：使用 Asia/Taipei 時區判定 07:30 老巴 / 14:30 小羅值班)
+ * Version: v1.3.0 (老巴盤前 AI 導航腳本 generateMorningNavigation 完全體對齊 V3 Schema)
  */
 
 /**
@@ -16,6 +16,7 @@ function onOpen() {
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
     .addItem('🌆 執行盤後更新測試 (14:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addSeparator()
+    .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
     .addItem('🚀 擴展載入 2008~2026 18年完整歷史數據', 'seedFullHistoricalData')
     .addItem('更新/套用計算公式與樣式', 'applyFormulasAndStyles')
     .addToUi();
@@ -58,7 +59,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.2.3) 時區校正完成！\n已全面採用 Asia/Taipei 時區判定老巴(07:30~14:30)與小羅(14:30~07:30)值班。');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.3.0) 更新完成！\n已升級老巴盤前 AI 導航 generateMorningNavigation() 完全體！');
 }
 
 /**
@@ -658,7 +659,140 @@ function buildDecisionLogSheet(sheet) {
 }
 
 // ==========================================
-// 7. 雙時段自動更新機制 (Daily Dual Triggers: Morning 07:30 & Afternoon 14:30)
+// 7. 老巴盤前 AI 導航腳本 (generateMorningNavigation - V3 完全體)
+// ==========================================
+
+/**
+ * 升級版老巴盤前 AI 導航腳本 (對齊 V3 Database Schema)
+ */
+function generateMorningNavigation() {
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_WEB_GEMINI_API_KEY");
+  if (!apiKey) {
+    Logger.log("⚠️ 尚未設定 MARKET_WEB_GEMINI_API_KEY");
+    return;
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const rawSheet = ss.getSheetByName("RAW_HISTORY");
+  const dashSheet = ss.getSheetByName("DASHBOARD");
+  const historyLogSheet = ss.getSheetByName("HISTORY_LOG");
+
+  if (!rawSheet || !dashSheet || !historyLogSheet) {
+    Logger.log("⚠️ 分頁未完整建置");
+    return;
+  }
+
+  // 從 RAW_HISTORY 讀取最新 7 個交易日資料 (Row 3 為最新一天)
+  const rawData = rawSheet.getRange(3, 1, 7, 10).getValues(); 
+  if (rawData.length < 1 || !rawData[0][0]) {
+    Logger.log("RAW_HISTORY 資料不足");
+    return;
+  }
+
+  const today = rawData[0];     // [Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change]
+  const dateStr = Utilities.formatDate(new Date(today[0]), "Asia/Taipei", "yyyy-MM-dd");
+  const twiiClose = today[1];
+  const vix = today[2];
+  const dist60 = (Number(today[5]) * 100).toFixed(2) + "%";
+  const dist240 = (Number(today[6]) * 100).toFixed(2) + "%";
+  const ma60Slope = (Number(today[7]) * 100).toFixed(2) + "%";
+  const dist60Delta = (Number(today[8]) * 100).toFixed(2) + "%";
+  const ewtChange = (Number(today[9]) * 100).toFixed(2) + "%";
+
+  // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
+  const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
+
+  // 組裝 7 日位階航跡
+  let phaseTrack = "";
+  for (let i = rawData.length - 1; i >= 0; i--) {
+    if (rawData[i][0]) {
+      const d = Utilities.formatDate(new Date(rawData[i][0]), "Asia/Taipei", "MM/dd");
+      phaseTrack += `${d} TWII:${rawData[i][1]}\n`;
+    }
+  }
+
+  const prompt = `
+【市場環境資訊】
+交易日期：${dateStr}
+加權指數收盤：${twiiClose}
+今日市場位階：${currentPhase}
+季線乖離率(Dist60)：${dist60}
+年線乖離率(Dist240)：${dist240}
+季線5日斜率(MA60 Slope)：${ma60Slope}
+5日乖離動能(Dist60 Delta)：${dist60Delta}
+夜盤(EWT漲跌幅)：${ewtChange}
+VIX恐慌指數：${vix}
+
+【近7日市場航跡】
+${phaseTrack}
+
+────────────────
+你是「巴菲特」。
+你是 Market Engine V3 的盤前市場解譯員。
+你的任務不是預測市場漲跌，也不是提供投資建議。
+你的任務是：協助投資人理解市場目前所處的位置、市場情緒如何演變、以及開盤後值得關注的方向。
+請將數據翻譯成一般人能理解的白話語言。重點是建立市場感知能力，而非提供答案。
+
+────────────────
+請輸出：
+
+☀️ 老巴的盤前早餐時間
+
+【市場位置】
+用一句白話描述目前市場所處的位置與區域特性。
+
+【今日最大的變數】
+請先判斷今天最值得投資人注意的是哪一項資訊（候選：夜盤EWT、VIX變化、MA60斜率、乖離動能）。請不要平均介紹所有數據，聚焦在最重要的一項。若夜盤與市場位階矛盾，請直接指出矛盾。
+
+【今天可能面臨的狀況】
+說明今天開盤後最可能優先反映哪些情緒或因素（例如：夜盤大跌可能先承受賣壓，但位階處於恐慌區展現韌性）。描述「可能先反映什麼」，不要預測漲跌。
+
+【老巴早餐的一句話】
+用一句貼近巴菲特風格的提醒，重點放在投資心態與紀律，不要使用過度誇張的比喻。
+
+────────────────
+限制：
+* 約 220~320 字
+* 使用繁體中文
+* 不要條列
+* 不要預測漲跌或給予個股買賣建議
+* 保持客觀、冷靜、有溫度的老巴語氣
+`;
+
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }]
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    const result = JSON.parse(response.getContentText());
+    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts[0].text) {
+      const aiText = result.candidates[0].content.parts[0].text;
+      
+      // 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)
+      dashSheet.getRange("B23").setValue(aiText);
+
+      // 同步備份至 HISTORY_LOG 的 AI_Morning_Story 欄位 (J欄 / 第10欄)
+      historyLogSheet.getRange(3, 10).setValue(aiText);
+      Logger.log("老巴早餐成功生成並寫入！");
+    } else {
+      throw new Error("API 傳回空內容: " + response.getContentText());
+    }
+  } catch (err) {
+    dashSheet.getRange("B23").setValue("☀️ 巴菲特暫時離開早餐店，稍後再回來。");
+    Logger.log("Gemini API Error: " + err);
+  }
+}
+
+// ==========================================
+// 8. 雙時段自動更新機制 (Daily Dual Triggers: Morning 07:30 & Afternoon 14:30)
 // ==========================================
 
 /**
@@ -674,6 +808,9 @@ function updateMorningMarketEngine() {
 
   const newEwtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000) / 10000;
   rawSheet.getRange(3, 10).setValue(newEwtChange);
+
+  // 自動觸發老巴盤前 AI 導航生成
+  generateMorningNavigation();
 
   SpreadsheetApp.flush();
   Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + today);
@@ -733,7 +870,7 @@ function createDailyTrigger() {
 }
 
 // ==========================================
-// 8. Web App 網頁端渲染 Engine (HTTP GET)
+// 9. Web App 網頁端渲染 Engine (HTTP GET)
 // ==========================================
 
 /**
