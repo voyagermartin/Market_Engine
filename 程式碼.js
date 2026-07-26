@@ -33,11 +33,11 @@ function onOpen() {
 function isMarketOpen(targetDate) {
   const d = targetDate ? new Date(targetDate) : new Date();
   
-  // 轉為 Asia/Taipei 當地日期與星期 (1 = Mon, 7 = Sun)
-  const dayStr = Utilities.formatDate(d, 'Asia/Taipei', 'u');
-  const dayNum = parseInt(dayStr, 10);
+  // 轉為 Asia/Taipei 當地日期之星期幾 (0 = Sun, 6 = Sat)
+  const taipeiDate = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  const dayOfWeek = taipeiDate.getDay();
 
-  if (dayNum === 6 || dayNum === 7) {
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
     return { isOpen: false, reason: '週休二日' };
   }
 

@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.5.0)
+# HANDBOOK.md (v1.5.1)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -18,8 +18,8 @@
 
 ## ④ Function Library
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3` (含老巴盤前、小羅盤後 AI 導航、休市日測試與雙時段自動更新)
-- `isMarketOpen()`: **【v1.5.0 新增】休市日 Helper 函式 (自動判斷週休二日與 Google Calendar 台灣國定假日)**
-- `testMarketOpenStatus()`: **【v1.5.0 新增】休市日狀態手動測驗彈窗**
+- `isMarketOpen()`: **【v1.5.1 顯式時區修復】休市日 Helper 函式 (採用 toLocaleString Asia/Taipei 判定週六/週日 dayOfWeek === 0 \|\| 6 與 Google Calendar 國定假日)**
+- `testMarketOpenStatus()`: **休市日狀態手動測驗彈窗**
 - `setupMarketEngineV3()`: 高效能主初始化建置函式（< 2 秒極速建置防逾時）
 - `setupSheet()`: 取得/建立分頁，執行 `sheet.clear()` 徹底清除舊欄位殘留，並執行 `breakApart()` 防止合併衝突 Exception
 - `setHeaderBanner()` / `setTableHeader()`: 統一繪製分頁第 1 列白話文說明與標題欄位
@@ -32,8 +32,8 @@
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
 - `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問單一值班卡片
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
-- `generateMorningNavigation()`: **【v1.5.0 升級】老巴盤前 AI 導航腳本 (連動 isMarketOpen，休市日自動注入夜盤/VIX焦點 Prompt)**
-- `generateAfternoonNavigation()`: **【v1.5.0 升級】小羅盤後 AI 導航腳本 (連動 isMarketOpen，休市日自動注入情緒/觀察焦點 Prompt)**
+- `generateMorningNavigation()`: 老巴盤前 AI 導航腳本 (連動 isMarketOpen，休市日自動注入夜盤/VIX焦點 Prompt)
+- `generateAfternoonNavigation()`: 小羅盤後 AI 導航腳本 (連動 isMarketOpen，休市日自動注入情緒/觀察焦點 Prompt)
 - `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 檢查休市狀態並執行老巴 AI 導航)
 - `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 檢查休市狀態，休市日自動跳過 HISTORY_LOG 無效寫入)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
@@ -77,10 +77,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-Milestone 5 / Step 2 完成 (休市日 isMarketOpen 判定與 AI 導航連動完全體上線)。
+Milestone 5 / Step 2 休市日判定時區與頂部標籤修復完成。
 
 ## ⑩ Current Version
-v1.5.0 (Milestone 5 Step 2 休市日判定與 AI 導航發布版)
+v1.5.1 (休市日判定時區與頂部標籤修復發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -102,27 +102,19 @@ v1.5.0 (Milestone 5 Step 2 休市日判定與 AI 導航發布版)
      - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
   6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
      - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 2 休市日判定與 AI 導航連動 (v1.5.0)**：
-     - **isMarketOpen() Helper**：實作週休二日與 Google Calendar 台灣國定假日自動判定。
-     - **AI 導航休市連動**：老巴與小羅導航腳本自動注入休市日 Prompt 限制（聚焦夜盤/VIX/下個交易日）。
-     - **防範無效紀錄**：盤後更新遇休市日自動免除 `HISTORY_LOG` 無效寫入。
-     - **UI 頂部狀態標籤**：網頁頂部即時顯示 `🟢 正常交易日` 或 `☕ 今日休市 (週休二日)`。
+  7. **Milestone 5 / Step 2 休市日判定與 AI 導航連動 (v1.5.0 ~ v1.5.1)**：
+     - **isMarketOpen() 星期算式校正**：修復 SimpleDateFormat `'u'` 誤為年份導致的星期判定偏差，改為 `toLocaleString('en-US', { timeZone: 'Asia/Taipei' })` 取得原生 JavaScript `getDay()`，確保週六/週日 100% 精準識別為 `☕ 今日休市 (週休二日)`。
+     - **網頁頂部標籤預設**：同步更新 `index.html` 靜態預載標籤與動態綁定，週日即刻呈現 `☕ 今日休市 (週休二日)`。
   8. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Milestone 5 Step 2 休市日判定完工。
+- **目前停止位置**: Milestone 5 Step 2 休市日判定完工發布。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
 
-### 📅 2026-07-26 主發布 ID 權限連動與 Google Sheet 實體列重刷 (v1.0.9)
-- **修復細節**：
-  - 指出用戶於 Google Sheet 看到的舊數據 `23,529.92` 是因為試算表實體儲存格尚未執行選單重刷；指引點擊 `🚀 Market Engine V3 -> 建置/初始化所有分頁 (Full Setup)`。
-  - 將 Web App 部署強控更新至已授權之主發布 ID (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)，徹底解決存取權限警告。
-- **部署**：`clasp deploy -i AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA` (Deployment `@12`) 與 Git Push 成功發布。
-
-### 📅 2026-07-26 休市日判定 (isMarketOpen) 與 AI 導航連動 (v1.5.0)
-- **休市日邏輯**：
-  - 新增 `isMarketOpen()` 函式，自動過濾週休二日與 Google Calendar 台灣國定假日。
-  - 於老巴/小羅 Prompt 注入休市規則限制，並於網頁頂部顯示 `☕ 今日休市`。
-  - 盤後更新自動跳過休市日的 `HISTORY_LOG` append 操作，防範無效數據。
-- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@21`) 與 Git Push 成功發布。
+### 📅 2026-07-26 週日休市日判定時區與頂部標籤校正 (v1.5.1)
+- **真因修正**：
+  - 發現原本 `Utilities.formatDate(d, 'Asia/Taipei', 'u')` 的 `'u'` 在 Apps Script 格式化中解析為年份 `2026`，導致未觸發 `6` 或 `7` 的過濾。
+  - 改用 `new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Taipei' })).getDay()`，週日 `0` 與週六 `6` 100% 觸發 `週休二日`。
+  - 網頁頂部即刻正確顯示 `☕ 今日休市 (週休二日)`。
+- **部署**：`clasp push`、`clasp deploy -i` (Deployment `@22`) 與 Git Push 成功發布。
