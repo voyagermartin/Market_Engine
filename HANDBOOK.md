@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.3)
+# HANDBOOK.md (v1.6.4)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -19,7 +19,7 @@
 ## ④ Function Library
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3` (含老巴盤前、小羅盤後 AI 導航、休市日測試與雙時段自動更新)
 - `isMarketOpen()`: 休市日 Helper 函式 (採用 toLocaleString Asia/Taipei 判定週六/週日 dayOfWeek === 0 || 6 與 Google Calendar 國定假日)
-- `testMarketOpenStatus()`: 休市日狀態手動測驗彈窗
+- `testMarketOpenStatus()`: 整合休市日判定與 Gemini API 連線自我診斷及可用模型清單獲取的測驗彈窗
 - `getSpreadsheet()`: 取得或開啟當前試算表實例，整合 `getActiveSpreadsheet()` 與 `PropertiesService` 的 `SPREADSHEET_ID` 備份機制，防止自動觸發器執行時回傳 null
 - `setupMarketEngineV3()`: 高效能主初始化建置函式（< 2 秒極速建置防逾時）
 - `setupSheet()`: 取得/建立分頁，執行 `sheet.clear()` 徹底清除舊欄位殘留，並執行 `breakApart()` 防止合併衝突 Exception
@@ -89,10 +89,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-v1.6.3 修復 Web App API 存取權限與跨域存取問題。
+v1.6.4 升級 AI 模型至 Gemini 2.0 Flash 並強化連線自我診斷與模型探索工具。
 
 ## ⑩ Current Version
-v1.6.3 (Web App 權限與跨域修復版)
+v1.6.4 (Gemini 2.0 升級與診斷強化版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -136,8 +136,11 @@ v1.6.3 (Web App 權限與跨域修復版)
   12. **Web App API 存取權限與跨域存取問題修復 (v1.6.3)**：
       - 於 `appsscript.json` 中配置 `"webapp"` 屬性，指定 `"executeAs": "USER_DEPLOYING"` 與 `"access": "ANYONE_ANONYMOUS"`。
       - 解決之前因為未明確認證權限，導致 API 回傳 Google Drive 權限錯誤網頁（找不到網頁），進而使前端網頁無法執行 JSONP 回呼（使得資料日期一直卡在 7/24 舊數據）的問題。
-- **目前停止位置**: v1.6.3 Web App 權限與跨域問題修復完成。
-- **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
+  13. **Gemini 2.0 Flash 升級與連線自我診斷強化 (v1.6.4)**：
+      - **模型升級**：將 `程式碼.js` 中所有 API 端點之模型從 `gemini-1.5-flash` 升級為 `gemini-2.0-flash`。
+      - **連線診斷**：重構 `testMarketOpenStatus()` 測試連線邏輯，若連線失敗則自動呼叫可用模型清單端點獲取可用模型清單，並回傳顯示於 UI 彈窗中，提高錯誤診斷的能見度。
+- **目前停止位置**: v1.6.4 Gemini 2.0 升級與診斷強化版已完成。
+- **下一步施工位置**: 依據後續規劃進行系統擴充。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
@@ -174,6 +177,11 @@ v1.6.3 (Web App 權限與跨域修復版)
   - 於 `appsscript.json` 中配置 `"webapp"` 屬性，指定 `"executeAs": "USER_DEPLOYING"` 與 `"access": "ANYONE_ANONYMOUS"`。
   - 解決之前因為未明確認證權限，導致 API 回傳 Google Drive 權限錯誤網頁（找不到網頁），進而使前端網頁無法執行 JSONP 回呼（使得資料日期一直卡在 7/24 舊數據）的問題。
 - **部署**：全數完成 `clasp push -f` 覆寫 manifest、`clasp deploy -i` (Deployment `@28`) 與 GitHub `main` 分支推播。
+
+### 📅 2026-07-27 Gemini 2.0 Flash 升級與連線自我診斷強化 (v1.6.4)
+- **模型升級**：將 Google Sheet 及 GAS 中老巴和小羅 AI 導航專用模型，以及自我測試 API 連線的模型，全面升級至最新且更快的 `gemini-2.0-flash` 模型。
+- **自我診斷與模型探索**：重構 `testMarketOpenStatus()`，在 Gemini API 連線失敗時，新增自動呼叫 models API 取得可用模型清單，並於 UI 彈窗詳細呈現，以便管理員即時定位與診斷。
+- **部署**：完成 `clasp push` 與 Git 提交推送到 GitHub。
 
 ---
 ## ⑬ 待修與待辦事項 (Pending Issues)
