@@ -722,9 +722,9 @@ function buildDecisionLogSheet(sheet) {
  * 升級版老巴盤前 AI 導航腳本 (對齊 V3 Database Schema & 休市日判定)
  */
 function generateMorningNavigation() {
-  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_WEB_GEMINI_API_KEY");
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
   if (!apiKey) {
-    Logger.log("⚠️ 尚未設定 MARKET_WEB_GEMINI_API_KEY");
+    Logger.log("⚠️ 尚未設定 MARKET_ENGINE_GEMINI_API_KEY");
     return;
   }
 
@@ -872,9 +872,9 @@ ${phaseTrack}
  * 升級版小羅盤後 AI 導航腳本 (對齊 V3 Database Schema & 休市日判定)
  */
 function generateAfternoonNavigation() {
-  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_WEB_GEMINI_API_KEY");
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
   if (!apiKey) {
-    Logger.log("⚠️ 尚未設定 MARKET_WEB_GEMINI_API_KEY");
+    Logger.log("⚠️ 尚未設定 MARKET_ENGINE_GEMINI_API_KEY");
     return;
   }
 
