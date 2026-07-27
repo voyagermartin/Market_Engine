@@ -1141,12 +1141,14 @@ function updateDailyMarketEngine() {
 
 /**
  * 即時金融行情對接器：從官方/國際金融 API (Yahoo Finance / GOOGLEFINANCE) 讀取真實市場行情
- * (替代所有歷史模擬亂數，確保 Single Source of Truth 真實性)
+ * (替代所有歷史模擬亂數，含交易時間戳防呆與健康狀態指標)
  */
 function fetchRealMarketData() {
   let twii = null;
   let vix = null;
   let ewtChange = null;
+  let regularMarketTime = null;
+  let healthStatus = "🟢 行情即時連線";
 
   // 1. 抓取台股加權指數 (TWII / ^TWII)
   try {
@@ -1155,12 +1157,18 @@ function fetchRealMarketData() {
     if (resp.getResponseCode() === 200) {
       const json = JSON.parse(resp.getContentText());
       const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
-      if (meta && meta.regularMarketPrice && meta.regularMarketPrice > 0) {
-        twii = Math.round(meta.regularMarketPrice * 100) / 100;
+      if (meta) {
+        if (meta.regularMarketPrice && meta.regularMarketPrice > 0) {
+          twii = Math.round(meta.regularMarketPrice * 100) / 100;
+        }
+        if (meta.regularMarketTime) {
+          regularMarketTime = new Date(meta.regularMarketTime * 1000);
+        }
       }
     }
   } catch (e) {
     Logger.log('[Market Engine API Warning] ^TWII API 擷取失敗: ' + e.message);
+    healthStatus = "⚠️ 網路連線延遲 (暫用前日盤後價)";
   }
 
   // 2. 抓取 VIX 恐慌指數 (^VIX)
@@ -1194,7 +1202,25 @@ function fetchRealMarketData() {
     Logger.log('[Market Engine API Warning] EWT API 擷取失敗: ' + e.message);
   }
 
-  return { twii, vix, ewtChange };
+  const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
+  let timeStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm");
+
+  if (regularMarketTime) {
+    const marketDateStr = Utilities.formatDate(regularMarketTime, "Asia/Taipei", "yyyy-MM-dd");
+    const marketTimeStr = Utilities.formatDate(regularMarketTime, "Asia/Taipei", "yyyy-MM-dd HH:mm");
+    if (twii) {
+      healthStatus = `🟢 行情即時連線 (${marketTimeStr})`;
+    }
+    // 颱風假/臨時休市防呆判定
+    const dayOfWeek = (new Date()).getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5 && marketDateStr < todayStr) {
+      healthStatus = `☕ 今日颱風/臨時休市 (成交時間未更新)`;
+    }
+  } else if (!twii) {
+    healthStatus = `⚠️ 網路連線延遲 (暫用前日盤後價)`;
+  }
+
+  return { twii, vix, ewtChange, regularMarketTime, healthStatus, timeStr };
 }
 
 /**
@@ -1202,7 +1228,7 @@ function fetchRealMarketData() {
  */
 function testRealMarketApiFetch() {
   const data = fetchRealMarketData();
-  const msg = `📡 即時金融 API 連線測試結果:\n\n• 台股加權指數 (TWII): ${data.twii ? data.twii + ' 點 (真實行情)' : '⚠️ 擷取失敗 (使用最後紀錄)'}\n• VIX 恐慌指數: ${data.vix ? data.vix : '⚠️ 擷取失敗 (使用最後紀錄)'}\n• 夜盤 EWT 漲跌幅: ${data.ewtChange !== null ? (data.ewtChange * 100).toFixed(2) + '%' : '⚠️ 擷取失敗'}`;
+  const msg = `📡 即時金融 API 連線測試結果:\n\n• 行情健康狀態: ${data.healthStatus}\n• 台股加權指數 (TWII): ${data.twii ? data.twii + ' 點 (真實行情)' : '⚠️ 擷取失敗 (使用最後紀錄)'}\n• VIX 恐慌指數: ${data.vix ? data.vix : '⚠️ 擷取失敗 (使用最後紀錄)'}\n• 夜盤 EWT 漲跌幅: ${data.ewtChange !== null ? (data.ewtChange * 100).toFixed(2) + '%' : '⚠️ 擷取失敗'}`;
   Logger.log(msg);
   SpreadsheetApp.getUi().alert(msg);
 }
@@ -1390,11 +1416,13 @@ function getMarketEngineData() {
   const isMorning = (currentHour >= 7 && currentHour < 14);
   const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '<ctrl42> 盤後模式 (14:30 小羅午茶值班)';
 
+  const liveHealth = fetchRealMarketData();
   const status = isMarketOpen(new Date());
   const marketStatusPayload = {
     isOpen: status.isOpen,
     reason: status.reason,
-    badgeText: status.isOpen ? '🟢 正常交易日' : `☕ 今日休市 (${status.reason})`
+    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ 今日休市 (${status.reason})`,
+    healthStatus: liveHealth.healthStatus
   };
 
   const data = {

@@ -562,7 +562,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team) ｜ Single Source of Truth Live Engine v1.8.0
+        巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team) ｜ Single Source of Truth Live Engine v1.9.0
       </div>
     </footer>
   </div>
@@ -579,12 +579,12 @@
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
       if (data.dcaGuide && data.dcaGuide !== 'N/A') document.getElementById('dcaGuide').textContent = data.dcaGuide;
 
-      // 交易日狀態標籤 (🟢 正常交易日 vs ☕ 今日休市)
+      // 數據健康度與交易日狀態標籤 (🟢 行情即時連線 (YYYY-MM-DD HH:mm) vs ☕ 今日休市)
       if (data.marketStatus) {
         const tag = document.getElementById('marketStatusTag');
         if (tag) {
-          tag.textContent = data.marketStatus.badgeText || (data.marketStatus.isOpen ? '🟢 正常交易日' : `☕ 今日休市 (${data.marketStatus.reason})`);
-          tag.style.color = data.marketStatus.isOpen ? '#2dd4bf' : '#fb7185';
+          tag.textContent = data.marketStatus.badgeText || data.marketStatus.healthStatus || (data.marketStatus.isOpen ? '🟢 行情即時連線' : `☕ 今日休市 (${data.marketStatus.reason})`);
+          tag.style.color = data.marketStatus.isOpen ? '#34d399' : '#fb7185';
         }
       }
 
