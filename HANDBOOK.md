@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.5)
+# HANDBOOK.md (v1.6.6)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -89,10 +89,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-v1.6.5 因應 Gemini 2.0 預覽版在免費金鑰之額度限制 (429 錯誤)，將模型端點切換為穩定版別名 gemini-flash-latest。
+v1.6.6 註記 MARKET LAB 18年歷史回測天數與勝率統計錯誤之待修事項。
 
 ## ⑩ Current Version
-v1.6.5 (Gemini 穩定版模型切換)
+v1.6.6 (回測日誌待修註記版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -142,8 +142,10 @@ v1.6.5 (Gemini 穩定版模型切換)
   14. **Gemini API 穩定版模型切換以防禦 429 錯誤 (v1.6.5)**：
       - **端點變更**：將 `generateMorningNavigation`、`generateAfternoonNavigation` 及 `testGeminiAPI` 中所調用的 `gemini-2.0-flash` 及 `gemini-1.5-flash` 統一更換為官方最新的穩定版別名 `gemini-flash-latest`。
       - **連線優化**：解決全新 API 金鑰（`AQ.` 前綴）在免費層級存取 deprecated/preview 版 2.0 模型時，遭遇 HTTP 429 配額限制的問題。
-- **目前停止位置**: v1.6.5 Gemini 穩定版模型切換已完成。
-- **下一步施工位置**: 依據後續規劃進行系統擴充。
+  15. **回測天數錯誤註記 (v1.6.6)**：
+      - **問題現象**：於待修事項中詳細記錄 `LAB_BACKTEST` 歷史天數與勝率統計錯誤問題，以利晚間開工後快速定位修復。
+- **目前停止位置**: v1.6.6 歷史回測天數與勝率統計錯誤註記完成，等待晚間開工修復。
+- **下一步施工位置**: 深入檢視 `buildLabBacktestSheet()` 或 `applyHistoryLogFormulas()` 內的前瞻報酬率與勝率統計公式/資料範圍，修正日數計算邏輯。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
@@ -191,6 +193,12 @@ v1.6.5 (Gemini 穩定版模型切換)
 - **程式碼修復**：同步更正 `testGeminiAPI()` 中的 `gemini-1.5-flash` 為 `gemini-flash-latest` 以排除 v1beta API 下 404/429 錯誤。
 - **部署**：完成 `clasp push` 與 Git 提交推送至 GitHub。
 
+### 📅 2026-07-27 MARKET LAB 歷史回測天數與勝率統計錯誤註記 (v1.6.6)
+- **待辦紀錄**：記錄 `LAB_BACKTEST` 中 18年歷史回測天數與勝率統計有明顯錯誤的問題（各分類日數總和與真實歷史不符），移至待修事項，留待晚間進一步除錯。
+- **部署**：完成 `clasp push` 與 Git 提交推送至 GitHub。
+
 ---
 ## ⑬ 待修與待辦事項 (Pending Issues)
-- **目前無待辦事項**，系統所有已知的 API 權限及自動化排程功能皆已完成驗證且正常運作。
+- **MARKET LAB 18年歷史回測日數與勝率統計錯誤** (v1.6.6 待修)：
+  - **問題現象**：`LAB_BACKTEST` 歷史回測與勝率統計中，各個市場位階對應的「歷史天數 (Count)」有明顯錯誤（例如：極度恐慌為 158 天，恐慌為 167 天，與 18年 ~4,500 交易日之真實分布不符）。
+  - **預期修復**：待晚間重新開工後，深入檢視 `buildLabBacktestSheet()` 或 `applyHistoryLogFormulas()` 內的前瞻報酬率與勝率統計公式/資料範圍，修正日數計算邏輯。
