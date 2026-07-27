@@ -48,12 +48,12 @@
   - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 14:30 值班 (小羅午茶)
   - 專用模型: `gemini-flash-latest`
 
-## ⑦ Dashboard / UI (v2.0.0 Kopitiam 人情味與幾何視覺化版)
+## ⑦ Dashboard / UI (v2.0.0 Kopitiam 人情味與極致白話版)
 - **品牌暖化**: 巴菲特‧索羅斯的 Kopitiam (來喝咖啡看盤吧～)
 - **頁頂亂碼修復**: 徹底清理 `<ctrl42>` 等標籤符號，呈現溫馨無錯之狀態列。
 - **白話文大標題 (去英文化)**: `☕ 今日市場溫度`、`🧭 今日大師給你的操作錦囊`、`如果明天定期定額要扣款......`、`☕ 來一杯咖啡，聊市場是非`。
-- **幾何爬坡坡度儀 (MA60 Slope Angle Visualizer)**: CSS 幾何切線動態旋轉 (`rotate(-20deg)` 向上陡升 vs `rotate(20deg)` 下坡下滑)。
-- **速度感推進器 (Dist60 Delta Speedometer)**: 動態推進光束波形 (🚀 `資金大腳踩油門 (加速衝刺中)` vs 🛑 `資金重踩煞車 (拉回減速中)`)。
+- **季線 5日斜率 (大盤底氣)**: 白話標註「🧱 大盤底氣很硬，有強大的地板支撐著！」/「⚠️ 大盤底氣不足，地板正在慢慢變軟喔！」。
+- **5日乖離動能 (買氣油門)**: 白話標註「🚀 大家正搶著進場，買氣正在大腳踩油門！」/「🛑 大家開始觀望，買氣正在輕踩煞車喔！」。
 - **GitHub Pages 靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
 - **GAS Web App**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
@@ -62,16 +62,16 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.0.0 Kopitiam 人性化品牌升級、幾何爬坡坡度儀與 5日動能速度感推進器完工發布！
+v2.0.0 Kopitiam 人性化品牌升級、頁頂亂碼修復與指標小學生白話翻譯完工發布！
 
 ## ⑩ Current Version
-v2.0.0 (Kopitiam 人情味與幾何坡度速度感完工發布版)
+v2.0.0 (Kopitiam 人情味與極致白話完工發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
 - Milestone 2: 數據健康狀態燈號與颱風假/臨時休市時間戳防呆完工。
-- Milestone 3: Kopitiam 溫馨品牌軟化、幾何爬坡坡度儀與速度感推進器發布完工。
-- **目前停止位置**: v2.0.0 全站 Kopitiam 溫馨視覺與幾何動態感圓滿完工上線！
+- Milestone 3: Kopitiam 溫馨品牌軟化與指標小學生白話翻譯卡片發布完工。
+- **目前停止位置**: v2.0.0 全站 Kopitiam 溫馨白話視覺圓滿完工上線！
 - **下一步施工位置**: 系統維護完成，安心運行日常自動更新。
 
 ---
@@ -87,13 +87,12 @@ v2.0.0 (Kopitiam 人情味與幾何坡度速度感完工發布版)
 - 修正 API 歷史起點參數 `period1=0`，寫入 7,122 個官方交易日真實價格。
 - 實作 `fetchRealVIXHistoricalMarketSeries()` 與 `fetchRealEWTHistoricalMarketSeries()`, 導入 CBOE VIX 與 MSCI EWT 全歷史真實數據。
 
-### 📅 2026-07-27 Kopitiam 人性化品牌升級與幾何視覺化發布 (v2.0.0)
+### 📅 2026-07-27 Kopitiam 人性化品牌升級與小學生白話翻譯發布 (v2.0.0)
 - **頁頂亂碼修復與標題人情味軟化 (Kopitiam Warm Branding)**：
   - 徹底清除頁頂狀態列 `<ctrl42>` 等歷史標籤符號，呈現乾淨溫馨狀態。
   - 主標題更名為「巴菲特‧索羅斯的 Kopitiam」(副標：來喝咖啡看盤吧～)。
   - 全站大標題去英文註解化白話語義：`☕ 今日市場溫度`、`🧭 今日大師給你的操作錦囊`、`如果明天定期定額要扣款......`、`☕ 來一杯咖啡，聊市場是非`。
-- **季線 5 日斜率 (MA60 Slope) - 幾何爬坡坡度儀**：
-  - 實作切線角度動態旋轉 (`rotate(-20deg)` 向上陡升 / `rotate(20deg)` 下坡下滑)。
-- **5日乖離動能 (Dist60 Delta) - 速度感推進器**：
-  - 實作推進光束波形 (🚀 `資金大腳踩油門 (加速衝刺中)` vs 🛑 `資金重踩煞車 (拉回減速中)`)。
+- **專業指標小學生白話卡片化**：
+  - 季線 5日斜率 (大盤底氣)：動態呈現「🧱 大盤底氣很硬，有強大的地板支撐著！」/「⚠️ 大盤底氣不足，地板正在慢慢變軟喔！」。
+  - 5日乖離動能 (買氣油門)：動態呈現「🚀 大家正搶著進場，買氣正在大腳踩油門！」/「🛑 大家開始觀望，買氣正在輕踩煞車喔！」。
 - **部署發布**：全數完成 GAS CLI 部署、Deployment `@2` 覆寫與 GitHub `main` 分支推播發布。

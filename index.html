@@ -65,11 +65,6 @@
       gap: 14px;
     }
 
-    .brand-icon {
-      font-size: 38px;
-      filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.6));
-    }
-
     .brand-title {
       font-family: 'Outfit', sans-serif;
       font-size: 26px;
@@ -219,7 +214,7 @@
 
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
       margin-bottom: 32px;
     }
@@ -231,7 +226,7 @@
       padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
 
     .metric-name {
@@ -260,45 +255,6 @@
       background: rgba(255, 255, 255, 0.08);
       color: #fde047;
       font-weight: 600;
-    }
-
-    /* Visualizer Cards */
-    .slope-visualizer, .speed-visualizer {
-      height: 44px;
-      background: rgba(15, 23, 42, 0.7);
-      border-radius: 10px;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 4px 0;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .slope-line {
-      width: 70%;
-      height: 4px;
-      background: linear-gradient(90deg, #34d399, #10b981);
-      border-radius: 2px;
-      box-shadow: 0 0 12px #34d399;
-      transform: rotate(-15deg);
-      transition: transform 0.4s ease, background 0.4s ease, box-shadow 0.4s ease;
-    }
-
-    .speed-beam {
-      width: 80%;
-      height: 6px;
-      background: linear-gradient(90deg, rgba(52, 211, 153, 0.2), #34d399, rgba(52, 211, 153, 0.2));
-      border-radius: 3px;
-      box-shadow: 0 0 16px #34d399;
-      animation: speedPulse 1.2s infinite ease-in-out;
-      transition: background 0.4s ease, box-shadow 0.4s ease;
-    }
-
-    @keyframes speedPulse {
-      0%, 100% { transform: scaleX(0.9); opacity: 0.8; }
-      50% { transform: scaleX(1.1); opacity: 1; }
     }
 
     /* Table Section */
@@ -419,27 +375,25 @@
         </div>
       </div>
 
-      <!-- 幾何爬坡坡度儀 Card -->
+      <!-- 季線 5日斜率 (大盤底氣) Card -->
       <div class="metric-card" style="border: 1px solid rgba(52, 211, 153, 0.35);">
-        <div class="metric-name">季線 5日斜率 (幾何爬坡坡度儀)</div>
-        <div class="slope-visualizer" id="slopeVisualizer">
-          <div class="slope-line" id="slopeLine"></div>
-        </div>
+        <div class="metric-name">季線 5日斜率 (大盤底氣)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valMa60Slope">+0.25%</span>
-          <span class="metric-tag" id="tagMa60Slope">↗️ 季線向上陡升</span>
+        </div>
+        <div id="noteMa60Slope" style="font-size: 13px; font-weight: 700; color: #34d399; background: rgba(52, 211, 153, 0.12); padding: 8px 12px; border-radius: 8px; margin-top: 4px; border: 1px solid rgba(52, 211, 153, 0.25);">
+          🧱 大盤底氣很硬，有強大的地板支撐著！
         </div>
       </div>
 
-      <!-- 速度感推進器 Card -->
+      <!-- 5日乖離動能 (買氣油門) Card -->
       <div class="metric-card" style="border: 1px solid rgba(56, 189, 248, 0.35);">
-        <div class="metric-name">5日乖離動能 (速度感推進器)</div>
-        <div class="speed-visualizer" id="speedVisualizer">
-          <div class="speed-beam" id="speedBeam"></div>
-        </div>
+        <div class="metric-name">5日乖離動能 (買氣油門)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valDist60Delta">-0.15%</span>
-          <span class="metric-tag" id="tagDist60Delta">🚀 資金大腳踩油門 (加速衝刺中)</span>
+        </div>
+        <div id="noteDist60Delta" style="font-size: 13px; font-weight: 700; color: #f87171; background: rgba(248, 113, 113, 0.12); padding: 8px 12px; border-radius: 8px; margin-top: 4px; border: 1px solid rgba(248, 113, 113, 0.25);">
+          🛑 大家開始觀望，買氣正在輕踩煞車喔！
         </div>
       </div>
 
@@ -674,45 +628,45 @@
       if (data.dist60Delta && data.dist60Delta !== 'N/A') document.getElementById('valDist60Delta').textContent = data.dist60Delta;
       if (data.ewtChange && data.ewtChange !== 'N/A') document.getElementById('valEwtChange').textContent = data.ewtChange;
 
-      // 幾何爬坡坡度儀動態旋轉與標籤更新
+      // 季線 5日斜率 (大盤底氣) 白話文翻譯與標籤更新
       if (data.ma60Slope && data.ma60Slope !== 'N/A') {
         const slopeVal = parseFloat(data.ma60Slope.replace('%', '').replace('+', '').replace('▼', '-').replace('▲', ''));
-        const sLine = document.getElementById('slopeLine');
-        const sTag = document.getElementById('tagMa60Slope');
-        if (sLine && !isNaN(slopeVal)) {
+        const nElem = document.getElementById('noteMa60Slope');
+        if (nElem && !isNaN(slopeVal)) {
           if (slopeVal > 0.05) {
-            sLine.style.transform = 'rotate(-20deg)';
-            sLine.style.background = 'linear-gradient(90deg, #34d399, #10b981)';
-            sLine.style.boxShadow = '0 0 14px #34d399';
-            if (sTag) sTag.textContent = '↗️ 季線向上陡升';
+            nElem.textContent = '🧱 大盤底氣很硬，有強大的地板支撐著！';
+            nElem.style.color = '#34d399';
+            nElem.style.background = 'rgba(52, 211, 153, 0.12)';
+            nElem.style.borderColor = 'rgba(52, 211, 153, 0.25)';
           } else if (slopeVal < -0.05) {
-            sLine.style.transform = 'rotate(20deg)';
-            sLine.style.background = 'linear-gradient(90deg, #f87171, #ef4444)';
-            sLine.style.boxShadow = '0 0 14px #f87171';
-            if (sTag) sTag.textContent = '↘️ 季線下坡下滑';
+            nElem.textContent = '⚠️ 大盤底氣不足，地板正在慢慢變軟喔！';
+            nElem.style.color = '#f87171';
+            nElem.style.background = 'rgba(248, 113, 113, 0.12)';
+            nElem.style.borderColor = 'rgba(248, 113, 113, 0.25)';
           } else {
-            sLine.style.transform = 'rotate(0deg)';
-            sLine.style.background = 'linear-gradient(90deg, #fbbf24, #f59e0b)';
-            sLine.style.boxShadow = '0 0 10px #fbbf24';
-            if (sTag) sTag.textContent = '➡️ 季線平緩走平';
+            nElem.textContent = '➡️ 趨勢平緩，地板正在築底中！';
+            nElem.style.color = '#fbbf24';
+            nElem.style.background = 'rgba(251, 191, 36, 0.12)';
+            nElem.style.borderColor = 'rgba(251, 191, 36, 0.25)';
           }
         }
       }
 
-      // 5日動能速度感推進器動態視覺與標籤更新
+      // 5日乖離動能 (買氣油門) 白話文翻譯與標籤更新
       if (data.dist60Delta && data.dist60Delta !== 'N/A') {
         const deltaVal = parseFloat(data.dist60Delta.replace('%', '').replace('+', '').replace('▼', '-').replace('▲', ''));
-        const sBeam = document.getElementById('speedBeam');
-        const dTag = document.getElementById('tagDist60Delta');
-        if (sBeam && !isNaN(deltaVal)) {
+        const nElem = document.getElementById('noteDist60Delta');
+        if (nElem && !isNaN(deltaVal)) {
           if (deltaVal > 0) {
-            sBeam.style.background = 'linear-gradient(90deg, rgba(52, 211, 153, 0.2), #34d399, rgba(52, 211, 153, 0.2))';
-            sBeam.style.boxShadow = '0 0 18px #34d399';
-            if (dTag) dTag.textContent = '🚀 資金大腳踩油門 (加速衝刺中)';
+            nElem.textContent = '🚀 大家正搶著進場，買氣正在大腳踩油門！';
+            nElem.style.color = '#34d399';
+            nElem.style.background = 'rgba(52, 211, 153, 0.12)';
+            nElem.style.borderColor = 'rgba(52, 211, 153, 0.25)';
           } else {
-            sBeam.style.background = 'linear-gradient(90deg, rgba(248, 113, 113, 0.2), #f87171, rgba(248, 113, 113, 0.2))';
-            sBeam.style.boxShadow = '0 0 18px #f87171';
-            if (dTag) dTag.textContent = '🛑 資金重踩煞車 (拉回減速中)';
+            nElem.textContent = '🛑 大家開始觀望，買氣正在輕踩煞車喔！';
+            nElem.style.color = '#f87171';
+            nElem.style.background = 'rgba(248, 113, 113, 0.12)';
+            nElem.style.borderColor = 'rgba(248, 113, 113, 0.25)';
           }
         }
       }
