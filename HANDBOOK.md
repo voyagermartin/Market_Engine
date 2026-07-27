@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.1)
+# HANDBOOK.md (v1.6.2)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -18,8 +18,9 @@
 
 ## ④ Function Library
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3` (含老巴盤前、小羅盤後 AI 導航、休市日測試與雙時段自動更新)
-- `isMarketOpen()`: 休市日 Helper 函式 (採用 toLocaleString Asia/Taipei 判定週六/週日 dayOfWeek === 0 \|\| 6 與 Google Calendar 國定假日)
+- `isMarketOpen()`: 休市日 Helper 函式 (採用 toLocaleString Asia/Taipei 判定週六/週日 dayOfWeek === 0 || 6 與 Google Calendar 國定假日)
 - `testMarketOpenStatus()`: 休市日狀態手動測驗彈窗
+- `getSpreadsheet()`: 取得或開啟當前試算表實例，整合 `getActiveSpreadsheet()` 與 `PropertiesService` 的 `SPREADSHEET_ID` 備份機制，防止自動觸發器執行時回傳 null
 - `setupMarketEngineV3()`: 高效能主初始化建置函式（< 2 秒極速建置防逾時）
 - `setupSheet()`: 取得/建立分頁，執行 `sheet.clear()` 徹底清除舊欄位殘留，並執行 `breakApart()` 防止合併衝突 Exception
 - `setHeaderBanner()` / `setTableHeader()`: 統一繪製分頁第 1 列白話文說明與標題欄位
@@ -34,9 +35,9 @@
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `generateMorningNavigation()`: 老巴盤前 AI 導航腳本 (連動 isMarketOpen，休市日自動注入夜盤/VIX焦點 Prompt)
 - `generateAfternoonNavigation()`: 小羅盤後 AI 導航腳本 (連動 isMarketOpen，休市日自動注入情緒/觀察焦點 Prompt)
-- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 檢查休市狀態並執行老巴 AI 導航)
-- `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 檢查休市狀態，休市日自動跳過 HISTORY_LOG 無效寫入)
-- `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器
+- `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 檢查休市狀態，當今日新交易日尚未建檔時，自動插入新列，繼承前日指標為占位值並寫入夜盤 EWT 漲跌，隨後執行老巴 AI 導航)
+- `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 檢查休市狀態，防呆插入新列、寫入模擬收盤行情並重算公式，休市日自動跳過 HISTORY_LOG 無效寫入)
+- `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器，安裝前自動遍歷並刪除舊同名觸發器
 - `doGet()`: Web App / API 入口，支援 JSON / JSONP 跨域 API 與網頁渲染
 - `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 API (傳回 `marketStatus` 包含交易日與休市狀態)
 
@@ -88,10 +89,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-v1.6.1 招財 3D 金牛與牛市趨勢 Icon 設計與全站發布。
+v1.6.2 修復盤前盤後更新寫入邏輯與 Trigger 重新安裝機制。
 
 ## ⑩ Current Version
-v1.6.1 (招財 3D 牛市圖示與 Favicon 發布版)
+v1.6.2 (盤前盤後更新與觸發器修復版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -126,7 +127,12 @@ v1.6.1 (招財 3D 牛市圖示與 Favicon 發布版)
      - **generate_image 產出**：打造包含金屬質感 3D 招財金牛、綠色牛市強勢上升 K 線與金幣流動的超高顏值 App Icon (`favicon.png` / `icon.png`)。
      - **全站整合**：於 `index.html` 頂部品牌標題與 `<head>` 瀏覽器標籤頁完整連動顯示。
   10. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-- **目前停止位置**: Sprint 5 招財圖示與全站升級完成。
+  11. **盤前/盤後更新邏輯與觸發器重裝修復 (v1.6.2)**：
+      - **新增 `getSpreadsheet()` 輔助函式**：解決 standalone 與 time-triggered 執行時 active spreadsheet 回傳 null 的 `ReferenceError` 問題。
+      - **修復 `updateMorningMarketEngine()` 寫入邏輯**：新增每日開盤前自動判斷與插入新資料列（`insertRowBefore(3)`）邏輯，避免直接覆寫前一日數據，並自動繼承前日基礎指標值作為 placeholder，同時寫入模擬夜盤 EWT 漲跌。
+      - **優化 `updateAfternoonMarketEngine()`**：補上防呆插入新資料列與下午盤模擬收盤 TWII/VIX 數據波動寫入邏輯。
+      - **驗證 `createDailyTrigger()`**：確保舊有之 `updateDailyMarketEngine`、`updateMorningMarketEngine` 與 `updateAfternoonMarketEngine` 觸發器會被乾淨清除後重新安裝 07:30 / 14:30 雙觸發器。
+- **目前停止位置**: v1.6.2 更新與觸發器防呆修復完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
@@ -149,3 +155,10 @@ v1.6.1 (招財 3D 牛市圖示與 Favicon 發布版)
   - 新增 `🧭 觀念導航與指標說明` 區塊（含 ⚙️ 工具箱與 🏛️ 紀律、機會、命運 三大策略哲學）及頁尾 `⚠️ 免責聲明與風險提示` 卡片。
   - 打造 Warm Amber Gold 溫柔暗色調視覺，並生成 3D 招財金牛與牛市上升 K 線圖示 (`favicon.png` / `icon.png`)，完成全站與發布綁定。
 - **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@25`) 與 GitHub `main` 分支推播。
+
+### 📅 2026-07-27 盤前盤後更新寫入邏輯與 Trigger 重新安裝機制修復 (v1.6.2)
+- **程式碼修復 (`程式碼.js`)**：
+  - 實作 `getSpreadsheet()`，結合 `getActiveSpreadsheet()` 與 script properties `SPREADSHEET_ID` 緩存防呆，確保 API 呼叫與獨立觸發器執行時皆能正確取得試算表實例。
+  - 重構 `updateMorningMarketEngine()`：導入台北時區日期判定，當今日數據列尚未建立時，執行 `insertRowBefore(3)` 插入新交易日列，並向 `A3` 寫入今日日期，繼承前一日 `TWII`、`VIX`、`MA60`、`MA240` 作為 placeholder，最後寫入今日 `EWT_Change` 到 `J3`，極速重算公式。
+  - 重構 `updateAfternoonMarketEngine()`：補上防呆插入新列機制，並模擬下午盤最新收盤價格波動作為今日收盤數據寫入 `B3:E3`。
+  - 在 `createDailyTrigger()` 中強化 `ScriptApp.getProjectTriggers()` 遍歷與舊 Trigger 刪除邏輯，確保 07:30 (Asia/Taipei) 雙時段自動更新觸發器能乾淨重新安裝。

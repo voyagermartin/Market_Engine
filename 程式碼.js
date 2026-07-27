@@ -33,9 +33,13 @@ function onOpen() {
 function isMarketOpen(targetDate) {
   const d = targetDate ? new Date(targetDate) : new Date();
   
-  // 轉為 Asia/Taipei 當地日期之星期幾 (0 = Sun, 6 = Sat)
-  const taipeiDate = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
-  const dayOfWeek = taipeiDate.getDay();
+  // 100% 穩定且時區無涉地取得台北時間的星期幾
+  const year = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'yyyy'), 10);
+  const month = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'MM'), 10) - 1;
+  const day = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'dd'), 10);
+  
+  const localDate = new Date(year, month, day);
+  const dayOfWeek = localDate.getDay(); // 0 = Sun, 6 = Sat
 
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     return { isOpen: false, reason: '週休二日' };
@@ -45,12 +49,8 @@ function isMarketOpen(targetDate) {
   try {
     const cal = CalendarApp.getCalendarById('zh-TW.taiwan#holiday@group.v.calendar.google.com');
     if (cal) {
-      const year = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'yyyy'), 10);
-      const month = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'MM'), 10) - 1;
-      const day = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'dd'), 10);
-      
-      const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0));
-      const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59));
+      const startOfDay = new Date(year, month, day, 0, 0, 0);
+      const endOfDay = new Date(year, month, day, 23, 59, 59);
       
       const events = cal.getEvents(startOfDay, endOfDay);
       if (events && events.length > 0) {
@@ -79,6 +79,10 @@ function testMarketOpenStatus() {
  */
 function setupMarketEngineV3() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // 儲存試算表 ID 供背景觸發器使用
+  if (ss) {
+    PropertiesService.getScriptProperties().setProperty("SPREADSHEET_ID", ss.getId());
+  }
   
   // 1. 建立 THRESHOLD_CONFIG (門檻對照表 - 白話文行動指引)
   const configSheet = setupSheet(ss, 'THRESHOLD_CONFIG', 20, 8);
@@ -724,10 +728,10 @@ function generateMorningNavigation() {
     return;
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const rawSheet = ss.getSheetByName("RAW_HISTORY");
-  const dashSheet = ss.getSheetByName("DASHBOARD");
-  const historyLogSheet = ss.getSheetByName("HISTORY_LOG");
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName("RAW_HISTORY") : null;
+  const dashSheet = ss ? ss.getSheetByName("DASHBOARD") : null;
+  const historyLogSheet = ss ? ss.getSheetByName("HISTORY_LOG") : null;
 
   if (!rawSheet || !dashSheet || !historyLogSheet) {
     Logger.log("⚠️ 分頁未完整建置");
@@ -837,9 +841,20 @@ ${phaseTrack}
       // 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)
       dashSheet.getRange("B23").setValue(aiText);
 
-      // 同步備份至 HISTORY_LOG 的 AI_Morning_Story 欄位 (J欄 / 第10欄)
-      historyLogSheet.getRange(3, 10).setValue(aiText);
-      Logger.log("老巴早餐成功生成並寫入！");
+      // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
+      const logDateVal = historyLogSheet.getRange(3, 1).getValue();
+      let logDateStr = "";
+      if (logDateVal instanceof Date) {
+        logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
+      }
+      const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
+
+      if (logDateStr === todayStr) {
+        historyLogSheet.getRange(3, 10).setValue(aiText);
+        Logger.log("老巴早餐成功生成並備份至 HISTORY_LOG！");
+      } else {
+        Logger.log("今日非交易日或未新增今日資料列，老巴早餐僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
+      }
     } else {
       throw new Error("API 傳回空內容: " + response.getContentText());
     }
@@ -863,10 +878,10 @@ function generateAfternoonNavigation() {
     return;
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const rawSheet = ss.getSheetByName("RAW_HISTORY");
-  const dashSheet = ss.getSheetByName("DASHBOARD");
-  const historyLogSheet = ss.getSheetByName("HISTORY_LOG");
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName("RAW_HISTORY") : null;
+  const dashSheet = ss ? ss.getSheetByName("DASHBOARD") : null;
+  const historyLogSheet = ss ? ss.getSheetByName("HISTORY_LOG") : null;
 
   if (!rawSheet || !dashSheet || !historyLogSheet) {
     Logger.log("⚠️ 分頁未完整建置");
@@ -979,9 +994,20 @@ ${phaseTrack}
       // 寫入 DASHBOARD 的 AI 小羅午茶區域 (B24)
       dashSheet.getRange("B24").setValue(aiText);
 
-      // 同步備份至 HISTORY_LOG 的 AI_Afternoon_Story 欄位 (K欄 / 第11欄)
-      historyLogSheet.getRange(3, 11).setValue(aiText);
-      Logger.log("小羅午茶成功生成並寫入！");
+      // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
+      const logDateVal = historyLogSheet.getRange(3, 1).getValue();
+      let logDateStr = "";
+      if (logDateVal instanceof Date) {
+        logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
+      }
+      const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
+
+      if (logDateStr === todayStr) {
+        historyLogSheet.getRange(3, 11).setValue(aiText);
+        Logger.log("小羅午茶成功生成並備份至 HISTORY_LOG！");
+      } else {
+        Logger.log("今日非交易日或未新增今日資料列，小羅午茶僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
+      }
     } else {
       throw new Error("API 傳回空內容: " + response.getContentText());
     }
@@ -1006,8 +1032,8 @@ function updateDailyMarketEngine() {
  * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
  */
 function updateMorningMarketEngine() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const rawSheet = ss.getSheetByName('RAW_HISTORY');
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   if (!rawSheet) return;
 
   const status = isMarketOpen(new Date());
@@ -1017,23 +1043,48 @@ function updateMorningMarketEngine() {
     return;
   }
 
+  // 檢查今日數據是否已存在於 Row 3
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
+  const lastDateCell = rawSheet.getRange(3, 1).getValue();
+  const lastDateStr = (lastDateCell instanceof Date) ? Utilities.formatDate(lastDateCell, 'Asia/Taipei', 'yyyy-MM-dd') : '';
+
+  if (todayStr !== lastDateStr) {
+    // 插入新的一行於第 3 列 (維持倒序)
+    rawSheet.insertRowBefore(3);
+    // 寫入日期
+    rawSheet.getRange(3, 1).setValue(today);
+    
+    // 繼承前一日 (Row 4) 的數據作為今日初始占位值，防止公式出錯
+    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
+    const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
+    const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
+    const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
+    
+    rawSheet.getRange(3, 2, 1, 4).setValues([[prevTwii, prevVix, prevMa60, prevMa240]]);
+  }
+
   const newEwtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000) / 10000;
   rawSheet.getRange(3, 10).setValue(newEwtChange);
+
+  // 重新按實體資料列數更新批次公式
+  const totalRows = Math.max(3, rawSheet.getLastRow());
+  applyRawHistoryFormulas(rawSheet, 3, totalRows);
 
   // 自動觸發老巴盤前 AI 導航生成
   generateMorningNavigation();
 
   SpreadsheetApp.flush();
-  Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + new Date());
+  Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + todayStr);
 }
 
 /**
  * 盤後更新 (每日 14:30 Asia/Taipei - 小羅午茶時光值班)
  */
 function updateAfternoonMarketEngine() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const rawSheet = ss.getSheetByName('RAW_HISTORY');
-  const historyLogSheet = ss.getSheetByName('HISTORY_LOG');
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
   if (!rawSheet || !historyLogSheet) return;
 
   const status = isMarketOpen(new Date());
@@ -1043,6 +1094,40 @@ function updateAfternoonMarketEngine() {
     return;
   }
 
+  // 檢查今日數據是否已存在於 Row 3
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
+  const lastDateCell = rawSheet.getRange(3, 1).getValue();
+  const lastDateStr = (lastDateCell instanceof Date) ? Utilities.formatDate(lastDateCell, 'Asia/Taipei', 'yyyy-MM-dd') : '';
+
+  if (todayStr !== lastDateStr) {
+    // 萬一盤前更新未執行，此處補插入今日資料列
+    rawSheet.insertRowBefore(3);
+    rawSheet.getRange(3, 1).setValue(today);
+    
+    // 繼承前一日 (Row 4) 的數據作為今日初始占位值
+    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
+    const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
+    const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
+    const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
+    
+    rawSheet.getRange(3, 2, 1, 4).setValues([[prevTwii, prevVix, prevMa60, prevMa240]]);
+  }
+
+  // 盤後更新：模擬今日最新行情 (正式部署時可接 GOOGLEFINANCE 或其他 API)
+  const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
+  const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
+  const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
+  const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
+
+  const newTwii = Math.round((prevTwii + (Math.random() * 200 - 100)) * 100) / 100;
+  const newVix = Math.round((Math.max(10, prevVix + (Math.random() * 2 - 1))) * 100) / 100;
+  const newMa60 = Math.round((prevMa60 * 0.999 + newTwii * 0.001) * 100) / 100;
+  const newMa240 = Math.round((prevMa240 * 0.9995 + newTwii * 0.0005) * 100) / 100;
+
+  // 寫入最新盤後價格
+  rawSheet.getRange(3, 2, 1, 4).setValues([[newTwii, newVix, newMa60, newMa240]]);
+
   const totalRows = Math.max(3, rawSheet.getLastRow());
   applyRawHistoryFormulas(rawSheet, 3, totalRows);
   applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
@@ -1051,7 +1136,7 @@ function updateAfternoonMarketEngine() {
   generateAfternoonNavigation();
 
   SpreadsheetApp.flush();
-  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + new Date());
+  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + todayStr);
 }
 
 /**
@@ -1124,16 +1209,7 @@ function doGet(e) {
  * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
 function getMarketEngineData() {
-  let ss = null;
-  try {
-    ss = SpreadsheetApp.getActiveSpreadsheet();
-  } catch (e) {}
-  
-  if (!ss) {
-    try {
-      ss = SpreadsheetApp.openById('1iaK_HLrMWb8ndUehCw3tsoLZQEE7PpmfYrsYdexP6CbrBkEk7_EyGJdC');
-    } catch (e) {}
-  }
+  const ss = getSpreadsheet();
 
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
@@ -1252,4 +1328,24 @@ function getMarketEngineData() {
  */
 function applyFormulasAndStyles() {
   setupMarketEngineV3();
+}
+
+/**
+ * 取得 Spreadsheet 實例 (支援 Container-bound 與 standalone API 呼叫)
+ */
+function getSpreadsheet() {
+  let ss = null;
+  try {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {}
+  
+  if (!ss) {
+    const id = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
+    if (id) {
+      try {
+        ss = SpreadsheetApp.openById(id);
+      } catch (e) {}
+    }
+  }
+  return ss;
 }
