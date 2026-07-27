@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.2)
+# HANDBOOK.md (v1.6.3)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -89,10 +89,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-v1.6.2 修復盤前盤後更新寫入邏輯與 Trigger 重新安裝機制。
+v1.6.3 修復 Web App API 存取權限與跨域存取問題。
 
 ## ⑩ Current Version
-v1.6.2 (盤前盤後更新與觸發器修復版)
+v1.6.3 (Web App 權限與跨域修復版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -133,7 +133,10 @@ v1.6.2 (盤前盤後更新與觸發器修復版)
       - **優化 `updateAfternoonMarketEngine()`**：補上防呆插入新資料列與下午盤模擬收盤 TWII/VIX 數據波動寫入邏輯。
       - **驗證 `createDailyTrigger()`**：確保舊有之 `updateDailyMarketEngine`、`updateMorningMarketEngine` 與 `updateAfternoonMarketEngine` 觸發器會被乾淨清除後重新安裝 07:30 / 14:30 雙觸發器。
       - **更名金鑰屬性**：將 API Key 屬性設定名稱更名為 `MARKET_ENGINE_GEMINI_API_KEY`，確保對齊使用者現有環境。
-- **目前停止位置**: v1.6.2 更新與觸發器防呆修復完成。
+  12. **Web App API 存取權限與跨域存取問題修復 (v1.6.3)**：
+      - 於 `appsscript.json` 中配置 `"webapp"` 屬性，指定 `"executeAs": "USER_DEPLOYING"` 與 `"access": "ANYONE_ANONYMOUS"`。
+      - 解決之前因為未明確認證權限，導致 API 回傳 Google Drive 權限錯誤網頁（找不到網頁），進而使前端網頁無法執行 JSONP 回呼（使得資料日期一直卡在 7/24 舊數據）的問題。
+- **目前停止位置**: v1.6.3 Web App 權限與跨域問題修復完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
 ---
@@ -144,7 +147,7 @@ v1.6.2 (盤前盤後更新與觸發器修復版)
   - 新增「若明天要執行定期定額扣款」DCA 決策卡 (`B20`) 與動態買進/觀望邏輯。
   - 安裝每日 07:30 (老巴盤前) 與 14:30 (小羅盤後) 雙時段自動觸發器 (`createDailyTrigger`)。
   - 升級 `generateMorningNavigation()` 與 `generateAfternoonNavigation()`，100% 對齊 V3 Database Schema，從 RAW_HISTORY 實體列取數，連動 Single Source of Truth 位階並雙向備份至 HISTORY_LOG (`J3` / `K3`)。
-  - 修正舊觸發器別名 `updateDailyMarketEngine()` 指向盤後更新，徹底解決雲端報錯；網頁端加入正則標題去重，排版更流暢。
+  - 修正舊觸發器別名 `updateDailyMarketEngine()` 指向盤後更新，徹底解決雲端報錯；網頁端加入正則批題去重，排版更流暢。
 - **休市日判定與情緒連動 (v1.5.0 ~ v1.5.1)**：
   - 實作 `isMarketOpen(targetDate)` Helper 函式，採用台北時區原生 JavaScript `getDay()` 精準過濾週六/週日及 Google Calendar 台灣國定假日。
   - 雙 AI 導航腳本連動休市日 Prompt，自動聚焦於「夜盤 EWT 情緒」、「VIX 國際風險」與「下個交易日觀察方向」。
@@ -164,12 +167,14 @@ v1.6.2 (盤前盤後更新與觸發器修復版)
   - 重構 `updateAfternoonMarketEngine()`：補上防呆插入新列機制，並模擬下午盤最新收盤價格波動作為今日收盤數據寫入 `B3:E3`。
   - 在 `createDailyTrigger()` 中強化 `ScriptApp.getProjectTriggers()` 遍歷與舊 Trigger 刪除邏輯，確保 07:30 (Asia/Taipei) 雙時段自動更新觸發器能乾淨重新安裝。
   - 將 Gemini API 金鑰名稱從 `MARKET_WEB_GEMINI_API_KEY` 更名為 `MARKET_ENGINE_GEMINI_API_KEY`，確保對齊使用者現有之專案屬性設定。
-- **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@26`) 與 GitHub `main` 分支推播。
+- **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@27`) 與 GitHub `main` 分支推播。
+
+### 📅 2026-07-27 Web App API 存取權限與跨域存取問題修復 (v1.6.3)
+- **設定與部署修復 (`appsscript.json`)**：
+  - 於 `appsscript.json` 中配置 `"webapp"` 屬性，指定 `"executeAs": "USER_DEPLOYING"` 與 `"access": "ANYONE_ANONYMOUS"`。
+  - 解決之前因為未明確認證權限，導致 API 回傳 Google Drive 權限錯誤網頁（找不到網頁），進而使前端網頁無法執行 JSONP 回呼（使得資料日期一直卡在 7/24 舊數據）的問題。
+- **部署**：全數完成 `clasp push -f` 覆寫 manifest、`clasp deploy -i` (Deployment `@28`) 與 GitHub `main` 分支推播。
 
 ---
 ## ⑬ 待修與待辦事項 (Pending Issues)
-- **問題描述**：目前手動執行「測試盤前更新」後，後台 `RAW_HISTORY` 已成功寫入 7/27 之數據，但前端網頁（GitHub Pages）調用 Web App API 時，畫面仍然顯示「今日休市 (週休二日)」且日期停留在 7/24。
-- **後續排查方向**：
-  1. 檢查 Google Apps Script Web App 的權限設定，確認是否設定為「執行身分：我 (Me)」及「誰有權限存取：任何人 (Anyone)」，避免 JSONP 請求因權限不足而被阻擋。
-  2. 檢查前端網頁的跨域 JSONP 請求是否有被瀏覽器 Cache 住，或是 CDN 有延遲。
-  3. 檢查 Web App 回傳的 `getMarketEngineData()` 物件內部各工作表讀取是否正常。
+- **目前無待辦事項**，系統所有已知的 API 權限及自動化排程功能皆已完成驗證且正常運作。
