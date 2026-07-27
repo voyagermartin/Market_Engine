@@ -437,11 +437,11 @@ function seedFullHistoricalData() {
   }
 
   SpreadsheetApp.flush();
-  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日）！\n最新交易日已同步至 2026-07-27！\nTWII 43,654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83% 連動完成。`);
+  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日）！\n最新交易日已同步至 2026-07-27！\nTWII 43,634.19, Dist60 -0.92%, Dist240 +32.23%, VIX 18.58, EWT -1.83% 連動完成。`);
 }
 
 /**
- * 通用行情數據生成器 (第3列最新交易日精準對齊用戶指定行情：TWII 43654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83%)
+ * 通用行情數據生成器 (第3列最新交易日精準對齊用戶指定行情：TWII 43634.19, Dist60 -0.92%, Dist240 +32.23%, VIX 18.58, EWT -1.83%)
  */
 function generateMarketRows(startDate, endDate) {
   const rows = [];
@@ -451,14 +451,14 @@ function generateMarketRows(startDate, endDate) {
   while (currDate >= startDate) {
     const day = currDate.getDay();
     if (day !== 0 && day !== 6) {
-      let twii = 43654.84;
+      let twii = 43634.19;
       let vix = 18.58;
-      let ma60 = 44037.97;  // (43654.84 - 44037.97) / 44037.97 = -0.87%
-      let ma240 = 32999.35; // (43654.84 - 32999.35) / 32999.35 = +32.29%
+      let ma60 = 44037.97;  // (43634.19 - 44037.97) / 44037.97 = -0.92%
+      let ma240 = 32999.35; // (43634.19 - 32999.35) / 32999.35 = +32.23%
       let ewtChange = -0.0183; // -1.83%
 
       if (isFirstRow) {
-        twii = 43654.84;
+        twii = 43634.19;
         vix = 18.58;
         ma60 = 44037.97;
         ma240 = 32999.35;
@@ -750,7 +750,7 @@ function buildDashboardSheet(sheet) {
 
   sheet.getRange('A24').setValue('☕ 小羅的盤後午茶時光').setFontWeight('bold');
   sheet.getRange('24:24').breakApart();
-  sheet.getRange('B24:E24').merge().setValue('[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,654.84 點，季線乖離 -0.87% 屬於便宜區，長線勝率非常高！')
+  sheet.getRange('B24:E24').merge().setValue('[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,634.19 點，季線乖離 -0.92% 屬於便宜區，長線勝率非常高！')
        .setWrap(true).setBackground('#f3e8ff').setFontColor('#6b21a8');
 
   sheet.setColumnWidth(1, 190);
@@ -1139,7 +1139,7 @@ function updateMorningMarketEngine() {
     rawSheet.getRange(3, 1).setValue(today);
     
     // 繼承前一日 (Row 4) 的數據作為今日初始占位值，防止公式出錯
-    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
+    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
     const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
     const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
     const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
@@ -1189,7 +1189,7 @@ function updateAfternoonMarketEngine() {
     rawSheet.getRange(3, 1).setValue(today);
     
     // 繼承前一日 (Row 4) 的數據作為今日初始占位值
-    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
+    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
     const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
     const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
     const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
@@ -1198,7 +1198,7 @@ function updateAfternoonMarketEngine() {
   }
 
   // 盤後更新：模擬今日最新行情 (正式部署時可接 GOOGLEFINANCE 或其他 API)
-  const prevTwii = rawSheet.getRange(4, 2).getValue() || 43654.84;
+  const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
   const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
   const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
   const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
@@ -1314,7 +1314,7 @@ function getMarketEngineData() {
 
   const data = {
     date: '2026-07-27',
-    twii: '43,654.84',
+    twii: '43,634.19',
     dist60: '-0.87%',
     dist240: '+32.29%',
     vix: '18.58',
