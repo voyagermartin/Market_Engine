@@ -74,6 +74,7 @@ function testMarketOpenStatus() {
   
   const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
   let apiStatus = "";
+  let modelListStr = "";
   if (!apiKey) {
     apiStatus = "❌ 尚未設定 API 金鑰 (MARKET_ENGINE_GEMINI_API_KEY 為空)";
   } else {
@@ -94,13 +95,24 @@ function testMarketOpenStatus() {
         apiStatus = "✅ 連線成功 (Gemini API 運作正常)";
       } else {
         apiStatus = `❌ 連線失敗 (HTTP ${code}): ${resText.substring(0, 100)}`;
+        
+        // 取得可用模型清單
+        const listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" + apiKey;
+        const listRes = UrlFetchApp.fetch(listUrl, { method: "get", muteHttpExceptions: true });
+        const listJson = JSON.parse(listRes.getContentText());
+        if (listJson.models) {
+          const names = listJson.models.map(m => m.name.replace("models/", "")).join(", ");
+          modelListStr = `\n\n可用模型清單:\n${names.substring(0, 500)}`;
+        } else {
+          modelListStr = `\n\n無法獲取模型清單: ${listRes.getContentText().substring(0, 200)}`;
+        }
       }
     } catch (e) {
       apiStatus = `❌ 網路連線錯誤: ${e.message}`;
     }
   }
 
-  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}\n\n🤖 Gemini AI 狀態:\n• 狀態: ${apiStatus}`);
+  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}\n\n🤖 Gemini AI 狀態:\n• 狀態: ${apiStatus}${modelListStr}`);
 }
 
 /**
