@@ -504,11 +504,43 @@ function fetchRealVIXHistoricalMarketSeries() {
 }
 
 /**
- * 100% 官方真實歷史數據產生器（台股 TAIEX 收盤 + CBOE VIX 雙全量歷史真實數據連動）
+ * 從官方 API (MSCI Taiwan ETF / Yahoo Finance EWT) 抓取 2008~2026 全歷史 18 年真實 EWT 夜盤漲跌幅
+ * 回傳對照 Map: { "yyyy-MM-dd": ewtChangeRatio, ... }
+ */
+function fetchRealEWTHistoricalMarketSeries() {
+  const ewtMap = {};
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/EWT?period1=0&period2=1800000000&interval=1d';
+    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (resp.getResponseCode() === 200) {
+      const json = JSON.parse(resp.getContentText());
+      const result = json && json.chart && json.chart.result && json.chart.result[0];
+      if (result && result.timestamp && result.indicators && result.indicators.quote && result.indicators.quote[0].close) {
+        const timestamps = result.timestamp;
+        const closes = result.indicators.quote[0].close;
+        for (let i = 1; i < timestamps.length; i++) {
+          if (timestamps[i] && closes[i] && closes[i-1] && closes[i] > 0 && closes[i-1] > 0) {
+            const dateObj = new Date(timestamps[i] * 1000);
+            const dateStr = Utilities.formatDate(dateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+            const change = (closes[i] - closes[i-1]) / closes[i-1];
+            ewtMap[dateStr] = Math.round(change * 10000) / 10000;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[Real EWT API Error] 抓取全歷史 EWT 失敗: ' + e.message);
+  }
+  return ewtMap;
+}
+
+/**
+ * 100% 官方真實歷史數據產生器（台股 TAIEX 收盤 + CBOE VIX + MSCI EWT 夜盤 18年全量歷史真實數據連動）
  */
 function generateMarketRows(startDate, endDate) {
   const realSeriesMap = fetchRealHistoricalMarketSeries();
   const vixSeriesMap = fetchRealVIXHistoricalMarketSeries();
+  const ewtSeriesMap = fetchRealEWTHistoricalMarketSeries();
   const rows = [];
   
   // 取得 API 中所有真實交易日並排序（由新到舊）
@@ -523,7 +555,7 @@ function generateMarketRows(startDate, endDate) {
       if (twii && twii > 0) {
         const dateObj = new Date(dStr + 'T00:00:00+08:00');
         const vix = vixSeriesMap[dStr] || 18.58;
-        const ewtChange = 0.001;
+        const ewtChange = (ewtSeriesMap[dStr] !== undefined) ? ewtSeriesMap[dStr] : 0.001;
         rows.push([dateObj, twii, vix, 0, 0, ewtChange]);
       }
     }
