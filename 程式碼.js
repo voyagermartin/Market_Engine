@@ -71,7 +71,36 @@ function isMarketOpen(targetDate) {
 function testMarketOpenStatus() {
   const status = isMarketOpen(new Date());
   const dateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd (E)');
-  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}`);
+  
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
+  let apiStatus = "";
+  if (!apiKey) {
+    apiStatus = "❌ 尚未設定 API 金鑰 (MARKET_ENGINE_GEMINI_API_KEY 為空)";
+  } else {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+    const payload = {
+      contents: [{ parts: [{ text: "Hi" }] }]
+    };
+    try {
+      const response = UrlFetchApp.fetch(url, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      const resText = response.getContentText();
+      const code = response.getResponseCode();
+      if (code === 200) {
+        apiStatus = "✅ 連線成功 (Gemini API 運作正常)";
+      } else {
+        apiStatus = `❌ 連線失敗 (HTTP ${code}): ${resText.substring(0, 100)}`;
+      }
+    } catch (e) {
+      apiStatus = `❌ 網路連線錯誤: ${e.message}`;
+    }
+  }
+
+  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}\n\n🤖 Gemini AI 狀態:\n• 狀態: ${apiStatus}`);
 }
 
 /**
@@ -1348,4 +1377,32 @@ function getSpreadsheet() {
     }
   }
   return ss;
+}
+
+function testGeminiAPI() {
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
+  const ss = getSpreadsheet();
+  const sheet = ss ? ss.getSheetByName("DASHBOARD") : null;
+  if (!sheet) return;
+  if (!apiKey) {
+    sheet.getRange("B23").setValue("Error: MARKET_ENGINE_GEMINI_API_KEY is not set.");
+    return;
+  }
+  
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  const payload = {
+    contents: [{ parts: [{ text: "Hello, reply with 'Gemini API is connected successfully!'" }] }]
+  };
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    const resText = response.getContentText();
+    sheet.getRange("B23").setValue("API Response: " + resText.substring(0, 1000));
+  } catch (e) {
+    sheet.getRange("B23").setValue("API Error: " + e.message);
+  }
 }
