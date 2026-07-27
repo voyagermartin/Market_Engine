@@ -63,10 +63,10 @@
   - 自動判斷 `isMarketOpen(targetDate)` (週休二日與國定假日)。
   - 若遇休市日，Prompt 強控：**「不可分析當日成交量與當日買賣，聚焦於夜盤 EWT 情緒、VIX 國際風險與下個交易日觀察方向」**。
 - **老巴盤前 AI 導航 (generateMorningNavigation)**:
-  - 專用模型: `gemini-2.5-flash`
+  - 專用模型: `gemini-2.0-flash`
   - 輸出位置: `DASHBOARD` `B23` (老巴早餐卡片) 與 `HISTORY_LOG` 第 3 列 J 欄 (`AI_Morning_Story`)
 - **小羅盤後 AI 導航 (generateAfternoonNavigation)**:
-  - 專用模型: `gemini-2.5-flash`
+  - 專用模型: `gemini-2.0-flash`
   - 輸出位置: `DASHBOARD` `B24` (小羅午茶卡片) 與 `HISTORY_LOG` 第 3 列 K 欄 (`AI_Afternoon_Story`)
 
 ## ⑦ Dashboard / UI (v1.6.1 招財 3D 牛市圖示版)
