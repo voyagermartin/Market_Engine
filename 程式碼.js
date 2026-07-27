@@ -89,9 +89,9 @@ function testMarketOpenStatus() {
   } else {
     const modelsToTry = [
       "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
-      "gemini-1.5-flash",
-      "gemini-2.5-flash"
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest",
+      "gemini-3.1-flash-lite"
     ];
     let results = [];
     let hasSuccess = false;
