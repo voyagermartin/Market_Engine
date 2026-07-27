@@ -33,8 +33,8 @@
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
 - `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問單一值班卡片
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
-- `generateMorningNavigation()`: 老巴盤前 AI 導航腳本 (連動 isMarketOpen，休市日自動注入夜盤/VIX焦點 Prompt)
-- `generateAfternoonNavigation()`: 小羅盤後 AI 導航腳本 (連動 isMarketOpen，休市日自動注入情緒/觀察焦點 Prompt)
+- `generateMorningNavigation()`: 老巴盤前 AI 導航腳本 (讀取 `MARKET_ENGINE_GEMINI_API_KEY` 金鑰，連動 isMarketOpen，休市日自動注入夜盤/VIX焦點 Prompt)
+- `generateAfternoonNavigation()`: 小羅盤後 AI 導航腳本 (讀取 `MARKET_ENGINE_GEMINI_API_KEY` 金鑰，連動 isMarketOpen，休市日自動注入情緒/觀察焦點 Prompt)
 - `updateMorningMarketEngine()`: 每日盤前自動更新腳本 (07:30 檢查休市狀態，當今日新交易日尚未建檔時，自動插入新列，繼承前日指標為占位值並寫入夜盤 EWT 漲跌，隨後執行老巴 AI 導航)
 - `updateAfternoonMarketEngine()`: 每日盤後自動更新腳本 (14:30 檢查休市狀態，防呆插入新列、寫入模擬收盤行情並重算公式，休市日自動跳過 HISTORY_LOG 無效寫入)
 - `createDailyTrigger()`: 建立每日 07:30 與 14:30 雙時段時間驅動觸發器，安裝前自動遍歷並刪除舊同名觸發器
@@ -132,6 +132,7 @@ v1.6.2 (盤前盤後更新與觸發器修復版)
       - **修復 `updateMorningMarketEngine()` 寫入邏輯**：新增每日開盤前自動判斷與插入新資料列（`insertRowBefore(3)`）邏輯，避免直接覆寫前一日數據，並自動繼承前日基礎指標值作為 placeholder，同時寫入模擬夜盤 EWT 漲跌。
       - **優化 `updateAfternoonMarketEngine()`**：補上防呆插入新資料列與下午盤模擬收盤 TWII/VIX 數據波動寫入邏輯。
       - **驗證 `createDailyTrigger()`**：確保舊有之 `updateDailyMarketEngine`、`updateMorningMarketEngine` 與 `updateAfternoonMarketEngine` 觸發器會被乾淨清除後重新安裝 07:30 / 14:30 雙觸發器。
+      - **更名金鑰屬性**：將 API Key 屬性設定名稱更名為 `MARKET_ENGINE_GEMINI_API_KEY`，確保對齊使用者現有環境。
 - **目前停止位置**: v1.6.2 更新與觸發器防呆修復完成。
 - **下一步施工位置**: 依據使用者後續需求進行 LLM API 串接或系統功能延伸。
 
@@ -162,3 +163,13 @@ v1.6.2 (盤前盤後更新與觸發器修復版)
   - 重構 `updateMorningMarketEngine()`：導入台北時區日期判定，當今日數據列尚未建立時，執行 `insertRowBefore(3)` 插入新交易日列，並向 `A3` 寫入今日日期，繼承前一日 `TWII`、`VIX`、`MA60`、`MA240` 作為 placeholder，最後寫入今日 `EWT_Change` 到 `J3`，極速重算公式。
   - 重構 `updateAfternoonMarketEngine()`：補上防呆插入新列機制，並模擬下午盤最新收盤價格波動作為今日收盤數據寫入 `B3:E3`。
   - 在 `createDailyTrigger()` 中強化 `ScriptApp.getProjectTriggers()` 遍歷與舊 Trigger 刪除邏輯，確保 07:30 (Asia/Taipei) 雙時段自動更新觸發器能乾淨重新安裝。
+  - 將 Gemini API 金鑰名稱從 `MARKET_WEB_GEMINI_API_KEY` 更名為 `MARKET_ENGINE_GEMINI_API_KEY`，確保對齊使用者現有之專案屬性設定。
+- **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@26`) 與 GitHub `main` 分支推播。
+
+---
+## ⑬ 待修與待辦事項 (Pending Issues)
+- **問題描述**：目前手動執行「測試盤前更新」後，後台 `RAW_HISTORY` 已成功寫入 7/27 之數據，但前端網頁（GitHub Pages）調用 Web App API 時，畫面仍然顯示「今日休市 (週休二日)」且日期停留在 7/24。
+- **後續排查方向**：
+  1. 檢查 Google Apps Script Web App 的權限設定，確認是否設定為「執行身分：我 (Me)」及「誰有權限存取：任何人 (Anyone)」，避免 JSONP 請求因權限不足而被阻擋。
+  2. 檢查前端網頁的跨域 JSONP 請求是否有被瀏覽器 Cache 住，或是 CDN 有延遲。
+  3. 檢查 Web App 回傳的 `getMarketEngineData()` 物件內部各工作表讀取是否正常。
