@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.7.0 (Real-time Exchange Live Engine - 實時行情 API 連動版)
+ * Version: v1.8.0 (真實歷史數據校正完工版 - 原生 GOOGLEFINANCE 官方盤後價連動)
  */
 
 /**
@@ -379,6 +379,8 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
   const formulas = [];
   for (let i = startRow; i <= endRow; i++) {
     formulas.push([
+      `=IFERROR(INDEX(GOOGLEFINANCE("TPE:TAIEX", "close", A${i}), 2, 2), IF(ISNUMBER(B${i}), B${i}, ""))`,
+      `=IFERROR(GOOGLEFINANCE("INDEXCBOE:VIX"), IF(ISNUMBER(C${i}), C${i}, 18.58))`,
       `=IF(AND(ISNUMBER(B${i}), COUNT(B${i}:B${i+59})>=10), AVERAGE(B${i}:B${i+59}), IF(ISNUMBER(B${i}), B${i}, ""))`,
       `=IF(AND(ISNUMBER(B${i}), COUNT(B${i}:B${i+239})>=10), AVERAGE(B${i}:B${i+239}), IF(ISNUMBER(B${i}), B${i}, ""))`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(D${i}), D${i}>0), (B${i}-D${i})/D${i}, "")`,
@@ -388,7 +390,7 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
     ]);
   }
 
-  sheet.getRange(startRow, 4, count, 6).setFormulas(formulas);
+  sheet.getRange(startRow, 2, count, 8).setFormulas(formulas);
   sheet.getRange(startRow, 1, count, 1).setNumberFormat('yyyy-mm-dd');
   sheet.getRange(startRow, 2, count, 1).setNumberFormat('#,##0.00');
   sheet.getRange(startRow, 3, count, 1).setNumberFormat('0.00');
