@@ -75,28 +75,65 @@ function testMarketOpenStatus() {
   const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
   let apiStatus = "";
   let modelListStr = "";
+  let keyInfo = "未設定";
+  
+  if (apiKey) {
+    const displayLen = apiKey.length;
+    const prefix = apiKey.substring(0, 6);
+    const suffix = displayLen > 10 ? apiKey.substring(displayLen - 4) : "";
+    keyInfo = `${prefix}...${suffix} (字數: ${displayLen})`;
+  }
+
   if (!apiKey) {
     apiStatus = "❌ 尚未設定 API 金鑰 (MARKET_ENGINE_GEMINI_API_KEY 為空)";
   } else {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
-    const payload = {
-      contents: [{ parts: [{ text: "Hi" }] }]
-    };
-    try {
-      const response = UrlFetchApp.fetch(url, {
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify(payload),
-        muteHttpExceptions: true
-      });
-      const resText = response.getContentText();
-      const code = response.getResponseCode();
-      if (code === 200) {
-        apiStatus = "✅ 連線成功 (Gemini API 運作正常)";
-      } else {
-        apiStatus = `❌ 連線失敗 (HTTP ${code}): ${resText.substring(0, 100)}`;
-        
-        // 取得可用模型清單
+    const modelsToTry = [
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-flash",
+      "gemini-2.5-flash"
+    ];
+    let results = [];
+    let hasSuccess = false;
+    
+    for (let i = 0; i < modelsToTry.length; i++) {
+      const model = modelsToTry[i];
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+      const payload = {
+        contents: [{ parts: [{ text: "Hi" }] }]
+      };
+      try {
+        const response = UrlFetchApp.fetch(url, {
+          method: "post",
+          contentType: "application/json",
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true
+        });
+        const code = response.getResponseCode();
+        const resText = response.getContentText();
+        if (code === 200) {
+          results.push(`🟢 ${model}: 成功`);
+          hasSuccess = true;
+        } else {
+          let errMsg = "";
+          try {
+            const errObj = JSON.parse(resText);
+            errMsg = errObj.error ? errObj.error.message : resText;
+          } catch(e) {
+            errMsg = resText;
+          }
+          results.push(`❌ ${model}: 失敗 (HTTP ${code}: ${errMsg.substring(0, 100)})`);
+        }
+      } catch (e) {
+        results.push(`❌ ${model}: 網路錯誤 (${e.message})`);
+      }
+    }
+    
+    apiStatus = results.join("\n");
+    
+    // 如果全部都失敗，才去取得可用模型清單以供診斷
+    if (!hasSuccess) {
+      try {
         const listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" + apiKey;
         const listRes = UrlFetchApp.fetch(listUrl, { method: "get", muteHttpExceptions: true });
         const listJson = JSON.parse(listRes.getContentText());
@@ -106,13 +143,13 @@ function testMarketOpenStatus() {
         } else {
           modelListStr = `\n\n無法獲取模型清單: ${listRes.getContentText().substring(0, 200)}`;
         }
+      } catch (listErr) {
+        modelListStr = `\n\n獲取模型清單出錯: ${listErr.message}`;
       }
-    } catch (e) {
-      apiStatus = `❌ 網路連線錯誤: ${e.message}`;
     }
   }
 
-  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}\n\n🤖 Gemini AI 狀態:\n• 狀態: ${apiStatus}${modelListStr}`);
+  SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}\n\n🔑 讀取金鑰資訊:\n• 當前金鑰: ${keyInfo}\n\n🤖 Gemini AI 多模型自我檢測:\n${apiStatus}${modelListStr}`);
 }
 
 /**
