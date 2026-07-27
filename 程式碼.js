@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.5.0 (Milestone 5 / Step 2 - 導入休市日 isMarketOpen 判定與 AI 導航連動)
+ * Version: v1.6.7 (MARKET LAB 18年歷史回測與勝率統計修復版)
  */
 
 /**
