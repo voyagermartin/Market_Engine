@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.4)
+# HANDBOOK.md (v1.6.5)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -63,10 +63,10 @@
   - 自動判斷 `isMarketOpen(targetDate)` (週休二日與國定假日)。
   - 若遇休市日，Prompt 強控：**「不可分析當日成交量與當日買賣，聚焦於夜盤 EWT 情緒、VIX 國際風險與下個交易日觀察方向」**。
 - **老巴盤前 AI 導航 (generateMorningNavigation)**:
-  - 專用模型: `gemini-2.0-flash`
+  - 專用模型: `gemini-flash-latest`
   - 輸出位置: `DASHBOARD` `B23` (老巴早餐卡片) 與 `HISTORY_LOG` 第 3 列 J 欄 (`AI_Morning_Story`)
 - **小羅盤後 AI 導航 (generateAfternoonNavigation)**:
-  - 專用模型: `gemini-2.0-flash`
+  - 專用模型: `gemini-flash-latest`
   - 輸出位置: `DASHBOARD` `B24` (小羅午茶卡片) 與 `HISTORY_LOG` 第 3 列 K 欄 (`AI_Afternoon_Story`)
 
 ## ⑦ Dashboard / UI (v1.6.1 招財 3D 牛市圖示版)
@@ -89,10 +89,10 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-v1.6.4 升級 AI 模型至 Gemini 2.0 Flash 並強化連線自我診斷與模型探索工具。
+v1.6.5 因應 Gemini 2.0 預覽版在免費金鑰之額度限制 (429 錯誤)，將模型端點切換為穩定版別名 gemini-flash-latest。
 
 ## ⑩ Current Version
-v1.6.4 (Gemini 2.0 升級與診斷強化版)
+v1.6.5 (Gemini 穩定版模型切換)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
@@ -139,7 +139,10 @@ v1.6.4 (Gemini 2.0 升級與診斷強化版)
   13. **Gemini 2.0 Flash 升級與連線自我診斷強化 (v1.6.4)**：
       - **模型升級**：將 `程式碼.js` 中所有 API 端點之模型從 `gemini-1.5-flash` 升級為 `gemini-2.0-flash`。
       - **連線診斷**：重構 `testMarketOpenStatus()` 測試連線邏輯，若連線失敗則自動呼叫可用模型清單端點獲取可用模型清單，並回傳顯示於 UI 彈窗中，提高錯誤診斷的能見度。
-- **目前停止位置**: v1.6.4 Gemini 2.0 升級與診斷強化版已完成。
+  14. **Gemini API 穩定版模型切換以防禦 429 錯誤 (v1.6.5)**：
+      - **端點變更**：將 `generateMorningNavigation`、`generateAfternoonNavigation` 及 `testGeminiAPI` 中所調用的 `gemini-2.0-flash` 及 `gemini-1.5-flash` 統一更換為官方最新的穩定版別名 `gemini-flash-latest`。
+      - **連線優化**：解決全新 API 金鑰（`AQ.` 前綴）在免費層級存取 deprecated/preview 版 2.0 模型時，遭遇 HTTP 429 配額限制的問題。
+- **目前停止位置**: v1.6.5 Gemini 穩定版模型切換已完成。
 - **下一步施工位置**: 依據後續規劃進行系統擴充。
 
 ---
@@ -182,6 +185,11 @@ v1.6.4 (Gemini 2.0 升級與診斷強化版)
 - **模型升級**：將 Google Sheet 及 GAS 中老巴和小羅 AI 導航專用模型，以及自我測試 API 連線的模型，全面升級至最新且更快的 `gemini-2.0-flash` 模型。
 - **自我診斷與模型探索**：重構 `testMarketOpenStatus()`，在 Gemini API 連線失敗時，新增自動呼叫 models API 取得可用模型清單，並於 UI 彈窗詳細呈現，以便管理員即時定位與診斷。
 - **部署**：完成 `clasp push` 與 Git 提交推送到 GitHub。
+
+### 📅 2026-07-27 Gemini 穩定版模型切換防禦 429 錯誤 (v1.6.5)
+- **模型切換**：因應全新產生的 `AQ.` 前綴 API 金鑰在存取 deprecated / preview 版 `gemini-2.0-flash` 時會被系統強制限制 quota (429 錯誤)，而 `gemini-flash-latest` 可正常運作的特性，將程式碼中所有正式的生成端點統一改為 `gemini-flash-latest`。
+- **程式碼修復**：同步更正 `testGeminiAPI()` 中的 `gemini-1.5-flash` 為 `gemini-flash-latest` 以排除 v1beta API 下 404/429 錯誤。
+- **部署**：完成 `clasp push` 與 Git 提交推送至 GitHub。
 
 ---
 ## ⑬ 待修與待辦事項 (Pending Issues)
