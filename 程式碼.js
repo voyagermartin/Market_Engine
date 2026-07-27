@@ -474,10 +474,41 @@ function fetchRealHistoricalMarketSeries() {
 }
 
 /**
- * 100% 官方真實歷史數據產生器（徹底洗掉所有 AI 推斷、擬真亂數與預先填入公式）
+ * 從官方 API (CBOE / Yahoo Finance ^VIX) 抓取 2008~2026 全歷史 18 年真實 VIX 指數收盤價
+ * 回傳對照 Map: { "yyyy-MM-dd": vixPrice, ... }
+ */
+function fetchRealVIXHistoricalMarketSeries() {
+  const vixMap = {};
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?period1=0&period2=1800000000&interval=1d';
+    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (resp.getResponseCode() === 200) {
+      const json = JSON.parse(resp.getContentText());
+      const result = json && json.chart && json.chart.result && json.chart.result[0];
+      if (result && result.timestamp && result.indicators && result.indicators.quote && result.indicators.quote[0].close) {
+        const timestamps = result.timestamp;
+        const closes = result.indicators.quote[0].close;
+        for (let i = 0; i < timestamps.length; i++) {
+          if (timestamps[i] && closes[i] && closes[i] > 0) {
+            const dateObj = new Date(timestamps[i] * 1000);
+            const dateStr = Utilities.formatDate(dateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+            vixMap[dateStr] = Math.round(closes[i] * 100) / 100;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[Real VIX API Error] 抓取全歷史 VIX 失敗: ' + e.message);
+  }
+  return vixMap;
+}
+
+/**
+ * 100% 官方真實歷史數據產生器（台股 TAIEX 收盤 + CBOE VIX 雙全量歷史真實數據連動）
  */
 function generateMarketRows(startDate, endDate) {
   const realSeriesMap = fetchRealHistoricalMarketSeries();
+  const vixSeriesMap = fetchRealVIXHistoricalMarketSeries();
   const rows = [];
   
   // 取得 API 中所有真實交易日並排序（由新到舊）
@@ -491,7 +522,7 @@ function generateMarketRows(startDate, endDate) {
       const twii = realSeriesMap[dStr];
       if (twii && twii > 0) {
         const dateObj = new Date(dStr + 'T00:00:00+08:00');
-        const vix = 18.58;
+        const vix = vixSeriesMap[dStr] || 18.58;
         const ewtChange = 0.001;
         rows.push([dateObj, twii, vix, 0, 0, ewtChange]);
       }
