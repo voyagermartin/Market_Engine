@@ -492,6 +492,7 @@ function generateMarketRows(startDate, endDate) {
         if (dateStr === '2026-07-27') twii = 43634.19;
         else if (dateStr === '2026-07-24') twii = 43654.84;
         else if (dateStr === '2026-07-20') twii = 42449.70;
+        else if (dateStr === '2026-05-12') twii = 41898.32;
         else {
           const timeSeed = currDate.getTime();
           const ps = (Math.sin(timeSeed / 86400000) + 1) / 2;
