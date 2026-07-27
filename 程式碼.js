@@ -401,7 +401,7 @@ function seedInitialData(sheet) {
   const targetSheet = sheet || SpreadsheetApp.getActiveSpreadsheet().getSheetByName('RAW_HISTORY');
   if (!targetSheet) return;
 
-  const startDate = new Date('2022-01-03');
+  const startDate = new Date('2008-01-02');
   const endDate = new Date('2026-07-24');
   
   const rows = generateMarketRows(startDate, endDate);
@@ -429,6 +429,11 @@ function seedFullHistoricalData() {
   const logSheet = ss.getSheetByName('HISTORY_LOG');
   if (logSheet) {
     applyHistoryLogFormulas(logSheet, 3, 2 + rows.length);
+  }
+
+  const backtestSheet = ss.getSheetByName('LAB_BACKTEST');
+  if (backtestSheet) {
+    buildLabBacktestSheet(backtestSheet);
   }
 
   SpreadsheetApp.flush();
@@ -546,7 +551,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=RAW_HISTORY!F${rawRow}`,
       `=RAW_HISTORY!G${rawRow}`,
       `=RAW_HISTORY!C${rawRow}`,
-      `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, AND(C${i}>=THRESHOLD_CONFIG!$C$6, C${i}<=THRESHOLD_CONFIG!$D$6), THRESHOLD_CONFIG!$B$6, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$8), "計算中"))`,
+      `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, OR(C${i}>THRESHOLD_CONFIG!$C$8, D${i}>THRESHOLD_CONFIG!$E$8), THRESHOLD_CONFIG!$B$8, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), "計算中"))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (INDIRECT("B"&(ROW()-252)) - B${i}) / B${i}, "")`
@@ -588,31 +593,31 @@ function buildLabBacktestSheet(sheet) {
       '=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', 
       '=IF($B$9>0, B4/$B$9, 0)', 
       '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
     ],
     [
       '=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', 
       '=IF($B$9>0, B5/$B$9, 0)', 
       '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
     ],
     [
       '=COUNTIF(HISTORY_LOG!$F$3:$F, A6)', 
       '=IF($B$9>0, B6/$B$9, 0)', 
       '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
     ],
     [
       '=COUNTIF(HISTORY_LOG!$F$3:$F, A7)', 
       '=IF($B$9>0, B7/$B$9, 0)', 
       '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
     ],
     [
       '=COUNTIF(HISTORY_LOG!$F$3:$F, A8)', 
       '=IF($B$9>0, B8/$B$9, 0)', 
       '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, "<>")), "N/A")'
+      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
     ]
   ];
 

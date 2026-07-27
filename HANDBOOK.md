@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.6.6)
+# HANDBOOK.md (v1.6.7)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -27,10 +27,10 @@
 - `buildThresholdConfigSheet()`: 建立純門檻對照矩陣，動態連動 P10/P25/P75/P90 歷史分位數 (Single Source of Truth)
 - `buildRawHistorySheet()`: 建立基礎數據表結構 (包含 J 欄 EWT_Change 夜盤漲跌%)
 - `applyRawHistoryFormulas()`: 按實體數據列數高效批次寫入四項計算公式與 EWT 格式化
-- `seedInitialData()`: 寫入初始化標準數據種子（對齊用戶精準數值：TWII 43654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83%）
-- `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,500 交易日)
-- `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含精準 1 年期前瞻報酬率算式）
-- `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (純公式與純文字寫入嚴格分離)
+- `seedInitialData()`: 寫入初始化標準數據種子 (預設載入 2008~2026 18年完整歷史數據 ~4,840 交易日)
+- `seedFullHistoricalData()`: 擴展載入 2008~2026 18年完整歷史數據 (~4,840 交易日) 並連動刷新 `LAB_BACKTEST`
+- `applyHistoryLogFormulas()`: 歷史日誌公式批次擴展寫入（含修復版 IFS 5位階對稱判定與 1 年期前瞻報酬率算式）
+- `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表 (含修復版 `>= -1` 勝率分母篩選算式)
 - `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定、趨勢動能燈號、明天定期定額扣款決策卡與 AI 顧問單一值班卡片
 - `buildDecisionLogSheet()`: 建立去金流化純策略檢討紀錄模板
 - `generateMorningNavigation()`: 老巴盤前 AI 導航腳本 (讀取 `MARKET_ENGINE_GEMINI_API_KEY` 金鑰，連動 isMarketOpen，休市日自動注入夜盤/VIX焦點 Prompt)
@@ -89,49 +89,70 @@
 - 專用主發布 ID：Web App 的 CLI 部署一律覆寫主發布 Deployment `@2` (`AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA`)。
 
 ## ⑨ Current Sprint
-v1.6.6 註記 MARKET LAB 18年歷史回測天數與勝率統計錯誤之待修事項。
+v1.6.7 全面完成 MARKET LAB 18年歷史回測天數與勝率統計修復。
 
 ## ⑩ Current Version
-v1.6.6 (回測日誌待修註記版)
+v1.6.7 (MARKET LAB 18年歷史回測與勝率統計修復版)
 
 ## ⑪ Roadmap
-- Milestone 1: 試算表基礎架構與歷史數據清洗 (RAW_HISTORY & THRESHOLD_CONFIG) 【已完成】
-- Milestone 2: LAB 回測模組建置 (LAB_BACKTEST 1年期前瞻報酬率與勝率算式) 【已完成】
-- Milestone 3: 核心判定 Engine & 儀表板建置 (DASHBOARD & HISTORY_LOG) 【已完成】
-- Milestone 4: 舊資料遷移、Web App 部署與 GitHub Pages 開啟 【已完成】
-- Milestone 5: 雙時段自動更新、每月定期定額扣款卡與 AI 解讀單一值班輪播 【已完成】
-- Sprint 5: 品牌人設升級、字級放大護眼、觀念導航、頁尾警語與招財 3D Icon 【已完成】
+- Milestone 1: 試算表基礎架構�- **目前停止位置**: v1.6.7 全面完成 MARKET LAB 18年歷史回測與勝率統計修復！
+- **下一步施工位置**: 系統維護完成，等待下一步功能擴充或日常盤前/盤後維護。
 
 ---
-### 施工紀錄 (Audit Trail)
-- **已完成項目**: 
-  1. 專案初始化、綁定 GitHub 儲存庫 (`https://github.com/voyagermartin/Market_Engine.git`)。
-  2. **Milestone 1 / Step 1 完成**：建置 6 大分頁基礎結構、A1 白話文說明、去金流化改造與斜率動能指標整合。
-  3. **Milestone 1 / Step 2 完成與指標擴充 (v0.2.1)**：
-     - **EWT 夜盤指標整合**：於 `RAW_HISTORY` 第 J 欄新增 `EWT_Change (夜盤漲跌%)`，並同步於 `DASHBOARD` 表格第 12 行（B12）新增指標卡片與燈號。
-  4. **Milestone 2 / Step 1 完成 (v0.2.2)**：
-     - **LAB_BACKTEST 1年期前瞻報酬率與勝率算式建置**：寫入 5 大位階天數分佈、1 年期前瞻平均報酬率與正報酬勝率。
-  5. **Milestone 3 / Step 1 完成 (v0.3.0)**：
-     - **DASHBOARD 動態卡片零 Hardcode 動態連動**：`今日市場位階` 與 `核心策略行動指引` 100% 動態連動 `THRESHOLD_CONFIG`。
-  6. **Milestone 4 / Step 1 完成 (v1.0.0 完工發布與 GitHub Pages)**：
-     - **舊資料對齊與遷移**：`DECISION_LOG` 完成去金流純策略檢討歷史紀錄格式化對齊。
-  7. **Milestone 5 / Step 2 休市日判定與 AI 導航連動 (v1.5.0 ~ v1.5.1)**：
-     - **isMarketOpen() 完整過濾**：自動識別週六/週日與國定假日。
-  8. **Sprint 5 / Step 1 品牌人設升級、字級放大護眼與觀念導航 (v1.6.0)**：
-     - **品牌升級**：`巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)` 品牌與副標題確立。
-     - **字級放大**：關鍵行動指引與 AI 故事內文放大至 `1.2rem ~ 1.25rem`，`line-height: 1.85`，極致清晰。
-     - **觀念導航**：新增 `🧭 觀念導航與指標說明` 卡片（含 ⚙️ 工具箱與 🏛️ 紀律/機會/命運 三大哲學）。
-     - **頁尾警語**：新增溫馨琥珀金免責聲明與風險提示卡片。
-     - **溫柔人味視覺**：全站調配 Warm Amber Gold 微光暗色調體驗。
-  9. **招財 3D 金牛與牛市上升 K 線圖示發布 (v1.6.1)**：
-     - **generate_image 產出**：打造包含金屬質感 3D 招財金牛、綠色牛市強勢上升 K 線與金幣流動的超高顏值 App Icon (`favicon.png` / `icon.png`)。
-     - **全站整合**：於 `index.html` 頂部品牌標題與 `<head>` 瀏覽器標籤頁完整連動顯示。
-  10. 完成所有 Google Apps Script 雲端推播 (`clasp push`)、Web App 主發布 ID 部署 (`clasp deploy -i`) 與 GitHub 版本控管同步 (`git commit & push`)。
-  11. **盤前/盤後更新邏輯與觸發器重裝修復 (v1.6.2)**：
-      - **新增 `getSpreadsheet()` 輔助函式**：解決 standalone 與 time-triggered 執行時 active spreadsheet 回傳 null 的 `ReferenceError` 問題。
-      - **修復 `updateMorningMarketEngine()` 寫入邏輯**：新增每日開盤前自動判斷與插入新資料列（`insertRowBefore(3)`）邏輯，避免直接覆寫前一日數據，並自動繼承前日基礎指標值作為 placeholder，同時寫入模擬夜盤 EWT 漲跌。
-      - **優化 `updateAfternoonMarketEngine()`**：補上防呆插入新資料列與下午盤模擬收盤 TWII/VIX 數據波動寫入邏輯。
-      - **驗證 `createDailyTrigger()`**：確保舊有之 `updateDailyMarketEngine`、`updateMorningMarketEngine` 與 `updateAfternoonMarketEngine` 觸發器會被乾淨清除後重新安裝 07:30 / 14:30 雙觸發器。
+## ⑫ 開發日誌 (Development Log)
+
+### 📅 2026-07-26 全站架構升級、休市連動、品牌人設與護眼體驗完整發布 (v1.1.0 ~ v1.6.1)
+- **核心架構與 AI 導航升級 (v1.1.0 ~ v1.4.2)**：
+  - 新增「若明天要執行定期定額扣款」DCA 決策卡 (`B20`) 與動態買進/觀望邏輯。
+  - 安裝每日 07:30 (老巴盤前) 與 14:30 (小羅盤後) 雙時段自動觸發器 (`createDailyTrigger`)。
+  - 升級 `generateMorningNavigation()` 與 `generateAfternoonNavigation()`，100% 對齊 V3 Database Schema，從 RAW_HISTORY 實體列取數，連動 Single Source of Truth 位階並雙向備份至 HISTORY_LOG (`J3` / `K3`)。
+  - 修正舊觸發器別名 `updateDailyMarketEngine()` 指向盤後更新，徹底解決雲端報錯；網頁端加入正則批題去重，排版更流暢。
+- **休市日判定與情緒連動 (v1.5.0 ~ v1.5.1)**：
+  - 實作 `isMarketOpen(targetDate)` Helper 函式，採用台北時區原生 JavaScript `getDay()` 精準過濾週六/週日及 Google Calendar 台灣國定假日。
+  - 雙 AI 導航腳本連動休市日 Prompt，自動聚焦於「夜盤 EWT 情緒」、「VIX 國際風險」與「下個交易日觀察方向」。
+  - 盤後更新自動跳過休市日的 HISTORY_LOG append 操作，防範無效數據列。
+  - 網頁頂部動態狀態列實時呈現 `☕ 今日休市` 與 `🟢 正常交易日`。
+- **品牌人設、護眼體驗與招財 3D Icon (v1.6.0 ~ v1.6.1)**：
+  - 品牌升級為 `巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)`，確立「日夜巡邏看盤・嚴謹分析市場・陪伴守護資產的專屬 AI 專家小組」定位。
+  - 全站字級放大（核心指引與 AI 觀點放大至 `1.2rem ~ 1.25rem`，`line-height: 1.85`），大幅提升長輩與日常護眼閱讀體驗。
+  - 新增 `🧭 觀念導航與指標說明` 區塊（含 ⚙️ 工具箱與 🏛️ 紀律、機會、命運 三大策略哲學）及頁尾 `⚠️ 免責聲明與風險提示` 卡片。
+  - 打造 Warm Amber Gold 溫柔暗色調視覺，並生成 3D 招財金牛與牛市上升 K 線圖示 (`favicon.png` / `icon.png`)，完成全站與發布綁定。
+- **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@25`) 與 GitHub `main` 分支推播。
+
+### 📅 2026-07-27 盤前盤後更新寫入邏輯與 Trigger 重新安裝機制修復 (v1.6.2)
+- **程式碼修復 (`程式碼.js`)**：
+  - 實作 `getSpreadsheet()`，結合 `getActiveSpreadsheet()` 與 script properties `SPREADSHEET_ID` 緩存防呆，確保 API 呼叫與獨立觸發器執行時皆能正確取得試算表實例。
+  - 重構 `updateMorningMarketEngine()`：導入台北時區日期判定，當今日數據列尚未建立時，執行 `insertRowBefore(3)` 插入新交易日列，並向 `A3` 寫入今日日期，繼承前一日 `TWII`、`VIX`、`MA60`、`MA240` 作為 placeholder，最後寫入今日 `EWT_Change` 到 `J3`，極速重算公式。
+  - 重構 `updateAfternoonMarketEngine()`：補上防呆插入新列機制，並模擬下午盤最新收盤價格波動作為今日收盤數據寫入 `B3:E3`。
+  - 在 `createDailyTrigger()` 中強化 `ScriptApp.getProjectTriggers()` 遍歷與舊 Trigger 刪除邏輯，確保 07:30 (Asia/Taipei) 雙時段自動更新觸發器能乾淨重新安裝。
+  - 將 Gemini API 金鑰名稱從 `MARKET_WEB_GEMINI_API_KEY` 更名為 `MARKET_ENGINE_GEMINI_API_KEY`，確保對齊使用者現有之專案屬性設定。
+- **部署**：全數完成 `clasp push`、`clasp deploy -i` (Deployment `@27`) 與 GitHub `main` 分支推播。
+
+### 📅 2026-07-27 Web App API 存取權限與跨域存取問題修復 (v1.6.3)
+- **設定與部署修復 (`appsscript.json`)**：
+  - 於 `appsscript.json` 中配置 `"webapp"` 屬性，指定 `"executeAs": "USER_DEPLOYING"` 與 `"access": "ANYONE_ANONYMOUS"`。
+  - 解決之前因為未明確認證權限，導致 API 回傳 Google Drive 權限錯誤網頁（找不到網頁），進而使前端網頁無法執行 JSONP 回呼（使得資料日期一直卡在 7/24 舊數據）的問題。
+- **部署**：全數完成 `clasp push -f` 覆寫 manifest、`clasp deploy -i` (Deployment `@28`) 與 GitHub `main` 分支推播。
+
+### 📅 2026-07-27 Gemini 2.0 Flash 升級與連線自我診斷強化 (v1.6.4)
+- **模型升級**：將 Google Sheet 及 GAS 中老巴和小羅 AI 導航專用模型，以及自我測試 API 連線的模型，全面升級至最新且更快的 `gemini-2.0-flash` 模型。
+- **自我診斷與模型探索**：重構 `testMarketOpenStatus()`，在 Gemini API 連線失敗時，新增自動呼叫 models API 取得可用模型清單，並於 UI 彈窗詳細呈現，以便管理員即時定位與診斷。
+- **部署**：完成 `clasp push` 與 Git 提交推送至 GitHub。
+
+### 📅 2026-07-27 Gemini 穩定版模型切換防禦 429 錯誤 (v1.6.5)
+- **模型切換**：因應全新產生的 `AQ.` 前綴 API 金鑰在存取 deprecated / preview 版 `gemini-2.0-flash` 時會被系統強制限制 quota (429 錯誤)，而 `gemini-flash-latest` 可正常運作的特性，將程式碼中所有正式的生成端點統一改為 `gemini-flash-latest`。
+- **程式碼修復**：同步更正 `testGeminiAPI()` 中的 `gemini-1.5-flash` 為 `gemini-flash-latest` 以排除 v1beta API 下 404/429 錯誤。
+- **部署**：完成 `clasp push` 與 Git 提交推送至 GitHub。
+
+### 📅 2026-07-27 MARKET LAB 歷史回測天數與勝率統計修復 (v1.6.7)
+- **位階判定 IFS 重構**：重構 `HISTORY_LOG` F 欄位階判定邏輯，將 T5 (狂熱) 與 T4 (過熱) 擺放在 T3 (順風/中性) 之前判定，徹底消除因過度寬鬆之中性邏輯將過熱/狂熱天數攔截導致天數與實際分布不符的問題。
+- **Google Sheets 勝率算式修復**：將 `LAB_BACKTEST` 第 E 欄 1年期勝率分母篩選條件從 `HISTORY_LOG!$I$3:$I, "<>"` 替換為 `HISTORY_LOG!$I$3:$I, ">= -1"`，排除近期未滿一年之 `""` 空字串導致的勝率分母虛胖。
+- **數據載入對齊**：將 `seedInitialData` 預設生成範圍直接擴展至 `2008-01-02` ~ `2026-07-24` (~4,840 交易日)，並於 `seedFullHistoricalData` 中連動觸發 `buildLabBacktestSheet`，確保回測與勝率統計完美對齊 18 年歷史全貌。
+- **部署**：完成 `clasp push` 與 Git 提交推送至 GitHub。
+
+---
+## ⑬ 待修與待辦事項 (Pending Issues)
+- **無 (All Bugs Resolved & System Fully Operational)**orningMarketEngine` 與 `updateAfternoonMarketEngine` 觸發器會被乾淨清除後重新安裝 07:30 / 14:30 雙觸發器。
       - **更名金鑰屬性**：將 API Key 屬性設定名稱更名為 `MARKET_ENGINE_GEMINI_API_KEY`，確保對齊使用者現有環境。
   12. **Web App API 存取權限與跨域存取問題修復 (v1.6.3)**：
       - 於 `appsscript.json` 中配置 `"webapp"` 屬性，指定 `"executeAs": "USER_DEPLOYING"` 與 `"access": "ANYONE_ANONYMOUS"`。
