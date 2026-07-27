@@ -402,7 +402,7 @@ function seedInitialData(sheet) {
   if (!targetSheet) return;
 
   const startDate = new Date('2008-01-02');
-  const endDate = new Date('2026-07-24');
+  const endDate = new Date('2026-07-27');
   
   const rows = generateMarketRows(startDate, endDate);
   targetSheet.getRange(3, 1, rows.length, 5).setValues(rows.map(r => [r[0], r[1], r[2], r[3], r[4]]));
@@ -419,7 +419,7 @@ function seedFullHistoricalData() {
   if (!rawSheet) return;
 
   const startDate = new Date('2008-01-02');
-  const endDate = new Date('2026-07-24');
+  const endDate = new Date('2026-07-27');
 
   const rows = generateMarketRows(startDate, endDate);
   rawSheet.getRange(3, 1, rows.length, 5).setValues(rows.map(r => [r[0], r[1], r[2], r[3], r[4]]));
@@ -437,7 +437,7 @@ function seedFullHistoricalData() {
   }
 
   SpreadsheetApp.flush();
-  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日）！\nTWII 43,654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83% 連動完成。`);
+  SpreadsheetApp.getUi().alert(`🚀 成功載入 2008~2026 18年完整歷史數據（共 ${rows.length} 交易日）！\n最新交易日已同步至 2026-07-27！\nTWII 43,654.84, Dist60 -0.87%, Dist240 +32.29%, VIX 18.58, EWT -1.83% 連動完成。`);
 }
 
 /**
@@ -1313,7 +1313,7 @@ function getMarketEngineData() {
   };
 
   const data = {
-    date: '2026-07-24',
+    date: '2026-07-27',
     twii: '43,654.84',
     dist60: '-0.87%',
     dist240: '+32.29%',
