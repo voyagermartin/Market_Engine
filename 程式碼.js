@@ -1446,7 +1446,7 @@ function getMarketEngineData() {
   const currentHour = parseInt(currentHourStr, 10);
   
   const isMorning = (currentHour >= 7 && currentHour < 14);
-  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '<ctrl42> 盤後模式 (14:30 小羅午茶值班)';
+  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '☕ 盤後模式 (14:30 小羅午茶值班)';
 
   const liveHealth = fetchRealMarketData();
   const status = isMarketOpen(new Date());

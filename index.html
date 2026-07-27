@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team) - 市場觀察與策略導航</title>
+  <title>巴菲特‧索羅斯的 Kopitiam - 來喝咖啡看盤吧～</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -81,10 +81,10 @@
     }
 
     .brand-subtitle {
-      font-size: 13px;
+      font-size: 14px;
       color: #fde047;
       margin-top: 2px;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: 0.5px;
     }
 
@@ -157,10 +157,9 @@
     }
 
     .phase-title {
-      font-size: 15px;
+      font-size: 1.15rem;
       color: #fde047;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
       margin-bottom: 12px;
       font-weight: 700;
     }
@@ -220,7 +219,7 @@
 
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 16px;
       margin-bottom: 32px;
     }
@@ -263,6 +262,45 @@
       font-weight: 600;
     }
 
+    /* Visualizer Cards */
+    .slope-visualizer, .speed-visualizer {
+      height: 44px;
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 4px 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .slope-line {
+      width: 70%;
+      height: 4px;
+      background: linear-gradient(90deg, #34d399, #10b981);
+      border-radius: 2px;
+      box-shadow: 0 0 12px #34d399;
+      transform: rotate(-15deg);
+      transition: transform 0.4s ease, background 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .speed-beam {
+      width: 80%;
+      height: 6px;
+      background: linear-gradient(90deg, rgba(52, 211, 153, 0.2), #34d399, rgba(52, 211, 153, 0.2));
+      border-radius: 3px;
+      box-shadow: 0 0 16px #34d399;
+      animation: speedPulse 1.2s infinite ease-in-out;
+      transition: background 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    @keyframes speedPulse {
+      0%, 100% { transform: scaleX(0.9); opacity: 0.8; }
+      50% { transform: scaleX(1.1); opacity: 1; }
+    }
+
     /* Table Section */
     .table-container {
       overflow-x: auto;
@@ -281,51 +319,43 @@
     }
 
     th {
-      background: rgba(44, 34, 25, 0.9);
-      padding: 16px 20px;
-      color: #fde047;
+      background: rgba(44, 34, 25, 0.95);
+      color: #fbbf24;
+      padding: 16px;
       font-weight: 700;
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
       border-bottom: 1px solid var(--card-border);
     }
 
     td {
-      padding: 16px 20px;
+      padding: 16px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      color: #e7e5e4;
     }
 
-    tr:last-child td {
-      border-bottom: none;
-    }
-
-    tr:hover td {
+    tr:hover {
       background: rgba(245, 158, 11, 0.05);
     }
 
     .win-rate {
-      color: var(--accent-green);
+      color: #34d399;
       font-weight: 700;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
+    <!-- Header (Kopitiam Warm Branding) -->
     <header class="header">
       <div class="brand">
-        <img src="favicon.png" alt="Buffett & Soros AI Team Icon" style="width: 46px; height: 46px; border-radius: 12px; filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.7)); object-fit: cover; border: 1px solid rgba(251, 191, 36, 0.4);">
+        <img src="favicon.png" alt="Kopitiam Icon" style="width: 48px; height: 48px; border-radius: 12px; filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.7)); object-fit: cover; border: 1px solid rgba(251, 191, 36, 0.4);">
         <div>
-          <h1 class="brand-title">巴菲特‧索羅斯 AI 戰情室</h1>
-          <div class="brand-subtitle">Buffett & Soros AI Team ｜ 日夜巡邏看盤・嚴謹分析市場・陪伴守護資產的專屬 AI 專家小組</div>
+          <h1 class="brand-title">巴菲特‧索羅斯的 Kopitiam</h1>
+          <div class="brand-subtitle">來喝咖啡看盤吧～</div>
         </div>
       </div>
       <div class="status-badge">
         <span class="status-dot"></span>
-        <span id="marketStatusTag" style="font-weight: 700; color: #fb7185; margin-right: 8px;">☕ 今日休市 (週休二日)</span>
-        <span id="navMode" style="font-weight: 700; color: #38bdf8; margin-right: 6px;">🌆 盤後模式</span>
+        <span id="marketStatusTag" style="font-weight: 700; color: #34d399; margin-right: 8px;">🟢 行情即時連線</span>
+        <span id="navMode" style="font-weight: 700; color: #38bdf8; margin-right: 6px;">☕ 盤後模式 (14:30 小羅午茶值班)</span>
         (<span id="dataDate">2026-07-27</span>)
       </div>
     </header>
@@ -333,13 +363,13 @@
     <!-- Hero Cards -->
     <div class="hero-grid">
       <div class="glass-card phase-card">
-        <div class="phase-title">今日市場位階 (Market Phase)</div>
+        <div class="phase-title">☕ 今日市場溫度</div>
         <div class="phase-badge" id="phaseBadge">順風/中性</div>
         <div style="font-size: 13px; color: #d6d3d1; margin-top: 6px;">基於 18 年動態分位數連動校正</div>
       </div>
       <div class="glass-card action-guide-card">
         <div class="action-header">
-          <span>🎯 核心策略行動指引</span>
+          <span>🧭 今日大師給你的操作錦囊</span>
         </div>
         <div class="action-body" id="actionGuide">
           股市很健康！行情走勢很正常，按原本的節奏安心持有即可！
@@ -350,7 +380,7 @@
     <!-- DCA Decision Card -->
     <div class="glass-card" style="margin-bottom: 28px; border-left: 5px solid #14b8a6; padding: 22px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-        <h3 style="font-size: 1.4rem; font-weight: 700; color: #2dd4bf; margin: 0;">📅 定期定額扣款決策卡 (DCA Decision Card)</h3>
+        <h3 style="font-size: 1.4rem; font-weight: 700; color: #2dd4bf; margin: 0;">如果明天定期定額要扣款......</h3>
         <span style="font-size: 13px; color: #d6d3d1;">提示：若明天要執行定期定額扣款</span>
       </div>
       <div id="dcaGuide" style="font-size: 1.25rem; font-weight: 700; color: #fef08a; background: rgba(20, 184, 166, 0.18); padding: 16px 20px; border-radius: 12px; line-height: 1.8;">
@@ -359,7 +389,7 @@
     </div>
 
     <!-- Market Indicators Grid -->
-    <h2 class="section-title">📊 市場最新觀察指標與燈號</h2>
+    <h2 class="section-title">📊 盤面關鍵數據一覽</h2>
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-name">台股加權指數 (TWII)</div>
@@ -389,20 +419,31 @@
           <span class="metric-tag" id="tagVix">✅ 平穩</span>
         </div>
       </div>
-      <div class="metric-card">
-        <div class="metric-name">季線 5日斜率 (MA60 Slope)</div>
+
+      <!-- 幾何爬坡坡度儀 Card -->
+      <div class="metric-card" style="border: 1px solid rgba(52, 211, 153, 0.35);">
+        <div class="metric-name">季線 5日斜率 (幾何爬坡坡度儀)</div>
+        <div class="slope-visualizer" id="slopeVisualizer">
+          <div class="slope-line" id="slopeLine"></div>
+        </div>
         <div class="metric-val-row">
           <span class="metric-val" id="valMa60Slope">+0.25%</span>
-          <span class="metric-tag" id="tagMa60Slope">📈 強勢走升</span>
+          <span class="metric-tag" id="tagMa60Slope">↗️ 季線向上陡升</span>
         </div>
       </div>
-      <div class="metric-card">
-        <div class="metric-name">5日乖離動能 (Dist60 Delta)</div>
+
+      <!-- 速度感推進器 Card -->
+      <div class="metric-card" style="border: 1px solid rgba(56, 189, 248, 0.35);">
+        <div class="metric-name">5日乖離動能 (速度感推進器)</div>
+        <div class="speed-visualizer" id="speedVisualizer">
+          <div class="speed-beam" id="speedBeam"></div>
+        </div>
         <div class="metric-val-row">
           <span class="metric-val" id="valDist60Delta">-0.15%</span>
-          <span class="metric-tag" id="tagDist60Delta">➡️ 動能平穩</span>
+          <span class="metric-tag" id="tagDist60Delta">🚀 資金大腳踩油門 (加速衝刺中)</span>
         </div>
       </div>
+
       <div class="metric-card">
         <div class="metric-name">夜盤/EWT漲跌幅 (EWT Change)</div>
         <div class="metric-val-row">
@@ -412,8 +453,8 @@
       </div>
     </div>
 
-    <!-- AI Story Agent Section (v1.6.0: 巴菲特‧索羅斯 AI 戰情室值班觀點) -->
-    <h2 class="section-title">🤖 巴菲特‧索羅斯 AI 戰情室值班觀點 (Buffett & Soros AI Team)</h2>
+    <!-- AI Story Agent Section -->
+    <h2 class="section-title">☕ 來一杯咖啡，聊市場是非</h2>
     <div class="glass-card" id="aiAdvisorCard" style="border-top: 4px solid #c084fc; padding: 24px; margin-bottom: 32px;">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
         <span style="font-size: 1.4rem; font-weight: 700; color: #e9d5ff;" id="aiActiveTitle">☕ 小羅的盤後午茶時光</span>
@@ -434,12 +475,12 @@
       </div>
     </div>
 
-    <!-- Concept Guide Card Section (v1.6.0) -->
-    <h2 class="section-title">🧭 觀念導航與指標說明 (Concept Guide)</h2>
+    <!-- Concept Guide Card Section -->
+    <h2 class="section-title">💡 入門觀念導航 (新手朋友看這裡)</h2>
     <div class="glass-card" style="margin-bottom: 36px; border-top: 4px solid #f59e0b; padding: 26px;">
       <div style="margin-bottom: 24px;">
         <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 14px;">
-          ⚙️ 市場觀測工具箱 (Market Toolkit)
+          ⚙️ 市場觀測工具箱
         </h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; font-size: 1.05rem; color: #e7e5e4;">
           <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
@@ -461,25 +502,25 @@
       </div>
 
       <div style="border-top: 1px solid rgba(251, 191, 36, 0.18); padding-top: 22px;">
-        <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 16px;">🏛️ 三大核心策略哲學 (Core Strategy Pillars)</h3>
+        <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 16px;">🏛️ 三大核心策略哲學</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
           
           <div style="background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(52, 211, 153, 0.35); padding: 20px; border-radius: 14px;">
-            <h4 style="font-size: 1.15rem; color: #6ee7b7; margin-bottom: 10px; font-weight: 700;">I. 紀律：基石扣款 (Discipline)</h4>
+            <h4 style="font-size: 1.15rem; color: #6ee7b7; margin-bottom: 10px; font-weight: 700;">I. 紀律：基石扣款</h4>
             <p style="font-size: 1.05rem; color: #ecfdf5; line-height: 1.75;">
               不論市場高低起伏，堅持紀律定期定額與雙月度再平衡。克服人性對下跌的恐慌與對上漲的貪婪，讓時間與複利為資產奠基。
             </p>
           </div>
 
           <div style="background: rgba(30, 58, 138, 0.35); border: 1px solid rgba(96, 165, 250, 0.35); padding: 20px; border-radius: 14px;">
-            <h4 style="font-size: 1.15rem; color: #93c5fd; margin-bottom: 10px; font-weight: 700;">II. 機會：波段加速 (Opportunity)</h4>
+            <h4 style="font-size: 1.15rem; color: #93c5fd; margin-bottom: 10px; font-weight: 700;">II. 機會：波段加速</h4>
             <p style="font-size: 1.05rem; color: #eff6ff; line-height: 1.75;">
               當市場進入恐慌（P25）與極度恐慌（P10）打折拍賣區，發揮預留現金儲備之實力，分批勇於逆風加碼，掌握長線極高勝率。
             </p>
           </div>
 
           <div style="background: rgba(120, 53, 15, 0.35); border: 1px solid rgba(251, 146, 60, 0.35); padding: 20px; border-radius: 14px;">
-            <h4 style="font-size: 1.15rem; color: #fdba74; margin-bottom: 10px; font-weight: 700;">III. 命運：資產守護 (Destiny)</h4>
+            <h4 style="font-size: 1.15rem; color: #fdba74; margin-bottom: 10px; font-weight: 700;">III. 命運：資產守護</h4>
             <p style="font-size: 1.05rem; color: #fff7ed; line-height: 1.75;">
               當市場飆升至過熱（P75）與狂熱（P90）極致高位，保持冷靜落袋為安，分批收縮曝險並提高現金比例，安穩守護戰果並靜待下一次特價。
             </p>
@@ -548,13 +589,13 @@
       </table>
     </div>
 
-    <!-- Footer Section with Disclaimer Card (v1.6.0) -->
+    <!-- Footer Section with Disclaimer Card -->
     <footer style="margin-top: 48px; border-top: 1px solid rgba(251, 191, 36, 0.18); padding-top: 32px; padding-bottom: 40px;">
       <div class="glass-card" style="border: 1px solid rgba(245, 158, 11, 0.35); background: rgba(44, 34, 25, 0.75); padding: 24px; text-align: left; margin-bottom: 24px;">
         <div style="display: flex; align-items: flex-start; gap: 14px;">
           <span style="font-size: 26px; line-height: 1;">⚠️</span>
           <div>
-            <h4 style="font-size: 1.15rem; font-weight: 700; color: #fde047; margin-bottom: 8px;">免責聲明與風險提示 (Disclaimer & Risk Notice)</h4>
+            <h4 style="font-size: 1.15rem; font-weight: 700; color: #fde047; margin-bottom: 8px;">免責聲明與風險提示</h4>
             <p style="font-size: 1.05rem; color: #fef3c7; line-height: 1.8;">
               本頁內容由 AI 模擬投資大師視角進行市場導航，目的在於協助建立市場感知能力，而非預測市場漲跌。所有分析僅供思路參考，不構成投資建議。AI 與任何投資大師一樣，都可能判斷失準。投資決策請保持理性、獨立思考，並自行承擔相關風險。市場有風險，投資需謹慎。
             </p>
@@ -562,24 +603,30 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team) ｜ Single Source of Truth Live Engine v1.9.0
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.0.0
       </div>
     </footer>
   </div>
 
   <script>
-    // 背景異步動態數據更新 (Deployment @2 active public Web App JSONP)
+    // 背景異步動態數據更新
     const GAS_API_BASE = 'https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec';
 
     function updateDOM(data) {
       if (!data) return;
       if (data.date && data.date !== 'N/A') document.getElementById('dataDate').textContent = data.date;
-      if (data.navMode && data.navMode !== 'N/A') document.getElementById('navMode').textContent = data.navMode;
+      
+      // 清理舊有控制符號與標籤
+      if (data.navMode && data.navMode !== 'N/A') {
+        const cleanNav = data.navMode.replace(/<.*?>/g, '').trim();
+        document.getElementById('navMode').textContent = cleanNav;
+      }
+
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
       if (data.dcaGuide && data.dcaGuide !== 'N/A') document.getElementById('dcaGuide').textContent = data.dcaGuide;
 
-      // 數據健康度與交易日狀態標籤 (🟢 行情即時連線 (YYYY-MM-DD HH:mm) vs ☕ 今日休市)
+      // 數據健康度與交易日狀態標籤
       if (data.marketStatus) {
         const tag = document.getElementById('marketStatusTag');
         if (tag) {
@@ -588,7 +635,7 @@
         }
       }
 
-      // 單一 AI 顧問值班卡片輪播 (Asia/Taipei 時區：07:30 老巴早餐 / 14:30 小羅午茶)
+      // 單一 AI 顧問值班卡片輪播 (07:30 老巴早餐 / 14:30 小羅午茶)
       let currentHour = 20;
       try {
         currentHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', hour: 'numeric', hour12: false }).format(new Date()), 10);
@@ -606,7 +653,6 @@
       let border = isMorning ? '#818cf8' : '#c084fc';
       let titleColor = isMorning ? '#a5b4fc' : '#e9d5ff';
 
-      // 清除內文開頭重複的標題行
       story = story.replace(/^(☕\s*小羅的盤後午茶時光|☀️\s*老巴的盤前早餐時間|\[老巴.*?\]|\[小羅.*?\])\s*/i, '').trim();
 
       const card = document.getElementById('aiAdvisorCard');
@@ -629,12 +675,53 @@
       if (data.dist60Delta && data.dist60Delta !== 'N/A') document.getElementById('valDist60Delta').textContent = data.dist60Delta;
       if (data.ewtChange && data.ewtChange !== 'N/A') document.getElementById('valEwtChange').textContent = data.ewtChange;
 
+      // 幾何爬坡坡度儀動態旋轉與標籤更新
+      if (data.ma60Slope && data.ma60Slope !== 'N/A') {
+        const slopeVal = parseFloat(data.ma60Slope.replace('%', '').replace('+', '').replace('▼', '-').replace('▲', ''));
+        const sLine = document.getElementById('slopeLine');
+        const sTag = document.getElementById('tagMa60Slope');
+        if (sLine && !isNaN(slopeVal)) {
+          if (slopeVal > 0.05) {
+            sLine.style.transform = 'rotate(-20deg)';
+            sLine.style.background = 'linear-gradient(90deg, #34d399, #10b981)';
+            sLine.style.boxShadow = '0 0 14px #34d399';
+            if (sTag) sTag.textContent = '↗️ 季線向上陡升';
+          } else if (slopeVal < -0.05) {
+            sLine.style.transform = 'rotate(20deg)';
+            sLine.style.background = 'linear-gradient(90deg, #f87171, #ef4444)';
+            sLine.style.boxShadow = '0 0 14px #f87171';
+            if (sTag) sTag.textContent = '↘️ 季線下坡下滑';
+          } else {
+            sLine.style.transform = 'rotate(0deg)';
+            sLine.style.background = 'linear-gradient(90deg, #fbbf24, #f59e0b)';
+            sLine.style.boxShadow = '0 0 10px #fbbf24';
+            if (sTag) sTag.textContent = '➡️ 季線平緩走平';
+          }
+        }
+      }
+
+      // 5日動能速度感推進器動態視覺與標籤更新
+      if (data.dist60Delta && data.dist60Delta !== 'N/A') {
+        const deltaVal = parseFloat(data.dist60Delta.replace('%', '').replace('+', '').replace('▼', '-').replace('▲', ''));
+        const sBeam = document.getElementById('speedBeam');
+        const dTag = document.getElementById('tagDist60Delta');
+        if (sBeam && !isNaN(deltaVal)) {
+          if (deltaVal > 0) {
+            sBeam.style.background = 'linear-gradient(90deg, rgba(52, 211, 153, 0.2), #34d399, rgba(52, 211, 153, 0.2))';
+            sBeam.style.boxShadow = '0 0 18px #34d399';
+            if (dTag) dTag.textContent = '🚀 資金大腳踩油門 (加速衝刺中)';
+          } else {
+            sBeam.style.background = 'linear-gradient(90deg, rgba(248, 113, 113, 0.2), #f87171, rgba(248, 113, 113, 0.2))';
+            sBeam.style.boxShadow = '0 0 18px #f87171';
+            if (dTag) dTag.textContent = '🛑 資金重踩煞車 (拉回減速中)';
+          }
+        }
+      }
+
       if (data.metricsStatus) {
         if (data.metricsStatus.dist60 && data.metricsStatus.dist60 !== 'N/A') document.getElementById('tagDist60').textContent = data.metricsStatus.dist60;
         if (data.metricsStatus.dist240 && data.metricsStatus.dist240 !== 'N/A') document.getElementById('tagDist240').textContent = data.metricsStatus.dist240;
         if (data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A') document.getElementById('tagVix').textContent = data.metricsStatus.vix;
-        if (data.metricsStatus.ma60Slope && data.metricsStatus.ma60Slope !== 'N/A') document.getElementById('tagMa60Slope').textContent = data.metricsStatus.ma60Slope;
-        if (data.metricsStatus.dist60Delta && data.metricsStatus.dist60Delta !== 'N/A') document.getElementById('tagDist60Delta').textContent = data.metricsStatus.dist60Delta;
         if (data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A') document.getElementById('tagEwtChange').textContent = data.metricsStatus.ewtChange;
       }
 

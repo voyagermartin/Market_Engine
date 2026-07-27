@@ -1,4 +1,4 @@
-# HANDBOOK.md (v1.9.1)
+# HANDBOOK.md (v2.0.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -43,18 +43,17 @@
   - 過熱 / 狂熱 -> ⚠️ `明天建議暫停扣款，把錢存起來等打折！`
 
 ## ⑥ AI Agents
-- **巴菲特‧索羅斯 AI 戰情室 (Buffett & Soros AI Team)**
+- **巴菲特‧索羅斯的 Kopitiam**
   - 老巴盤前 AI 導航 (`generateMorningNavigation`): 07:30 值班 (老巴早餐)
   - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 14:30 值班 (小羅午茶)
   - 專用模型: `gemini-flash-latest`
 
-## ⑦ Dashboard / UI (v1.9.1 數據純淨度大滿貫版)
-- Google Sheet `DASHBOARD` 視覺化對照卡片
-- **數據健康狀態標籤 (Data Health Indicator)**:
-  - 正常連線：`🟢 行情即時連線 (YYYY-MM-DD HH:mm)`
-  - 國定/颱風休市：`☕ 今日休市 / 颱風假`
-  - 連線延遲：`⚠️ 網路連線延遲 (暫用前日盤後價)`
-- **招財 App 圖示與 Favicon**: 3D 招財金牛與牛市上升 K 線強效 Icon (`favicon.png` / `icon.png`)
+## ⑦ Dashboard / UI (v2.0.0 Kopitiam 人情味與幾何視覺化版)
+- **品牌暖化**: 巴菲特‧索羅斯的 Kopitiam (來喝咖啡看盤吧～)
+- **頁頂亂碼修復**: 徹底清理 `<ctrl42>` 等標籤符號，呈現溫馨無錯之狀態列。
+- **白話文大標題 (去英文化)**: `☕ 今日市場溫度`、`🧭 今日大師給你的操作錦囊`、`如果明天定期定額要扣款......`、`☕ 來一杯咖啡，聊市場是非`。
+- **幾何爬坡坡度儀 (MA60 Slope Angle Visualizer)**: CSS 幾何切線動態旋轉 (`rotate(-20deg)` 向上陡升 vs `rotate(20deg)` 下坡下滑)。
+- **速度感推進器 (Dist60 Delta Speedometer)**: 動態推進光束波形 (🚀 `資金大腳踩油門 (加速衝刺中)` vs 🛑 `資金重踩煞車 (拉回減速中)`)。
 - **GitHub Pages 靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
 - **GAS Web App**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
@@ -63,15 +62,16 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v1.9.1 台股 TAIEX 收盤價、CBOE VIX 與 MSCI EWT 全歷史 18 年真實數據對接完工，100% 官方機構級 Single Source of Truth 大滿貫。
+v2.0.0 Kopitiam 人性化品牌升級、幾何爬坡坡度儀與 5日動能速度感推進器完工發布！
 
 ## ⑩ Current Version
-v1.9.1 (台股 TAIEX + CBOE VIX + MSCI EWT 三全量歷史真實數據連動大滿貫版)
+v2.0.0 (Kopitiam 人情味與幾何坡度速度感完工發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
 - Milestone 2: 數據健康狀態燈號與颱風假/臨時休市時間戳防呆完工。
-- **目前停止位置**: v1.9.1 全站三全量真實數據大滿貫圓滿完工，機構級信賴度上線！
+- Milestone 3: Kopitiam 溫馨品牌軟化、幾何爬坡坡度儀與速度感推進器發布完工。
+- **目前停止位置**: v2.0.0 全站 Kopitiam 溫馨視覺與幾何動態感圓滿完工上線！
 - **下一步施工位置**: 系統維護完成，安心運行日常自動更新。
 
 ---
@@ -84,12 +84,16 @@ v1.9.1 (台股 TAIEX + CBOE VIX + MSCI EWT 三全量歷史真實數據連動大�
 - 修復 MARKET LAB 勝率統計算式，並導入實體 API 行情鏈結。
 
 ### 📅 2026-07-27 TAIEX + CBOE VIX + MSCI EWT 18 年全歷史真實數據大滿貫完工 (v1.8.0 ~ v1.9.1)
-- **API 參數根因定位與修復 (v1.8.1)**：
-  - 全面修正請求參數為 `period1=0&period2=1800000000&interval=1d`，一次性精準拉取 1997 年至今 7,122 個官方實體交易日收盤價。
-  - 徹底清空洗淨所有 AI 推算、擬真亂數與預先填入算式，確保每一個歷史交易日 100% 官方真盤點位。
-- **CBOE VIX 全歷史指數對接 (v1.8.2)**：
-  - 實作 `fetchRealVIXHistoricalMarketSeries()`, 連動 `^VIX` 全歷史數據 (9,209 交易日)，精準呈現 2020 新冠恐慌 (82.69) 與 2008 金融海嘯 (79.13) 官方紀錄。
-- **MSCI EWT 夜盤漲跌幅全歷史對接 (v1.9.1)**：
-  - 實作 `fetchRealEWTHistoricalMarketSeries()`, 連動 `EWT` 全歷史數據 (6,559 交易日)，徹底清除歷史列 `+0.10%` 靜態佔位值。
-- **數據純淨度 100% 大滿貫**：
-  - RAW_HISTORY 中收盤價 (TWII)、VIX 恐慌指數與夜盤漲跌% (EWT_Change) 三大基礎欄位全數 100% 官方真實連動，均線 MA240 (`32,999.35`) 與年線乖離率 Dist240 (`+32.23%` / `+31.89%`) 100% 精準對齊真盤！
+- 修正 API 歷史起點參數 `period1=0`，寫入 7,122 個官方交易日真實價格。
+- 實作 `fetchRealVIXHistoricalMarketSeries()` 與 `fetchRealEWTHistoricalMarketSeries()`, 導入 CBOE VIX 與 MSCI EWT 全歷史真實數據。
+
+### 📅 2026-07-27 Kopitiam 人性化品牌升級與幾何視覺化發布 (v2.0.0)
+- **頁頂亂碼修復與標題人情味軟化 (Kopitiam Warm Branding)**：
+  - 徹底清除頁頂狀態列 `<ctrl42>` 等歷史標籤符號，呈現乾淨溫馨狀態。
+  - 主標題更名為「巴菲特‧索羅斯的 Kopitiam」(副標：來喝咖啡看盤吧～)。
+  - 全站大標題去英文註解化白話語義：`☕ 今日市場溫度`、`🧭 今日大師給你的操作錦囊`、`如果明天定期定額要扣款......`、`☕ 來一杯咖啡，聊市場是非`。
+- **季線 5 日斜率 (MA60 Slope) - 幾何爬坡坡度儀**：
+  - 實作切線角度動態旋轉 (`rotate(-20deg)` 向上陡升 / `rotate(20deg)` 下坡下滑)。
+- **5日乖離動能 (Dist60 Delta) - 速度感推進器**：
+  - 實作推進光束波形 (🚀 `資金大腳踩油門 (加速衝刺中)` vs 🛑 `資金重踩煞車 (拉回減速中)`)。
+- **部署發布**：全數完成 GAS CLI 部署、Deployment `@2` 覆寫與 GitHub `main` 分支推播發布。
