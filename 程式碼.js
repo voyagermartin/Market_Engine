@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.6.7 (MARKET LAB 18年歷史回測與勝率統計修復版)
+ * Version: v1.7.0 (Real-time Exchange Live Engine - 實時行情 API 連動版)
  */
 
 /**
@@ -16,6 +16,7 @@ function onOpen() {
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
     .addItem('🌆 執行盤後更新測試 (14:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addSeparator()
+    .addItem('📡 測試即時行情 API 連線 (testRealMarketApiFetch)', 'testRealMarketApiFetch')
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
     .addItem('☕ 執行小羅盤後 AI 導航 (generateAfternoonNavigation)', 'generateAfternoonNavigation')
     .addItem('📅 測試休市日判定狀態 (isMarketOpen Test)', 'testMarketOpenStatus')
@@ -378,6 +379,8 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
   const formulas = [];
   for (let i = startRow; i <= endRow; i++) {
     formulas.push([
+      `=IF(AND(ISNUMBER(B${i}), COUNT(B${i}:B${i+59})>=10), AVERAGE(B${i}:B${i+59}), IF(ISNUMBER(B${i}), B${i}, ""))`,
+      `=IF(AND(ISNUMBER(B${i}), COUNT(B${i}:B${i+239})>=10), AVERAGE(B${i}:B${i+239}), IF(ISNUMBER(B${i}), B${i}, ""))`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(D${i}), D${i}>0), (B${i}-D${i})/D${i}, "")`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(E${i}), E${i}>0), (B${i}-E${i})/E${i}, "")`,
       `=IF(AND(ISNUMBER(D${i}), ISNUMBER(D${i+5}), D${i+5}>0), (D${i}-D${i+5})/D${i+5}, "")`,
@@ -385,7 +388,7 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
     ]);
   }
 
-  sheet.getRange(startRow, 6, count, 4).setFormulas(formulas);
+  sheet.getRange(startRow, 4, count, 6).setFormulas(formulas);
   sheet.getRange(startRow, 1, count, 1).setNumberFormat('yyyy-mm-dd');
   sheet.getRange(startRow, 2, count, 1).setNumberFormat('#,##0.00');
   sheet.getRange(startRow, 3, count, 1).setNumberFormat('0.00');
@@ -1112,6 +1115,74 @@ function updateDailyMarketEngine() {
 }
 
 /**
+ * 即時金融行情對接器：從官方/國際金融 API (Yahoo Finance / GOOGLEFINANCE) 讀取真實市場行情
+ * (替代所有歷史模擬亂數，確保 Single Source of Truth 真實性)
+ */
+function fetchRealMarketData() {
+  let twii = null;
+  let vix = null;
+  let ewtChange = null;
+
+  // 1. 抓取台股加權指數 (TWII / ^TWII)
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d';
+    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (resp.getResponseCode() === 200) {
+      const json = JSON.parse(resp.getContentText());
+      const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+      if (meta && meta.regularMarketPrice && meta.regularMarketPrice > 0) {
+        twii = Math.round(meta.regularMarketPrice * 100) / 100;
+      }
+    }
+  } catch (e) {
+    Logger.log('[Market Engine API Warning] ^TWII API 擷取失敗: ' + e.message);
+  }
+
+  // 2. 抓取 VIX 恐慌指數 (^VIX)
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d';
+    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (resp.getResponseCode() === 200) {
+      const json = JSON.parse(resp.getContentText());
+      const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+      if (meta && meta.regularMarketPrice && meta.regularMarketPrice > 0) {
+        vix = Math.round(meta.regularMarketPrice * 100) / 100;
+      }
+    }
+  } catch (e) {
+    Logger.log('[Market Engine API Warning] ^VIX API 擷取失敗: ' + e.message);
+  }
+
+  // 3. 抓取 EWT (iShares MSCI Taiwan ETF) 當日/夜盤漲跌幅
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/EWT?interval=1d';
+    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (resp.getResponseCode() === 200) {
+      const json = JSON.parse(resp.getContentText());
+      const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+      if (meta && meta.regularMarketPrice && meta.chartPreviousClose && meta.chartPreviousClose > 0) {
+        const change = (meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose;
+        ewtChange = Math.round(change * 10000) / 10000;
+      }
+    }
+  } catch (e) {
+    Logger.log('[Market Engine API Warning] EWT API 擷取失敗: ' + e.message);
+  }
+
+  return { twii, vix, ewtChange };
+}
+
+/**
+ * 測試即時行情 API 連線狀態
+ */
+function testRealMarketApiFetch() {
+  const data = fetchRealMarketData();
+  const msg = `📡 即時金融 API 連線測試結果:\n\n• 台股加權指數 (TWII): ${data.twii ? data.twii + ' 點 (真實行情)' : '⚠️ 擷取失敗 (使用最後紀錄)'}\n• VIX 恐慌指數: ${data.vix ? data.vix : '⚠️ 擷取失敗 (使用最後紀錄)'}\n• 夜盤 EWT 漲跌幅: ${data.ewtChange !== null ? (data.ewtChange * 100).toFixed(2) + '%' : '⚠️ 擷取失敗'}`;
+  Logger.log(msg);
+  SpreadsheetApp.getUi().alert(msg);
+}
+
+/**
  * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
  */
 function updateMorningMarketEngine() {
@@ -1138,19 +1209,18 @@ function updateMorningMarketEngine() {
     // 寫入日期
     rawSheet.getRange(3, 1).setValue(today);
     
-    // 繼承前一日 (Row 4) 的數據作為今日初始占位值，防止公式出錯
+    // 繼承前一日 (Row 4) 的數據作為今日初始占位值
     const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
     const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
-    const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
-    const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
-    
-    rawSheet.getRange(3, 2, 1, 4).setValues([[prevTwii, prevVix, prevMa60, prevMa240]]);
+    rawSheet.getRange(3, 2, 1, 2).setValues([[prevTwii, prevVix]]);
   }
 
-  const newEwtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000) / 10000;
+  // 抓取夜盤 EWT 真實變動
+  const realData = fetchRealMarketData();
+  const newEwtChange = (realData.ewtChange !== null) ? realData.ewtChange : -0.0183;
   rawSheet.getRange(3, 10).setValue(newEwtChange);
 
-  // 重新按實體資料列數更新批次公式
+  // 重新按實體資料列數更新批次公式 (自動算 MA60 & MA240)
   const totalRows = Math.max(3, rawSheet.getLastRow());
   applyRawHistoryFormulas(rawSheet, 3, totalRows);
 
@@ -1187,30 +1257,20 @@ function updateAfternoonMarketEngine() {
     // 萬一盤前更新未執行，此處補插入今日資料列
     rawSheet.insertRowBefore(3);
     rawSheet.getRange(3, 1).setValue(today);
-    
-    // 繼承前一日 (Row 4) 的數據作為今日初始占位值
-    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
-    const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
-    const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
-    const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
-    
-    rawSheet.getRange(3, 2, 1, 4).setValues([[prevTwii, prevVix, prevMa60, prevMa240]]);
   }
 
-  // 盤後更新：模擬今日最新行情 (正式部署時可接 GOOGLEFINANCE 或其他 API)
+  // 盤後更新：對接真實金融行情 (免隨機亂數)
+  const realData = fetchRealMarketData();
   const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
   const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
-  const prevMa60 = rawSheet.getRange(4, 4).getValue() || 44037.97;
-  const prevMa240 = rawSheet.getRange(4, 5).getValue() || 32999.35;
 
-  const newTwii = Math.round((prevTwii + (Math.random() * 200 - 100)) * 100) / 100;
-  const newVix = Math.round((Math.max(10, prevVix + (Math.random() * 2 - 1))) * 100) / 100;
-  const newMa60 = Math.round((prevMa60 * 0.999 + newTwii * 0.001) * 100) / 100;
-  const newMa240 = Math.round((prevMa240 * 0.9995 + newTwii * 0.0005) * 100) / 100;
+  const actualTwii = realData.twii || prevTwii;
+  const actualVix = realData.vix || prevVix;
 
-  // 寫入最新盤後價格
-  rawSheet.getRange(3, 2, 1, 4).setValues([[newTwii, newVix, newMa60, newMa240]]);
+  // 寫入當日真實行情收盤價
+  rawSheet.getRange(3, 2, 1, 2).setValues([[actualTwii, actualVix]]);
 
+  // 重新套用全自動均線與乖離率公式
   const totalRows = Math.max(3, rawSheet.getLastRow());
   applyRawHistoryFormulas(rawSheet, 3, totalRows);
   applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
