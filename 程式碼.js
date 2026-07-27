@@ -78,7 +78,7 @@ function testMarketOpenStatus() {
   if (!apiKey) {
     apiStatus = "❌ 尚未設定 API 金鑰 (MARKET_ENGINE_GEMINI_API_KEY 為空)";
   } else {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
     const payload = {
       contents: [{ parts: [{ text: "Hi" }] }]
     };
@@ -862,7 +862,7 @@ ${phaseTrack}
 * 保持客觀、冷靜、有溫度的老巴語氣
 `;
 
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }]
   };
@@ -1015,7 +1015,7 @@ ${phaseTrack}
 * 優先描述市場行為與情緒變化，保持感性而客觀的小羅語氣
 `;
 
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }]
   };
