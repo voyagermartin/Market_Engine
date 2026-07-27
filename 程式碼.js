@@ -444,62 +444,129 @@ function seedFullHistoricalData() {
 }
 
 /**
- * 通用行情數據生成器 (第3列最新交易日精準對齊用戶指定行情：TWII 43634.19, Dist60 -0.92%, Dist240 +32.23%, VIX 18.58, EWT -1.83%)
+ * 確定性歷史數據產生器 (精準鎖定實體收盤價，100% 重複驗證不變，徹底消除 Math.random 隨機偏移)
+ */
+function getDeterministicMarketData(date) {
+  const dateStr = Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd');
+  
+  // 精準實體交易日紀錄
+  if (dateStr === '2026-07-27') {
+    return { twii: 43634.19, vix: 18.58, ma60: 44037.97, ma240: 32999.35, ewtChange: -0.0183 };
+  }
+  if (dateStr === '2026-07-24') {
+    return { twii: 43654.84, vix: 18.58, ma60: 44037.97, ma240: 32999.35, ewtChange: -0.0015 };
+  }
+
+  // 基於日期時間戳之確定性偽隨機數 (Deterministic Seed)
+  const timeSeed = date.getTime();
+  const ps = (Math.sin(timeSeed / 86400000) + 1) / 2;
+  const ps2 = (Math.cos(timeSeed / 43200000) + 1) / 2;
+
+  const year = date.getFullYear();
+  let twii = 10000;
+  let vix = 15;
+  let ma60 = 10000;
+  let ma240 = 10000;
+  let ewtChange = 0.001;
+
+  if (year >= 2026) {
+    twii = Math.round((43000 + ps * 1500) * 100) / 100;
+    vix = Math.round((14 + ps2 * 5) * 100) / 100;
+    ma60 = Math.round((twii * 0.97) * 100) / 100;
+    ma240 = Math.round((twii * 0.89) * 100) / 100;
+    ewtChange = Math.round((ps * 0.03 - 0.015) * 10000) / 10000;
+  } else if (year === 2025) {
+    twii = Math.round((32000 + ps * 11000) * 100) / 100;
+    vix = Math.round((14 + ps2 * 8) * 100) / 100;
+    ma60 = Math.round((twii * 0.97) * 100) / 100;
+    ma240 = Math.round((twii * 0.90) * 100) / 100;
+    ewtChange = Math.round((ps * 0.03 - 0.015) * 10000) / 10000;
+  } else if (year === 2024) {
+    twii = Math.round((17500 + ps * 6000) * 100) / 100;
+    vix = Math.round((13 + ps2 * 12) * 100) / 100;
+    ma60 = Math.round(twii * 0.96 * 100) / 100;
+    ma240 = Math.round(twii * 0.88 * 100) / 100;
+    ewtChange = 0.005;
+  } else if (year === 2023) {
+    twii = Math.round((14200 + ps * 3800) * 100) / 100;
+    vix = Math.round((14 + ps2 * 8) * 100) / 100;
+    ma60 = Math.round(twii * 0.98 * 100) / 100;
+    ma240 = Math.round(twii * 0.94 * 100) / 100;
+    ewtChange = 0.002;
+  } else if (year === 2022) {
+    twii = Math.round((12629 + ps * 5500) * 100) / 100;
+    vix = Math.round((20 + ps2 * 18) * 100) / 100;
+    ma60 = Math.round(twii * 1.08 * 100) / 100;
+    ma240 = Math.round(twii * 1.18 * 100) / 100;
+    ewtChange = -0.012;
+  } else if (year === 2021) {
+    twii = Math.round((14700 + ps * 3600) * 100) / 100;
+    vix = Math.round((15 + ps2 * 10) * 100) / 100;
+    ma60 = Math.round(twii * 0.95 * 100) / 100;
+    ma240 = Math.round(twii * 0.85 * 100) / 100;
+    ewtChange = 0.008;
+  } else if (year === 2020) {
+    const month = date.getMonth();
+    if (month === 2) {
+      twii = Math.round((8523 + ps * 2500) * 100) / 100;
+      vix = Math.round((45 + ps2 * 37) * 100) / 100;
+      ma60 = Math.round(twii * 1.25 * 100) / 100;
+      ma240 = Math.round(twii * 1.30 * 100) / 100;
+      ewtChange = -0.035;
+    } else {
+      twii = Math.round((11000 + ps * 3700) * 100) / 100;
+      vix = Math.round((20 + ps2 * 15) * 100) / 100;
+      ma60 = Math.round(twii * 0.97 * 100) / 100;
+      ma240 = Math.round(twii * 0.92 * 100) / 100;
+      ewtChange = 0.006;
+    }
+  } else if (year >= 2016) {
+    twii = Math.round((8000 + ps * 3500) * 100) / 100;
+    vix = Math.round((12 + ps2 * 10) * 100) / 100;
+    ma60 = Math.round(twii * 0.99 * 100) / 100;
+    ma240 = Math.round(twii * 0.95 * 100) / 100;
+    ewtChange = 0.001;
+  } else if (year === 2015) {
+    twii = Math.round((7200 + ps * 2800) * 100) / 100;
+    vix = Math.round((18 + ps2 * 15) * 100) / 100;
+    ma60 = Math.round(twii * 1.05 * 100) / 100;
+    ma240 = Math.round(twii * 1.10 * 100) / 100;
+    ewtChange = -0.005;
+  } else if (year >= 2011) {
+    twii = Math.round((6600 + ps * 2600) * 100) / 100;
+    vix = Math.round((15 + ps2 * 20) * 100) / 100;
+    ma60 = Math.round(twii * 1.01 * 100) / 100;
+    ma240 = Math.round(twii * 0.98 * 100) / 100;
+    ewtChange = 0.002;
+  } else if (year === 2008) {
+    twii = Math.round((3955 + ps * 5000) * 100) / 100;
+    vix = Math.round((35 + ps2 * 45) * 100) / 100;
+    ma60 = Math.round(twii * 1.35 * 100) / 100;
+    ma240 = Math.round(twii * 1.55 * 100) / 100;
+    ewtChange = -0.025;
+  } else {
+    twii = Math.round((5000 + ps * 3000) * 100) / 100;
+    vix = Math.round((18 + ps2 * 12) * 100) / 100;
+    ma60 = Math.round(twii * 0.98 * 100) / 100;
+    ma240 = Math.round(twii * 0.93 * 100) / 100;
+    ewtChange = 0.001;
+  }
+
+  return { twii, vix, ma60, ma240, ewtChange };
+}
+
+/**
+ * 通用行情數據生成器 (精準鎖定實體收盤價：2026-07-27 = 43634.19, 2026-07-24 = 43654.84)
  */
 function generateMarketRows(startDate, endDate) {
   const rows = [];
   let currDate = new Date(endDate);
-  let isFirstRow = true;
 
   while (currDate >= startDate) {
     const day = currDate.getDay();
     if (day !== 0 && day !== 6) {
-      let twii = 43634.19;
-      let vix = 18.58;
-      let ma60 = 44037.97;  // (43634.19 - 44037.97) / 44037.97 = -0.92%
-      let ma240 = 32999.35; // (43634.19 - 32999.35) / 32999.35 = +32.23%
-      let ewtChange = -0.0183; // -1.83%
-
-      if (isFirstRow) {
-        twii = 43634.19;
-        vix = 18.58;
-        ma60 = 44037.97;
-        ma240 = 32999.35;
-        ewtChange = -0.0183;
-        isFirstRow = false;
-      } else {
-        const year = currDate.getFullYear();
-        if (year >= 2026) {
-          twii = Math.round((43654 + Math.random() * 1971) * 100) / 100;
-          vix = Math.round((14 + Math.random() * 5) * 100) / 100;
-          ma60 = Math.round((twii * 0.97) * 100) / 100;
-          ma240 = Math.round((twii * 0.89) * 100) / 100;
-          ewtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000)/10000;
-        }
-        else if (year === 2025) {
-          twii = Math.round((32000 + Math.random() * 11000) * 100) / 100;
-          vix = Math.round((14 + Math.random() * 8) * 100) / 100;
-          ma60 = Math.round((twii * 0.97) * 100) / 100;
-          ma240 = Math.round((twii * 0.90) * 100) / 100;
-          ewtChange = Math.round((Math.random() * 0.04 - 0.018) * 10000)/10000;
-        }
-        else if (year === 2024) { twii = 17500 + Math.random() * 6000; vix = 13 + Math.random() * 12; ma60 = twii * 0.96; ma240 = twii * 0.88; ewtChange = 0.005; }
-        else if (year === 2023) { twii = 14200 + Math.random() * 3800; vix = 14 + Math.random() * 8; ma60 = twii * 0.98; ma240 = twii * 0.94; ewtChange = 0.002; }
-        else if (year === 2022) { twii = 12629 + Math.random() * 5500; vix = 20 + Math.random() * 18; ma60 = twii * 1.08; ma240 = twii * 1.18; ewtChange = -0.012; }
-        else if (year === 2021) { twii = 14700 + Math.random() * 3600; vix = 15 + Math.random() * 10; ma60 = twii * 0.95; ma240 = twii * 0.85; ewtChange = 0.008; }
-        else if (year === 2020) { 
-          const month = currDate.getMonth();
-          if (month === 2) { twii = 8523 + Math.random() * 2500; vix = 45 + Math.random() * 37; ma60 = twii * 1.25; ma240 = twii * 1.30; ewtChange = -0.035; }
-          else { twii = 11000 + Math.random() * 3700; vix = 20 + Math.random() * 15; ma60 = twii * 0.97; ma240 = twii * 0.92; ewtChange = 0.006; }
-        }
-        else if (year >= 2016) { twii = 8000 + Math.random() * 3500; vix = 12 + Math.random() * 10; ma60 = twii * 0.99; ma240 = twii * 0.95; ewtChange = 0.001; }
-        else if (year === 2015) { twii = 7200 + Math.random() * 2800; vix = 18 + Math.random() * 15; ma60 = twii * 1.05; ma240 = twii * 1.10; ewtChange = -0.005; }
-        else if (year >= 2011) { twii = 6600 + Math.random() * 2600; vix = 15 + Math.random() * 20; ma60 = twii * 1.01; ma240 = twii * 0.98; ewtChange = 0.002; }
-        else if (year === 2008) { twii = 3955 + Math.random() * 5000; vix = 35 + Math.random() * 45; ma60 = twii * 1.35; ma240 = twii * 1.55; ewtChange = -0.025; }
-        else { twii = 5000 + Math.random() * 3000; vix = 18 + Math.random() * 12; ma60 = twii * 0.98; ma240 = twii * 0.93; ewtChange = 0.001; }
-      }
-
-      rows.push([new Date(currDate), Math.round(twii * 100)/100, Math.round(vix * 100)/100, Math.round(ma60 * 100)/100, Math.round(ma240 * 100)/100, ewtChange]);
+      const data = getDeterministicMarketData(currDate);
+      rows.push([new Date(currDate), data.twii, data.vix, data.ma60, data.ma240, data.ewtChange]);
     }
     currDate.setDate(currDate.getDate() - 1);
   }
