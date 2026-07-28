@@ -805,12 +805,12 @@ function buildDashboardSheet(sheet) {
 
   sheet.getRange('A23').setValue('🍔 老巴的盤前早餐時間').setFontWeight('bold');
   sheet.getRange('23:23').breakApart();
-  sheet.getRange('B23:E23').merge().setValue('[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！')
+  sheet.getRange('B23:E23').merge().setValue('[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕')
        .setWrap(true).setBackground('#eef2ff').setFontColor('#3730a3');
 
   sheet.getRange('A24').setValue('☕ 小羅的盤後午茶時光').setFontWeight('bold');
   sheet.getRange('24:24').breakApart();
-  sheet.getRange('B24:E24').merge().setValue('[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,634.19 點，季線乖離 -0.92% 屬於便宜區，長線勝率非常高！')
+  sheet.getRange('B24:E24').merge().setValue('【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 14:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。')
        .setWrap(true).setBackground('#f3e8ff').setFontColor('#6b21a8');
 
   sheet.setColumnWidth(1, 190);
@@ -1475,10 +1475,10 @@ function getMarketEngineData() {
     aiActiveTitle: isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光',
     aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 14:30 值班 (小羅)',
     aiActiveStory: isMorning 
-      ? '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！'
-      : '【今天市場最大的變化】\n今天是週末休市日，台股無盤中交易，真正值得留意的是夜盤 EWT 呈現 -1.83% 的短線回檔情緒，而 VIX 恐慌指數仍保持在 18.58 的平穩水準，國際市場並無恐慌拋售。\n\n【為什麼會這樣？】\n休市期間季線與年線乖離率停留在 -0.87% 與 +32.29%，位階穩居順風/中性。季線 5日斜率走升（+0.25%）奠定了堅固的防守底座，夜盤 EWT 的回檔主要來自海外極短線的情緒消化。\n\n【市場畫面】\n週末的台股市場就像是一艘在港灣內定點休整的巨輪，港外雖有微風小浪，但船身在防波堤內保持著極佳的平穩與安穩。\n\n【明天值得觀察】\n週一開盤時，重點觀察台股是否隨夜盤開低並迅速吸引低估區買盤進場，留意季線下方的防守韌性。',
-    aiMorningStory: '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！',
-    aiAfternoonStory: '【今天市場最大的變化】\n今天是週末休市日，台股無盤中交易，真正值得留意的是夜盤 EWT 呈現 -1.83% 的短線回檔情緒，而 VIX 恐慌指數仍保持在 18.58 的平穩水準，國際市場並無恐慌拋售。\n\n【為什麼會這樣？】\n休市期間季線與年線乖離率停留在 -0.87% 與 +32.29%，位階穩居順風/中性。季線 5日斜率走升（+0.25%）奠定了堅固的防守底座，夜盤 EWT 的回檔主要來自海外極短線的情緒消化。\n\n【市場畫面】\n週末的台股市場就像是一艘在港灣內定點休整的巨輪，港外雖有微風小浪，但船身在防波堤內保持著極佳的平穩與安穩。\n\n【明天值得觀察】\n週一開盤時，重點觀察台股是否隨夜盤開低並迅速吸引低估區買盤進場，留意季線下方的防守韌性。',
+      ? '[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕'
+      : '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 14:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
+    aiMorningStory: '[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕',
+    aiAfternoonStory: '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 14:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
     metricsStatus: {
       dist60: '🛒 價格低於季線，中短期出現撿便宜的好時機！',
       dist240: '🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！',
