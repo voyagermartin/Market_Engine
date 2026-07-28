@@ -1510,8 +1510,31 @@ function getMarketEngineData() {
     const p = dashboardSheet.getRange('B15').getDisplayValue();
     const g = dashboardSheet.getRange('B16').getDisplayValue();
     const dca = dashboardSheet.getRange('B20').getDisplayValue();
-    const aiM = dashboardSheet.getRange('B23').getDisplayValue();
-    const aiA = dashboardSheet.getRange('B24').getDisplayValue();
+    let aiM = dashboardSheet.getRange('B23').getDisplayValue();
+    let aiA = dashboardSheet.getRange('B24').getDisplayValue();
+
+    // 背景自動生成 AI 故事機制：如果 API 金鑰存在，且故事為初始預設值/錯誤值，則在載入時即時觸發一次生成，優化 Web App 首次載入體驗
+    const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
+    if (apiKey) {
+      const isDefaultOrErrorMorning = !aiM || aiM.includes('若已設定') || aiM.includes('暫時離開') || aiM.includes('準備中') || aiM.includes('資料加載');
+      const isDefaultOrErrorAfternoon = !aiA || aiA.includes('準備中') || aiA.includes('如何啟用') || aiA.includes('沒來咖啡館') || aiA.includes('資料加載');
+
+      if (isMorning && isDefaultOrErrorMorning) {
+        try {
+          generateMorningNavigation();
+          aiM = dashboardSheet.getRange('B23').getDisplayValue();
+        } catch (e) {
+          Logger.log("Auto morning gen error: " + e.message);
+        }
+      } else if (!isMorning && isDefaultOrErrorAfternoon) {
+        try {
+          generateAfternoonNavigation();
+          aiA = dashboardSheet.getRange('B24').getDisplayValue();
+        } catch (e) {
+          Logger.log("Auto afternoon gen error: " + e.message);
+        }
+      }
+    }
 
     if (p && p !== '' && p !== 'N/A' && p !== '資料計算中') data.phase = p;
     if (g && g !== '' && g !== 'N/A' && g !== '資料加載中...') data.actionGuide = g;
