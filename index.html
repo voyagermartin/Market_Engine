@@ -350,21 +350,25 @@
         <div class="metric-name">台股加權指數 (TWII)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valTwii">43,634.19</span>
-          <span class="metric-tag" id="tagTwii">即時收盤價</span>
+          <span class="metric-tag" id="tagTwii">最近一次收盤價</span>
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">季線乖離率 (Dist60)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valDist60">▼ 0.87%</span>
-          <span class="metric-tag" id="tagDist60">偏低/恐慌</span>
+        </div>
+        <div id="tagDist60" style="font-size: 13px; font-weight: 700; color: #34d399; background: rgba(52, 211, 153, 0.12); padding: 8px 12px; border-radius: 8px; margin-top: 4px; border: 1px solid rgba(52, 211, 153, 0.25);">
+          🛒 價格低於季線，中短期出現便宜撿便宜的好時機！
         </div>
       </div>
       <div class="metric-card">
         <div class="metric-name">年線乖離率 (Dist240)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valDist240">▲ 32.29%</span>
-          <span class="metric-tag" id="tagDist240">偏高/熱絡</span>
+        </div>
+        <div id="tagDist240" style="font-size: 13px; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.12); padding: 8px 12px; border-radius: 8px; margin-top: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">
+          🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！
         </div>
       </div>
       <div class="metric-card">
@@ -400,8 +404,8 @@
       <div class="metric-card">
         <div class="metric-name">夜盤/EWT漲跌幅 (EWT Change)</div>
         <div class="metric-val-row">
-          <span class="metric-val" id="valEwtChange">▼ 1.83%</span>
-          <span class="metric-tag" id="tagEwtChange">⚠️ 夜盤急跌</span>
+          <span class="metric-val" id="valEwtChange">▼ 0.20%</span>
+          <span class="metric-tag" id="tagEwtChange" style="color: #fbbf24; background: rgba(251, 191, 36, 0.08);">➡️ 夜盤平穩</span>
         </div>
       </div>
     </div>
@@ -672,10 +676,56 @@
       }
 
       if (data.metricsStatus) {
-        if (data.metricsStatus.dist60 && data.metricsStatus.dist60 !== 'N/A') document.getElementById('tagDist60').textContent = data.metricsStatus.dist60;
-        if (data.metricsStatus.dist240 && data.metricsStatus.dist240 !== 'N/A') document.getElementById('tagDist240').textContent = data.metricsStatus.dist240;
+        if (data.metricsStatus.dist60 && data.metricsStatus.dist60 !== 'N/A') {
+          const el = document.getElementById('tagDist60');
+          if (el) {
+            el.textContent = data.metricsStatus.dist60;
+            if (data.metricsStatus.dist60.includes('低於') || data.metricsStatus.dist60.includes('🛒') || data.metricsStatus.dist60.includes('特價')) {
+              el.style.color = '#34d399';
+              el.style.background = 'rgba(52, 211, 153, 0.12)';
+              el.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+            } else {
+              el.style.color = '#fbbf24';
+              el.style.background = 'rgba(251, 191, 36, 0.12)';
+              el.style.borderColor = 'rgba(251, 191, 36, 0.25)';
+            }
+          }
+        }
+        if (data.metricsStatus.dist240 && data.metricsStatus.dist240 !== 'N/A') {
+          const el = document.getElementById('tagDist240');
+          if (el) {
+            el.textContent = data.metricsStatus.dist240;
+            if (data.metricsStatus.dist240.includes('低於') || data.metricsStatus.dist240.includes('💎') || data.metricsStatus.dist240.includes('特價')) {
+              el.style.color = '#34d399';
+              el.style.background = 'rgba(52, 211, 153, 0.12)';
+              el.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+            } else {
+              el.style.color = '#38bdf8';
+              el.style.background = 'rgba(56, 189, 248, 0.12)';
+              el.style.borderColor = 'rgba(56, 189, 248, 0.25)';
+            }
+          }
+        }
         if (data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A') document.getElementById('tagVix').textContent = data.metricsStatus.vix;
-        if (data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A') document.getElementById('tagEwtChange').textContent = data.metricsStatus.ewtChange;
+        if (data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A') {
+          const el = document.getElementById('tagEwtChange');
+          if (el) {
+            el.textContent = data.metricsStatus.ewtChange;
+            if (data.metricsStatus.ewtChange.includes('急跌') || data.metricsStatus.ewtChange.includes('⚠️')) {
+              el.style.color = '#f87171';
+              el.style.background = 'rgba(248, 113, 113, 0.12)';
+              el.style.borderColor = 'rgba(248, 113, 113, 0.25)';
+            } else if (data.metricsStatus.ewtChange.includes('強勢') || data.metricsStatus.ewtChange.includes('🚀')) {
+              el.style.color = '#34d399';
+              el.style.background = 'rgba(52, 211, 153, 0.12)';
+              el.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+            } else {
+              el.style.color = '#fbbf24';
+              el.style.background = 'rgba(251, 191, 36, 0.08)';
+              el.style.borderColor = 'rgba(251, 191, 36, 0.2)';
+            }
+          }
+        }
       }
 
       if (data.backtest && data.backtest.length > 0 && data.backtest[0].name !== 'N/A') {
