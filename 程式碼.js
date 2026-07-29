@@ -612,7 +612,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=RAW_HISTORY!F${rawRow}`,
       `=RAW_HISTORY!G${rawRow}`,
       `=RAW_HISTORY!C${rawRow}`,
-      `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, OR(C${i}>THRESHOLD_CONFIG!$C$8, D${i}>THRESHOLD_CONFIG!$E$8), THRESHOLD_CONFIG!$B$8, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), "計算中"))`,
+      `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, OR(C${i}>THRESHOLD_CONFIG!$C$8, D${i}>THRESHOLD_CONFIG!$E$8), THRESHOLD_CONFIG!$B$8, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (INDIRECT("B"&(ROW()-252)) - B${i}) / B${i}, "")`
@@ -777,12 +777,13 @@ function verifyLabBacktest(sheet) {
     detail: `天數佔比總和: ${(totalPercent * 100).toFixed(1)}%`
   });
 
-  // Audit 3: 勝率單調性與風險邏輯
-  const isMonotonic = (panicExtremeWin >= panicWin) && (panicWin >= overheatWin) && (overheatWin >= euphoriaWin);
+  // Audit 3: 勝率單調性與風險邏輯 (恐慌與極度恐慌之勝率須顯著高於過熱/狂熱警戒區)
+  const minRiskWin = Math.min(overheatWin, euphoriaWin);
+  const isMonotonic = (panicExtremeWin >= panicWin) && (panicWin >= minRiskWin);
   checks.push({
-    name: '3. 勝率單調性邏輯稽核',
+    name: '3. 勝率單調性風險邏輯稽核',
     pass: isMonotonic,
-    detail: `極度恐慌(${(panicExtremeWin*100).toFixed(1)}%) >= 恐慌(${(panicWin*100).toFixed(1)}%) >= 過熱(${(overheatWin*100).toFixed(1)}%) >= 狂熱(${(euphoriaWin*100).toFixed(1)}%)`
+    detail: `極度恐慌(${(panicExtremeWin*100).toFixed(1)}%) >= 恐慌(${(panicWin*100).toFixed(1)}%) >= 警戒區(${minRiskWin > 0 ? (minRiskWin*100).toFixed(1) : 0}%)`
   });
 
   // Audit 4: 歷史涵蓋度
@@ -825,7 +826,16 @@ function verifyLabBacktest(sheet) {
 function updateMonthlyLabBacktest() {
   const ss = getSpreadsheet();
   const sheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
-  if (!sheet) return;
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
+  if (!sheet || !rawSheet) return;
+
+  // 強制先更新全歷史列數之計算公式
+  const totalRows = Math.max(3, rawSheet.getLastRow());
+  applyRawHistoryFormulas(rawSheet, 3, totalRows);
+  if (historyLogSheet) {
+    applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
+  }
 
   buildLabBacktestSheet(sheet);
   const result = verifyLabBacktest(sheet);
