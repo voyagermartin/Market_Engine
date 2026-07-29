@@ -719,23 +719,35 @@
           }
         }
         if (data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A') document.getElementById('tagVix').textContent = data.metricsStatus.vix;
-        if (data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A') {
-          const el = document.getElementById('tagEwtChange');
-          if (el) {
-            el.textContent = data.metricsStatus.ewtChange;
-            if (data.metricsStatus.ewtChange.includes('急殺') || data.metricsStatus.ewtChange.includes('暴跌') || data.metricsStatus.ewtChange.includes('回檔') || data.metricsStatus.ewtChange.includes('🚨') || data.metricsStatus.ewtChange.includes('⚠️')) {
-              el.style.color = '#f87171';
-              el.style.background = 'rgba(248, 113, 113, 0.12)';
-              el.style.borderColor = 'rgba(248, 113, 113, 0.25)';
-            } else if (data.metricsStatus.ewtChange.includes('大漲') || data.metricsStatus.ewtChange.includes('偏強') || data.metricsStatus.ewtChange.includes('強勢') || data.metricsStatus.ewtChange.includes('🚀') || data.metricsStatus.ewtChange.includes('📈')) {
-              el.style.color = '#34d399';
-              el.style.background = 'rgba(52, 211, 153, 0.12)';
-              el.style.borderColor = 'rgba(52, 211, 153, 0.25)';
-            } else {
-              el.style.color = '#fbbf24';
-              el.style.background = 'rgba(251, 191, 36, 0.08)';
-              el.style.borderColor = 'rgba(251, 191, 36, 0.2)';
-            }
+        const rawEwtStr = (data.ewtChange && data.ewtChange !== 'N/A') ? data.ewtChange : null;
+        let ewtStatusText = (data.metricsStatus && data.metricsStatus.ewtChange) ? data.metricsStatus.ewtChange : '➡️ 夜盤平穩';
+        if (rawEwtStr) {
+          let val = parseFloat(String(rawEwtStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
+          if (!isNaN(val)) {
+            if (Math.abs(val) > 0.15) val = val / 100;
+            if (val <= -0.015) ewtStatusText = '🚨 夜盤急殺';
+            else if (val <= -0.005) ewtStatusText = '⚠️ 夜盤回檔';
+            else if (val >= 0.015) ewtStatusText = '🚀 夜盤大漲';
+            else if (val >= 0.005) ewtStatusText = '📈 夜盤偏強';
+            else ewtStatusText = '➡️ 夜盤平穩';
+          }
+        }
+
+        const elEwt = document.getElementById('tagEwtChange');
+        if (elEwt) {
+          elEwt.textContent = ewtStatusText;
+          if (ewtStatusText.includes('急殺') || ewtStatusText.includes('暴跌') || ewtStatusText.includes('回檔') || ewtStatusText.includes('🚨') || ewtStatusText.includes('⚠️')) {
+            elEwt.style.color = '#f87171';
+            elEwt.style.background = 'rgba(248, 113, 113, 0.12)';
+            elEwt.style.borderColor = 'rgba(248, 113, 113, 0.25)';
+          } else if (ewtStatusText.includes('大漲') || ewtStatusText.includes('偏強') || ewtStatusText.includes('強勢') || ewtStatusText.includes('🚀') || ewtStatusText.includes('📈')) {
+            elEwt.style.color = '#34d399';
+            elEwt.style.background = 'rgba(52, 211, 153, 0.12)';
+            elEwt.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+          } else {
+            elEwt.style.color = '#fbbf24';
+            elEwt.style.background = 'rgba(251, 191, 36, 0.08)';
+            elEwt.style.borderColor = 'rgba(251, 191, 36, 0.2)';
           }
         }
       }

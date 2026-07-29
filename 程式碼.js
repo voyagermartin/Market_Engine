@@ -1582,6 +1582,24 @@ function doGet(e) {
 }
 
 /**
+ * 精準解析與校正 EWT 夜盤狀態燈號標籤
+ * 支援 -3.95%, -0.0395, +1.83% 等所有極致格式
+ */
+function calculateEwtStatus(ewtValStr) {
+  if (!ewtValStr || ewtValStr === 'N/A' || ewtValStr === '') return '➡️ 夜盤平穩';
+  let val = parseFloat(String(ewtValStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
+  if (isNaN(val)) return '➡️ 夜盤平穩';
+  if (Math.abs(val) > 0.15) {
+    val = val / 100;
+  }
+  if (val <= -0.015) return '🚨 夜盤急殺';
+  if (val <= -0.005) return '⚠️ 夜盤回檔';
+  if (val >= 0.015) return '🚀 夜盤大漲';
+  if (val >= 0.005) return '📈 夜盤偏強';
+  return '➡️ 夜盤平穩';
+}
+
+/**
  * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
 function getMarketEngineData() {
@@ -1652,6 +1670,7 @@ function getMarketEngineData() {
       data.ma60Slope = rowValues[7];
       data.dist60Delta = rowValues[8];
       data.ewtChange = rowValues[9];
+      data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
     }
   }
 
@@ -1706,7 +1725,17 @@ function getMarketEngineData() {
     if (sVix) data.metricsStatus.vix = sVix;
     if (sSlope) data.metricsStatus.ma60Slope = sSlope;
     if (sDelta) data.metricsStatus.dist60Delta = sDelta;
-    if (sEwt) data.metricsStatus.ewtChange = sEwt;
+    if (sEwt && sEwt !== '' && sEwt !== 'N/A' && !sEwt.includes('計算中')) {
+      data.metricsStatus.ewtChange = sEwt;
+    }
+
+    // 若算出來有更具體的夜盤狀態 (非預設平穩)，以 calculateEwtStatus 為最高優先級
+    if (data.ewtChange && data.ewtChange !== 'N/A') {
+      const calcStatus = calculateEwtStatus(data.ewtChange);
+      if (calcStatus !== '➡️ 夜盤平穩') {
+        data.metricsStatus.ewtChange = calcStatus;
+      }
+    }
   }
 
   if (backtestSheet) {
