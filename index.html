@@ -502,22 +502,124 @@
           <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 14px;">
             ⚙️ 市場觀測工具箱
           </h3>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; font-size: 1.05rem; color: #e7e5e4;">
-            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-              <strong style="color: #fde047;">VIX (恐慌指數)：</strong> 衡量全場情緒與極端風險，超過 20 進入警戒，超過 30 恐慌爆發。
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; font-size: 1.05rem; color: #e7e5e4;">
+            
+            <!-- VIX -->
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 20px; border-radius: 14px; border: 1px solid rgba(251, 191, 36, 0.2); display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 1.2rem; font-weight: 700; color: #fde047; display: flex; align-items: center; justify-content: space-between;">
+                <span>🌡️ VIX (恐慌指數)</span>
+                <span style="font-size: 12px; background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 2px 8px; border-radius: 6px;">市場體溫計</span>
+              </div>
+              <div style="line-height: 1.75; color: #fef3c7;">
+                <strong>白話比喻：</strong> 就像全班同學要大考時的「緊張程度」！指數越高代表大家越恐慌抖動，指數低代表大家輕鬆安心。
+              </div>
+              <div style="border-top: 1px dashed rgba(251, 191, 36, 0.2); padding-top: 10px; font-size: 0.98rem; color: #d6d3d1; line-height: 1.7;">
+                <strong style="color: #6ee7b7;">📌 關鍵門檻解析：</strong>
+                <ul style="margin-left: 18px; margin-top: 4px;">
+                  <li><span style="color: #fbbf24; font-weight: 700;">VIX &gt; 20 (緊張警戒)</span>：風雨欲來，市場開始變緊張。</li>
+                  <li><span style="color: #34d399; font-weight: 700;">VIX &gt; 30 (極度恐慌 / 大特價)</span>：大家尖叫逃跑，反而是長線勇敢撿便宜的黃金特價時刻！</li>
+                </ul>
+              </div>
             </div>
-            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-              <strong style="color: #fde047;">MA60 (季線) / MA240 (年線)：</strong> 奠定中期與長期趨勢支撐線，為市場多空分水嶺。
+
+            <!-- MA60 / MA240 -->
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 20px; border-radius: 14px; border: 1px solid rgba(251, 191, 36, 0.2); display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 1.2rem; font-weight: 700; color: #fde047; display: flex; align-items: center; justify-content: space-between;">
+                <span>🧱 MA60 (季線) / MA240 (年線)</span>
+                <span style="font-size: 12px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 8px; border-radius: 6px;">趨勢守護地板</span>
+              </div>
+              <div style="line-height: 1.75; color: #fef3c7;">
+                <strong>白話比喻：</strong> 股票過去一段時間大家買入的「平均成本價」。
+                <ul style="margin-left: 18px; margin-top: 4px;">
+                  <li><strong>MA60 (季線)</strong>：約 3 個月體能平均線，中期多空分水嶺。</li>
+                  <li><strong>MA240 (年線)</strong>：約 1 年基石地板，長期牛熊生命線。</li>
+                </ul>
+              </div>
+              <div style="border-top: 1px dashed rgba(251, 191, 36, 0.2); padding-top: 10px; font-size: 0.98rem; color: #d6d3d1; line-height: 1.7;">
+                <strong style="color: #6ee7b7;">📌 關鍵門檻解析：</strong>
+                <ul style="margin-left: 18px; margin-top: 4px;">
+                  <li><span style="color: #34d399; font-weight: 700;">股價在線上方</span>：大家都賺錢，多頭趨勢穩健。</li>
+                  <li><span style="color: #f87171; font-weight: 700;">跌破年線/季線</span>：市場陷入打折修正，觀察落腳築底。</li>
+                </ul>
+              </div>
             </div>
-            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-              <strong style="color: #fde047;">Dist60 (季線乖離)：</strong> 精準定位歷史 P10/P25/P75/P90 動態位階（極度恐慌至狂熱）。
+
+            <!-- Dist60 -->
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 20px; border-radius: 14px; border: 1px solid rgba(251, 191, 36, 0.2); display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 1.2rem; font-weight: 700; color: #fde047; display: flex; align-items: center; justify-content: space-between;">
+                <span>🐕 Dist60 (季線乖離率)</span>
+                <span style="font-size: 12px; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 2px 8px; border-radius: 6px;">小狗散步位階</span>
+              </div>
+              <div style="line-height: 1.75; color: #fef3c7;">
+                <strong>白話比喻：</strong> 就像主人帶小狗散步，小狗跑太遠會累、被嚇到會縮後面，但最終都會跑回主人身邊（季線均值）。
+              </div>
+              <div style="border-top: 1px dashed rgba(251, 191, 36, 0.2); padding-top: 10px; font-size: 0.98rem; color: #d6d3d1; line-height: 1.7;">
+                <strong style="color: #6ee7b7;">📌 18年歷史動態分位數門檻：</strong>
+                <ul style="margin-left: 18px; margin-top: 4px;">
+                  <li><span style="color: #34d399; font-weight: 700;">極度恐慌 (&lt; P10，約 -8% 以下)</span>：小狗縮沙發底下，歷史長線勝率 98%！</li>
+                  <li><span style="color: #34d399; font-weight: 700;">恐慌 (&lt; P25，約 -3% 以下)</span>：小狗落後主人，具優良風險報酬比。</li>
+                  <li><span style="color: #38bdf8; font-weight: 700;">順風/中性 (P25 ~ P75)</span>：小狗陪伴身邊，穩健成長。</li>
+                  <li><span style="color: #fbbf24; font-weight: 700;">過熱 (&gt; P75，約 +6% 以上)</span>：小狗跑得有點快，追高吸引力下降。</li>
+                  <li><span style="color: #f87171; font-weight: 700;">狂熱 (&gt; P90，約 +12% 以上)</span>：小狗跑太遠快喘不過氣，修正風險高！</li>
+                </ul>
+              </div>
             </div>
-            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-              <strong style="color: #fde047;">MA60 Slope / Dist60 Delta：</strong> 監測季線5日趨勢斜率與乖離率收斂/發散動能。
+
+            <!-- MA60 Slope & Dist60 Delta -->
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 20px; border-radius: 14px; border: 1px solid rgba(251, 191, 36, 0.2); display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 1.2rem; font-weight: 700; color: #fde047; display: flex; align-items: center; justify-content: space-between;">
+                <span>🧱 Slope / 🚀 Dist60 Delta</span>
+                <span style="font-size: 12px; background: rgba(52, 211, 153, 0.2); color: #34d399; padding: 2px 8px; border-radius: 6px;">底氣與油門</span>
+              </div>
+              <div style="line-height: 1.75; color: #fef3c7;">
+                <strong>白話比喻：</strong>
+                <ul style="margin-left: 18px; margin-top: 4px;">
+                  <li><strong>MA60 Slope (季線斜率 - 大盤底氣)</strong>：季線這塊地板是堅固向上升，還是向下滑落。</li>
+                  <li><strong>Dist60 Delta (5日乖離動能 - 買氣油門)</strong>：近5天買家是在大腳踩油門，還是在輕踩煞車。</li>
+                </ul>
+              </div>
+              <div style="border-top: 1px dashed rgba(251, 191, 36, 0.2); padding-top: 10px; font-size: 0.98rem; color: #d6d3d1; line-height: 1.7;">
+                <strong style="color: #6ee7b7;">📌 關鍵門檻解析：</strong>
+                <ul style="margin-left: 18px; margin-top: 4px;">
+                  <li><span style="color: #34d399; font-weight: 700;">斜率 &gt; +0.05%</span>：鋼筋水泥地板，底下支撐強勁。</li>
+                  <li><span style="color: #f87171; font-weight: 700;">斜率 &lt; -0.05%</span>：海綿軟泥地板，地板下滑中宜謹慎。</li>
+                  <li><span style="color: #34d399; font-weight: 700;">Delta &gt; 0</span>：大腳踩油門，買氣升溫。</li>
+                  <li><span style="color: #f87171; font-weight: 700;">Delta &lt; 0</span>：輕踩煞車，買氣觀望。</li>
+                </ul>
+              </div>
             </div>
-            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12); grid-column: 1 / -1;">
-              <strong style="color: #fde047;">EWT Change (夜盤漲跌%)：</strong> 捕捉盤前海外極短線情緒，做為開盤指引參考。
+
+            <!-- EWT Change -->
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 20px; border-radius: 14px; border: 1px solid rgba(251, 191, 36, 0.2); display: flex; flex-direction: column; gap: 10px; grid-column: 1 / -1;">
+              <div style="font-size: 1.2rem; font-weight: 700; color: #fde047; display: flex; align-items: center; gap: 8px;">
+                <span>🌙 EWT Change (夜盤漲跌%)</span>
+                <span style="font-size: 12px; background: rgba(96, 165, 250, 0.2); color: #60a5fa; padding: 2px 8px; border-radius: 6px;">海外氣象球</span>
+              </div>
+              <div style="line-height: 1.75; color: #fef3c7;">
+                <strong>白話比喻：</strong> 台股下午放學關門後，美股夜盤繼續開趴。EWT 是海外台股基金，能反映我們睡覺時國際大金主對台股的最新態度！
+              </div>
+              <div style="border-top: 1px dashed rgba(251, 191, 36, 0.2); padding-top: 10px; font-size: 0.98rem; color: #d6d3d1; line-height: 1.7;">
+                <strong style="color: #6ee7b7;">📌 5 階門檻解析：</strong>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 6px;">
+                  <div style="background: rgba(248, 113, 113, 0.15); border: 1px solid rgba(248, 113, 113, 0.3); padding: 8px 12px; border-radius: 8px; color: #f87171;">
+                    <strong>🚨 夜盤急殺 (&lt;= -1.5%)</strong><br>海外逢大暴雨，開盤打折！
+                  </div>
+                  <div style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); padding: 8px 12px; border-radius: 8px; color: #fca5a5;">
+                    <strong>⚠️ 夜盤回檔 (-1.5% ~ -0.5%)</strong><br>海外降溫回檔。
+                  </div>
+                  <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); padding: 8px 12px; border-radius: 8px; color: #fde047;">
+                    <strong>➡️ 夜盤平穩 (-0.5% ~ +0.5%)</strong><br>風平浪靜無大事。
+                  </div>
+                  <div style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); padding: 8px 12px; border-radius: 8px; color: #6ee7b7;">
+                    <strong>📈 夜盤偏強 (+0.5% ~ +1.5%)</strong><br>海外買氣溫和熱絡。
+                  </div>
+                  <div style="background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.3); padding: 8px 12px; border-radius: 8px; color: #34d399;">
+                    <strong>🚀 夜盤大漲 (&gt;= +1.5%)</strong><br>海外歡慶放煙火，氣勢旺！
+                  </div>
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
 
