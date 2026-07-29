@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.3.7)
+# HANDBOOK.md (v2.3.8)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -76,10 +76,10 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.3.7 台股加權指數狀態標籤修復、MARKET LAB 月度歷史回測 4 大維度自我驗證引擎、16:30 盤後時間調整與 EWT 5 階門檻動態校正完整發布！
+v2.3.8 小羅盤後時間 16:30 提示說明同步修正、MARKET LAB 18年歷史回測最新計算日期標籤發布！
 
 ## ⑩ Current Version
-v2.3.7 (TWII標籤修復、月度回測自我驗證、16:30盤後與EWT門檻校正發布版)
+v2.3.8 (小羅盤後時間 16:30 修正、MARKET LAB 計算日期標籤發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -138,4 +138,7 @@ v2.3.7 (TWII標籤修復、月度回測自我驗證、16:30盤後與EWT門檻校
 - **夜盤 EWT 5 階門檻對帳與雙端動態計算 (v2.3.6 ~ v2.3.7)**：
   - 重新校正 EWT 夜盤門檻（`🚨 夜盤急殺` <= -1.5%、`⚠️ 夜盤回檔` <= -0.5%、`➡️ 夜盤平穩` -0.5%~+0.5%、`📈 夜盤偏強` >= +0.5%、`🚀 夜盤大漲` >= +1.5%）。
   - 在前後端（[程式碼.js](file:///f:/Projects/Market_Engine/程式碼.js) 與 [index.html](file:///f:/Projects/Market_Engine/index.html)）新增 `calculateEwtStatus` 純數態動態解析，解決百分比字串被舊試算表欄位覆寫導致誤判為平穩之問題，使 `-3.95%` 準確呈現 **`🚨 夜盤急殺`** 與警戒紅框。
+- **盤後 16:30 時間文字與 MARKET LAB 計算日期標註 (v2.3.8)**：
+  - 修正 [程式碼.js](file:///f:/Projects/Market_Engine/程式碼.js) 內舊殘留 14:30 說明文字為 16:30。
+  - 於 Web App [index.html](file:///f:/Projects/Market_Engine/index.html) MARKET LAB 區塊頂端新增「最新計算日期：2026-07-29」標籤，並連結 GAS 後端 `backtestCalcDate` 自動更新機制。
 - **部署發布**：全數完成 GAS CLI 部署、Deployment `@2` 覆寫與 GitHub `main` 分支推播發布。

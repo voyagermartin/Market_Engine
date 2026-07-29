@@ -948,7 +948,7 @@ function buildDashboardSheet(sheet) {
 
   sheet.getRange('A24').setValue('☕ 小羅的盤後午茶時光').setFontWeight('bold');
   sheet.getRange('24:24').breakApart();
-  sheet.getRange('B24:E24').merge().setValue('【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 14:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。')
+  sheet.getRange('B24:E24').merge().setValue('【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 16:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。')
        .setWrap(true).setBackground('#f3e8ff').setFontColor('#6b21a8');
 
   sheet.setColumnWidth(1, 190);
@@ -1299,7 +1299,7 @@ ${phaseTrack}
 }
 
 // ==========================================
-// 9. 雙時段自動更新機制 (Daily Dual Triggers: Morning 07:30 & Afternoon 14:30)
+// 9. 雙時段自動更新機制 (Daily Dual Triggers: Morning 07:30 & Afternoon 16:30)
 // ==========================================
 
 /**
@@ -1748,6 +1748,16 @@ function getMarketEngineData() {
       winRate: r[4],
       conclusion: r[5]
     }));
+    const bannerVal = backtestSheet.getRange('A10').getDisplayValue();
+    if (bannerVal && bannerVal.includes('上次對帳驗證時間:')) {
+      const match = bannerVal.match(/上次對帳驗證時間:\s*([\d\-]+)/);
+      if (match && match[1]) {
+        data.backtestCalcDate = match[1];
+      }
+    }
+  }
+  if (!data.backtestCalcDate) {
+    data.backtestCalcDate = '2026-07-29';
   }
 
   return data;

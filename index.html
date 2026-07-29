@@ -478,7 +478,12 @@
     </div>
 
     <!-- MARKET LAB Section -->
-    <h2 class="section-title">📈 MARKET LAB 18年歷史回測與勝率統計</h2>
+    <h2 class="section-title" style="flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;">
+      <span>📈 MARKET LAB 18年歷史回測與勝率統計</span>
+      <span style="font-size: 13px; color: var(--accent-gold); font-weight: 600; background: rgba(245, 158, 11, 0.12); padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.3); font-family: sans-serif;">
+        📅 最新計算日期：<span id="labCalcDateText">2026-07-29</span>
+      </span>
+    </h2>
     <div class="table-container">
       <table>
         <thead>
@@ -567,6 +572,11 @@
       if (data.navMode && data.navMode !== 'N/A') {
         const cleanNav = data.navMode.replace(/<.*?>/g, '').trim();
         document.getElementById('navMode').textContent = cleanNav;
+      }
+
+      if (data.backtestCalcDate) {
+        const labDateEl = document.getElementById('labCalcDateText');
+        if (labDateEl) labDateEl.textContent = data.backtestCalcDate;
       }
 
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
