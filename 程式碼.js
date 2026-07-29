@@ -12,9 +12,9 @@ function onOpen() {
   ui.createMenu('🚀 Market Engine V3')
     .addItem('建置/初始化所有分頁 (Full Setup)', 'setupMarketEngineV3')
     .addSeparator()
-    .addItem('⏰ 安裝全套自動觸發器 (07:30 & 14:30 每日更新 + 每月 1 日 01:00 對帳)', 'createDailyTrigger')
+    .addItem('⏰ 安裝全套自動觸發器 (07:30 & 16:30 每日更新 + 每月 1 日 01:00 對帳)', 'createDailyTrigger')
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
-    .addItem('🌆 執行盤後更新測試 (14:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
+    .addItem('🌆 執行盤後更新測試 (16:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addSeparator()
     .addItem('📡 測試即時行情 API 連線 (testRealMarketApiFetch)', 'testRealMarketApiFetch')
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
@@ -1453,7 +1453,7 @@ function updateMorningMarketEngine() {
 }
 
 /**
- * 盤後更新 (每日 14:30 Asia/Taipei - 小羅午茶時光值班)
+ * 盤後更新 (每日 16:30 Asia/Taipei - 小羅午茶時光值班)
  */
 function updateAfternoonMarketEngine() {
   const ss = getSpreadsheet();
@@ -1503,11 +1503,11 @@ function updateAfternoonMarketEngine() {
   generateAfternoonNavigation();
 
   SpreadsheetApp.flush();
-  Logger.log('Afternoon Market Engine update (14:30 - 小羅午茶值班) completed for ' + todayStr);
+  Logger.log('Afternoon Market Engine update (16:30 - 小羅午茶值班) completed for ' + todayStr);
 }
 
 /**
- * 安裝全套自動觸發器 (每日 07:30 盤前 / 14:30 盤後 + 每月 1 日 01:00 歷史回測自我驗證)
+ * 安裝全套自動觸發器 (每日 07:30 盤前 / 16:30 盤後 + 每月 1 日 01:00 歷史回測自我驗證)
  */
 function createDailyTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
@@ -1527,11 +1527,11 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  // 2. 盤後 14:30 觸發器 (小羅午茶值班)
+  // 2. 盤後 16:30 觸發器 (小羅午茶值班)
   ScriptApp.newTrigger('updateAfternoonMarketEngine')
     .timeBased()
     .everyDays(1)
-    .atHour(14)
+    .atHour(16)
     .nearMinute(30)
     .inTimezone('Asia/Taipei')
     .create();
@@ -1545,7 +1545,7 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  SpreadsheetApp.getUi().alert('✅ 成功安裝全套自動觸發器！\n\n• 🌅 每日 07:30 盤前更新：老巴早餐時間值班\n• ☕ 每日 14:30 盤後更新：小羅午茶時光值班\n• 📅 每月 1 日 01:00：月度歷史回測與 4 大維度自我驗證');
+  SpreadsheetApp.getUi().alert('✅ 成功安裝全套自動觸發器！\n\n• 🌅 每日 07:30 盤前更新：老巴早餐時間值班\n• ☕ 每日 16:30 盤後更新：小羅午茶時光值班\n• 📅 每月 1 日 01:00：月度歷史回測與 4 大維度自我驗證');
 }
 
 // ==========================================
@@ -1595,8 +1595,8 @@ function getMarketEngineData() {
   const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
   const currentHour = parseInt(currentHourStr, 10);
   
-  const isMorning = (currentHour >= 7 && currentHour < 14);
-  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '☕ 盤後模式 (14:30 小羅午茶值班)';
+  const isMorning = (currentHour >= 7 && currentHour < 16);
+  const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '☕ 盤後模式 (16:30 小羅午茶值班)';
 
   const liveHealth = fetchRealMarketData();
   const status = isMarketOpen(new Date());
@@ -1623,12 +1623,12 @@ function getMarketEngineData() {
     dcaGuide: '🟢 明天照常扣款，維持原本扣款金額即可！',
     aiDutyAdvisor: isMorning ? '老巴' : '小羅',
     aiActiveTitle: isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光',
-    aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 14:30 值班 (小羅)',
+    aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)',
     aiActiveStory: isMorning 
       ? '[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕'
-      : '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 14:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
+      : '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 16:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
     aiMorningStory: '[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕',
-    aiAfternoonStory: '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 14:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
+    aiAfternoonStory: '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 16:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
     metricsStatus: {
       dist60: '🛒 價格低於季線，中短期出現撿便宜的好時機！',
       dist240: '🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！',

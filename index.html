@@ -600,7 +600,7 @@
         }
       }
 
-      // 單一 AI 顧問值班卡片輪播 (07:30 老巴早餐 / 14:30 小羅午茶)
+      // 單一 AI 顧問值班卡片輪播 (07:30 老巴早餐 / 16:30 小羅午茶)
       let currentHour = 20;
       try {
         currentHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', hour: 'numeric', hour12: false }).format(new Date()), 10);
@@ -608,10 +608,10 @@
         currentHour = (new Date()).getHours();
       }
 
-      const isMorning = (currentHour >= 7 && currentHour < 14);
+      const isMorning = (currentHour >= 7 && currentHour < 16);
 
       let title = isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光';
-      let badge = isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 14:30 值班 (小羅)';
+      let badge = isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)';
       let story = isMorning 
         ? (data.aiMorningStory || '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！')
         : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,634.19 點，季線乖離 -0.92% 屬於便宜區，長線勝率非常高！');
