@@ -880,7 +880,7 @@ function buildDashboardSheet(sheet) {
     ['VIX 恐慌指數', '=RAW_HISTORY!C3', 'VIX Index', '=IF(B9>=30, "🚨 恐慌爆發", IF(B9>=20, "⚠️ 警戒", "✅ 平穩"))', '市場波動度情緒'],
     ['季線 5日斜率 (MA60 Slope)', '=RAW_HISTORY!H3', 'MA60 5日變化率', '=IF(B10>0.003, "📈 強勢走升", IF(B10<-0.003, "📉 彎頭向下", "➡️ 橫盤走平"))', '季線趨勢方向'],
     ['5日乖離動能 (Dist60 Delta)', '=RAW_HISTORY!I3', 'Dist60 5日動能', '=IF(B11>0.01, "🚀 強勢反彈", IF(B11<-0.01, "⚠️ 修正加劇", "➡️ 動能平穩"))', '乖離率收斂/發散速度'],
-    ['夜盤/EWT漲跌幅 (EWT Change)', '=RAW_HISTORY!J3', 'iShares Taiwan ETF', '=IF(B12>0.01, "🚀 夜盤強勢", IF(B12<-0.01, "⚠️ 夜盤急跌", "➡️ 夜盤平穩"))', '盤前極短線情緒與開盤指引']
+    ['夜盤/EWT漲跌幅 (EWT Change)', '=RAW_HISTORY!J3', 'iShares Taiwan ETF', '=IF(ISBLANK(B12), "➡️ 夜盤平穩", IFERROR(IFS(VALUE(B12)<=-0.015, "🚨 夜盤急殺", VALUE(B12)<=-0.005, "⚠️ 夜盤回檔", VALUE(B12)>=0.015, "🚀 夜盤大漲", VALUE(B12)>=0.005, "📈 夜盤偏強", TRUE, "➡️ 夜盤平穩"), "➡️ 夜盤平穩"))', '盤前極短線情緒與開盤指引']
   ];
 
   for (let i = 0; i < metrics.length; i++) {

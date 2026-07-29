@@ -723,11 +723,11 @@
           const el = document.getElementById('tagEwtChange');
           if (el) {
             el.textContent = data.metricsStatus.ewtChange;
-            if (data.metricsStatus.ewtChange.includes('急跌') || data.metricsStatus.ewtChange.includes('⚠️')) {
+            if (data.metricsStatus.ewtChange.includes('急殺') || data.metricsStatus.ewtChange.includes('暴跌') || data.metricsStatus.ewtChange.includes('回檔') || data.metricsStatus.ewtChange.includes('🚨') || data.metricsStatus.ewtChange.includes('⚠️')) {
               el.style.color = '#f87171';
               el.style.background = 'rgba(248, 113, 113, 0.12)';
               el.style.borderColor = 'rgba(248, 113, 113, 0.25)';
-            } else if (data.metricsStatus.ewtChange.includes('強勢') || data.metricsStatus.ewtChange.includes('🚀')) {
+            } else if (data.metricsStatus.ewtChange.includes('大漲') || data.metricsStatus.ewtChange.includes('偏強') || data.metricsStatus.ewtChange.includes('強勢') || data.metricsStatus.ewtChange.includes('🚀') || data.metricsStatus.ewtChange.includes('📈')) {
               el.style.color = '#34d399';
               el.style.background = 'rgba(52, 211, 153, 0.12)';
               el.style.borderColor = 'rgba(52, 211, 153, 0.25)';
