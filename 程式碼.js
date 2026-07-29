@@ -821,22 +821,15 @@ function verifyLabBacktest(sheet) {
 
 /**
  * 月度歷史回測計算與自我驗證腳本
- * 建議每個月底或需要重校時執行一次，免除每日浮動疑慮
+ * 建議每個月底或需要重校時執行一次，極速秒級完成
  */
 function updateMonthlyLabBacktest() {
   const ss = getSpreadsheet();
   const sheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
   if (!sheet || !rawSheet) return;
 
-  // 強制先更新全歷史列數之計算公式
-  const totalRows = Math.max(3, rawSheet.getLastRow());
-  applyRawHistoryFormulas(rawSheet, 3, totalRows);
-  if (historyLogSheet) {
-    applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
-  }
-
+  // 僅建立與鎖定 LAB_BACKTEST 的 5 列輕量對帳公式 (免去對 4,000+ 列重複寫入 4 萬個 Excel 算式導致逾時)
   buildLabBacktestSheet(sheet);
   const result = verifyLabBacktest(sheet);
 
@@ -1490,10 +1483,10 @@ function updateAfternoonMarketEngine() {
   // 寫入當日真實行情收盤價
   rawSheet.getRange(3, 2, 1, 2).setValues([[actualTwii, actualVix]]);
 
-  // 重新套用全自動均線與乖離率公式
-  const totalRows = Math.max(3, rawSheet.getLastRow());
-  applyRawHistoryFormulas(rawSheet, 3, totalRows);
-  applyHistoryLogFormulas(historyLogSheet, 3, totalRows);
+  // 重新按最新列數更新頂部算式 (極速更新前 15 列即可)
+  const topRows = Math.min(15, rawSheet.getLastRow());
+  applyRawHistoryFormulas(rawSheet, 3, topRows);
+  applyHistoryLogFormulas(historyLogSheet, 3, topRows);
 
   // 自動觸發小羅盤後 AI 導航生成
   generateAfternoonNavigation();
