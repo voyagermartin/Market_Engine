@@ -740,10 +740,18 @@ function verifyLabBacktest(sheet) {
     return { success: false, message: '找不到分頁 LAB_BACKTEST 或 RAW_HISTORY' };
   }
 
+  const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
+  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
+  if (historyLogSheet) {
+    const historyRowCount = Math.max(0, historyLogSheet.getLastRow() - 2);
+    if (historyRowCount < rawRowCount) {
+      applyHistoryLogFormulas(historyLogSheet, 3, 2 + rawRowCount);
+    }
+  }
+
   SpreadsheetApp.flush();
 
   const values = labSheet.getRange('A4:E9').getValues();
-  const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
 
   const panicExtremeCount = Number(values[0][1]) || 0;
   const panicCount = Number(values[1][1]) || 0;
@@ -1470,6 +1478,9 @@ function updateAfternoonMarketEngine() {
     // 萬一盤前更新未執行，此處補插入今日資料列
     rawSheet.insertRowBefore(3);
     rawSheet.getRange(3, 1).setValue(today);
+    if (historyLogSheet) {
+      historyLogSheet.insertRowBefore(3);
+    }
   }
 
   // 盤後更新：對接真實金融行情 (免隨機亂數)
