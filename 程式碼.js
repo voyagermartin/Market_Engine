@@ -12,7 +12,7 @@ function onOpen() {
   ui.createMenu('🚀 Market Engine V3')
     .addItem('建置/初始化所有分頁 (Full Setup)', 'setupMarketEngineV3')
     .addSeparator()
-    .addItem('⏰ 安裝雙時段自動更新觸發器 (07:30 & 14:30)', 'createDailyTrigger')
+    .addItem('⏰ 安裝全套自動觸發器 (07:30 & 14:30 每日更新 + 每月 1 日 01:00 對帳)', 'createDailyTrigger')
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
     .addItem('🌆 執行盤後更新測試 (14:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addSeparator()
@@ -1507,13 +1507,13 @@ function updateAfternoonMarketEngine() {
 }
 
 /**
- * 安裝每日 07:30 與 14:30 雙觸發器
+ * 安裝全套自動觸發器 (每日 07:30 盤前 / 14:30 盤後 + 每月 1 日 01:00 歷史回測自我驗證)
  */
 function createDailyTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
   for (let i = 0; i < triggers.length; i++) {
     const fn = triggers[i].getHandlerFunction();
-    if (fn === 'updateDailyMarketEngine' || fn === 'updateMorningMarketEngine' || fn === 'updateAfternoonMarketEngine') {
+    if (fn === 'updateDailyMarketEngine' || fn === 'updateMorningMarketEngine' || fn === 'updateAfternoonMarketEngine' || fn === 'updateMonthlyLabBacktest') {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -1536,7 +1536,16 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  SpreadsheetApp.getUi().alert('✅ 成功安裝雙時段自動更新觸發器！\n• 07:30 盤前更新：老巴早餐時間值班\n• 14:30 盤後更新：小羅午茶時光值班');
+  // 3. 每月 1 日 凌晨 01:00 觸發器 (月度歷史回測與 4 大維度自我驗證)
+  ScriptApp.newTrigger('updateMonthlyLabBacktest')
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(1)
+    .nearMinute(0)
+    .inTimezone('Asia/Taipei')
+    .create();
+
+  SpreadsheetApp.getUi().alert('✅ 成功安裝全套自動觸發器！\n\n• 🌅 每日 07:30 盤前更新：老巴早餐時間值班\n• ☕ 每日 14:30 盤後更新：小羅午茶時光值班\n• 📅 每月 1 日 01:00：月度歷史回測與 4 大維度自我驗證');
 }
 
 // ==========================================
