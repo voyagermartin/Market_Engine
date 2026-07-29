@@ -22,6 +22,7 @@ function onOpen() {
     .addItem('📅 測試休市日判定狀態 (isMarketOpen Test)', 'testMarketOpenStatus')
     .addSeparator()
     .addItem('🚀 擴展載入 2008~2026 18年完整歷史數據', 'seedFullHistoricalData')
+    .addItem('📅 執行月度歷史回測與自我驗證 (updateMonthlyLabBacktest)', 'updateMonthlyLabBacktest')
     .addItem('更新/套用計算公式與樣式', 'applyFormulasAndStyles')
     .addToUi();
 }
@@ -714,6 +715,132 @@ function buildLabBacktestSheet(sheet) {
   sheet.setColumnWidth(4, 160);
   sheet.setColumnWidth(5, 160);
   sheet.setColumnWidth(6, 320);
+
+  // 建置完成後自動執行一次自我驗證與對帳標籤寫入
+  try {
+    verifyLabBacktest(sheet);
+  } catch (e) {
+    Logger.log('[LAB_BACKTEST Verification Warning] ' + e.message);
+  }
+}
+
+/**
+ * 歷史回測與勝率對帳自我驗證引擎 (Self-Verification Engine)
+ * 進行 4 大維度邏輯稽核：
+ * 1. 總天數一致性稽核 (Sum of counts equals total history rows)
+ * 2. 佔比百分之百稽核 (Sum of percentages equals 100.0%)
+ * 3. 勝率與報酬率單調性稽核 (Extreme Panic / Panic win rates > Overheat / Euphoria)
+ * 4. 18年歷史涵蓋度稽核 (Historical data row count >= 4000)
+ */
+function verifyLabBacktest(sheet) {
+  const ss = getSpreadsheet();
+  const labSheet = sheet || (ss ? ss.getSheetByName('LAB_BACKTEST') : null);
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  if (!labSheet || !rawSheet) {
+    return { success: false, message: '找不到分頁 LAB_BACKTEST 或 RAW_HISTORY' };
+  }
+
+  SpreadsheetApp.flush();
+
+  const values = labSheet.getRange('A4:E9').getValues();
+  const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
+
+  const panicExtremeCount = Number(values[0][1]) || 0;
+  const panicCount = Number(values[1][1]) || 0;
+  const neutralCount = Number(values[2][1]) || 0;
+  const overheatCount = Number(values[3][1]) || 0;
+  const euphoriaCount = Number(values[4][1]) || 0;
+
+  const totalCount = Number(values[5][1]) || 0;
+  const totalPercent = Number(values[5][2]) || 0;
+
+  const panicExtremeWin = Number(values[0][4]) || 0;
+  const panicWin = Number(values[1][4]) || 0;
+  const overheatWin = Number(values[3][4]) || 0;
+  const euphoriaWin = Number(values[4][4]) || 0;
+
+  const checks = [];
+
+  // Audit 1: 總天數一致性
+  const isTotalMatch = (totalCount === rawRowCount);
+  checks.push({
+    name: '1. 總天數一致性稽核',
+    pass: isTotalMatch,
+    detail: `位階天數和: ${totalCount} 天, RAW_HISTORY 資料列: ${rawRowCount} 天`
+  });
+
+  // Audit 2: 佔比百分之百
+  const isPercent100 = (Math.abs(totalPercent - 1.0) < 0.001);
+  checks.push({
+    name: '2. 佔比百分之百稽核',
+    pass: isPercent100,
+    detail: `天數佔比總和: ${(totalPercent * 100).toFixed(1)}%`
+  });
+
+  // Audit 3: 勝率單調性與風險邏輯
+  const isMonotonic = (panicExtremeWin >= panicWin) && (panicWin >= overheatWin) && (overheatWin >= euphoriaWin);
+  checks.push({
+    name: '3. 勝率單調性邏輯稽核',
+    pass: isMonotonic,
+    detail: `極度恐慌(${(panicExtremeWin*100).toFixed(1)}%) >= 恐慌(${(panicWin*100).toFixed(1)}%) >= 過熱(${(overheatWin*100).toFixed(1)}%) >= 狂熱(${(euphoriaWin*100).toFixed(1)}%)`
+  });
+
+  // Audit 4: 歷史涵蓋度
+  const isSufficientHistory = (rawRowCount >= 4000);
+  checks.push({
+    name: '4. 18年歷史涵蓋度稽核',
+    pass: isSufficientHistory,
+    detail: `累積交易日數: ${rawRowCount} 筆 (>= 4,000 筆)`
+  });
+
+  const allPassed = checks.every(c => c.pass);
+  const dateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  const bannerText = allPassed 
+    ? `✅ 18年歷史數據與勝率自我驗證 100% 通過！ (上次對帳驗證時間: ${dateStr})`
+    : `⚠️ 自我驗證包含異常項目！ (對帳時間: ${dateStr})`;
+
+  // 寫入 LAB_BACKTEST Row 10 驗證狀態列
+  labSheet.getRange('A10:F10').breakApart();
+  labSheet.getRange('A10:F10').merge().setValue(bannerText)
+     .setFontWeight('bold')
+     .setFontSize(11)
+     .setBackground(allPassed ? '#dcfce7' : '#fee2e2')
+     .setFontColor(allPassed ? '#166534' : '#991b1b')
+     .setHorizontalAlignment('center')
+     .setVerticalAlignment('middle');
+  labSheet.setRowHeight(10, 32);
+
+  return {
+    success: allPassed,
+    date: dateStr,
+    checks: checks,
+    bannerText: bannerText
+  };
+}
+
+/**
+ * 月度歷史回測計算與自我驗證腳本
+ * 建議每個月底或需要重校時執行一次，免除每日浮動疑慮
+ */
+function updateMonthlyLabBacktest() {
+  const ss = getSpreadsheet();
+  const sheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
+  if (!sheet) return;
+
+  buildLabBacktestSheet(sheet);
+  const result = verifyLabBacktest(sheet);
+
+  let msg = `📅 月度歷史回測與勝率計算完工 (${result.date})\n\n`;
+  msg += result.bannerText + '\n\n【自我驗證詳細結果】:\n';
+  result.checks.forEach(c => {
+    msg += `${c.pass ? '🟢' : '❌'} ${c.name}: ${c.detail}\n`;
+  });
+
+  Logger.log(msg);
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch (e) {}
+  return result;
 }
 
 // ==========================================

@@ -632,7 +632,11 @@
       const sElem = document.getElementById('aiActiveStory');
       if (sElem) sElem.textContent = story;
       
-      if (data.twii && data.twii !== 'N/A') document.getElementById('valTwii').textContent = data.twii;
+      if (data.twii && data.twii !== 'N/A') {
+        document.getElementById('valTwii').textContent = data.twii;
+        const tagTwiiElem = document.getElementById('tagTwii');
+        if (tagTwiiElem) tagTwiiElem.textContent = '最近一次收盤價';
+      }
       if (data.dist60 && data.dist60 !== 'N/A') document.getElementById('valDist60').textContent = data.dist60;
       if (data.dist240 && data.dist240 !== 'N/A') document.getElementById('valDist240').textContent = data.dist240;
       if (data.vix && data.vix !== 'N/A') document.getElementById('valVix').textContent = data.vix;
