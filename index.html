@@ -611,14 +611,18 @@
       }
 
       // 單一 AI 顧問值班卡片輪播 (07:30 老巴早餐 / 16:30 小羅午茶)
-      let currentHour = 20;
+      let timeInMins = 1200; // 預設 20:00 (1200分)
       try {
-        currentHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', hour: 'numeric', hour12: false }).format(new Date()), 10);
+        const h = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', hour: 'numeric', hour12: false }).format(new Date()), 10);
+        const m = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Taipei', minute: 'numeric' }).format(new Date()), 10);
+        timeInMins = h * 60 + m;
       } catch (e) {
-        currentHour = (new Date()).getHours();
+        const d = new Date();
+        timeInMins = d.getHours() * 60 + d.getMinutes();
       }
 
-      const isMorning = (currentHour >= 7 && currentHour < 16);
+      // 07:30 (450分) 至 16:30 (990分) 為老巴盤前早餐值班；其餘時間為小羅盤後午茶值班
+      const isMorning = (timeInMins >= 450 && timeInMins < 990);
 
       let title = isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光';
       let badge = isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)';

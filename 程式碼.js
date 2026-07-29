@@ -1609,11 +1609,13 @@ function getMarketEngineData() {
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
-  // 1. 使用 Asia/Taipei 台北時區精準判定小時數與休市日狀態
+  // 1. 使用 Asia/Taipei 台北時區精準判定時分與休市日狀態 (07:30 老巴早餐 / 16:30 小羅午茶)
   const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
-  const currentHour = parseInt(currentHourStr, 10);
+  const currentMinStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'mm');
+  const timeInMins = parseInt(currentHourStr, 10) * 60 + parseInt(currentMinStr, 10);
   
-  const isMorning = (currentHour >= 7 && currentHour < 16);
+  // 07:30 (450分) 至 16:30 (990分) 為盤前老巴值班；其餘時間為盤後小羅值班
+  const isMorning = (timeInMins >= 450 && timeInMins < 990);
   const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '☕ 盤後模式 (16:30 小羅午茶值班)';
 
   const liveHealth = fetchRealMarketData();
