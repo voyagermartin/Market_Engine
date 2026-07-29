@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.8.0 (真實歷史數據校正完工版 - 原生 GOOGLEFINANCE 官方盤後價連動)
+ * Version: v2.4.5 (觀念導航視覺精簡發布版)
  */
 
 /**
