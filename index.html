@@ -110,6 +110,59 @@
       50% { opacity: 0.4; }
     }
 
+    /* Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid rgba(251, 191, 36, 0.15);
+      padding-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .nav-tab {
+      background: rgba(38, 32, 27, 0.6);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-tab:hover {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fde047;
+      border-color: rgba(251, 191, 36, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .nav-tab.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(192, 132, 252, 0.25));
+      border: 1px solid #fbbf24;
+      color: #fffbeb;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.35s ease-in-out forwards;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     /* Hero Cards */
     .hero-grid {
       display: grid;
@@ -316,6 +369,22 @@
       </div>
     </header>
 
+    <!-- Main Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="today" onclick="switchTab('today')">
+        <span>☕ 今日戰情</span>
+      </button>
+      <button class="nav-tab" data-tab="concepts" onclick="switchTab('concepts')">
+        <span>💡 觀念導航</span>
+      </button>
+      <button class="nav-tab" data-tab="backtest" onclick="switchTab('backtest')">
+        <span>📈 歷史回測</span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: 今日戰情 (View Today) -->
+    <div id="view-today" class="tab-content active">
+
     <!-- Hero Cards -->
     <div class="hero-grid">
       <div class="glass-card phase-card">
@@ -421,125 +490,134 @@
         老巴與小羅正在忙著沖咖啡、看盤，請稍候，熱騰騰的市場是非與大師開示馬上送上！☕
       </div>
     </div>
+    <!-- END TAB 1: 今日戰情 -->
 
-    <!-- Concept Guide Card Section -->
-    <h2 class="section-title">💡 入門觀念導航 (新手朋友看這裡)</h2>
-    <div class="glass-card" style="margin-bottom: 36px; border-top: 4px solid #f59e0b; padding: 26px;">
-      <div style="margin-bottom: 24px;">
-        <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 14px;">
-          ⚙️ 市場觀測工具箱
-        </h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; font-size: 1.05rem; color: #e7e5e4;">
-          <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-            <strong style="color: #fde047;">VIX (恐慌指數)：</strong> 衡量全場情緒與極端風險，超過 20 進入警戒，超過 30 恐慌爆發。
+    <!-- TAB 2: 入門觀念導航 (View Concepts) -->
+    <div id="view-concepts" class="tab-content">
+      <!-- Concept Guide Card Section -->
+      <h2 class="section-title">💡 入門觀念導航 (新手朋友看這裡)</h2>
+      <div class="glass-card" style="margin-bottom: 36px; border-top: 4px solid #f59e0b; padding: 26px;">
+        <div style="margin-bottom: 24px;">
+          <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 14px;">
+            ⚙️ 市場觀測工具箱
+          </h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; font-size: 1.05rem; color: #e7e5e4;">
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
+              <strong style="color: #fde047;">VIX (恐慌指數)：</strong> 衡量全場情緒與極端風險，超過 20 進入警戒，超過 30 恐慌爆發。
+            </div>
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
+              <strong style="color: #fde047;">MA60 (季線) / MA240 (年線)：</strong> 奠定中期與長期趨勢支撐線，為市場多空分水嶺。
+            </div>
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
+              <strong style="color: #fde047;">Dist60 (季線乖離)：</strong> 精準定位歷史 P10/P25/P75/P90 動態位階（極度恐慌至狂熱）。
+            </div>
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
+              <strong style="color: #fde047;">MA60 Slope / Dist60 Delta：</strong> 監測季線5日趨勢斜率與乖離率收斂/發散動能。
+            </div>
+            <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12); grid-column: 1 / -1;">
+              <strong style="color: #fde047;">EWT Change (夜盤漲跌%)：</strong> 捕捉盤前海外極短線情緒，做為開盤指引參考。
+            </div>
           </div>
-          <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-            <strong style="color: #fde047;">MA60 (季線) / MA240 (年線)：</strong> 奠定中期與長期趨勢支撐線，為市場多空分水嶺。
-          </div>
-          <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-            <strong style="color: #fde047;">Dist60 (季線乖離)：</strong> 精準定位歷史 P10/P25/P75/P90 動態位階（極度恐慌至狂熱）。
-          </div>
-          <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12);">
-            <strong style="color: #fde047;">MA60 Slope / Dist60 Delta：</strong> 監測季線5日趨勢斜率與乖離率收斂/發散動能。
-          </div>
-          <div style="background: rgba(44, 39, 36, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.12); grid-column: 1 / -1;">
-            <strong style="color: #fde047;">EWT Change (夜盤漲跌%)：</strong> 捕捉盤前海外極短線情緒，做為開盤指引參考。
+        </div>
+
+        <div style="border-top: 1px solid rgba(251, 191, 36, 0.18); padding-top: 22px;">
+          <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 16px;">🏛️ 三大核心策略哲學</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+            
+            <div style="background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(52, 211, 153, 0.35); padding: 20px; border-radius: 14px;">
+              <h4 style="font-size: 1.15rem; color: #6ee7b7; margin-bottom: 10px; font-weight: 700;">I. 紀律：基石扣款</h4>
+              <p style="font-size: 1.05rem; color: #ecfdf5; line-height: 1.75;">
+                不論市場高低起伏，堅持紀律定期定額與雙月度再平衡。克服人性對下跌的恐慌與對上漲的貪婪，讓時間與複利為資產奠基。
+              </p>
+            </div>
+
+            <div style="background: rgba(30, 58, 138, 0.35); border: 1px solid rgba(96, 165, 250, 0.35); padding: 20px; border-radius: 14px;">
+              <h4 style="font-size: 1.15rem; color: #93c5fd; margin-bottom: 10px; font-weight: 700;">II. 機會：波段加速</h4>
+              <p style="font-size: 1.05rem; color: #eff6ff; line-height: 1.75;">
+                當市場進入恐慌（P25）與極度恐慌（P10）打折拍賣區，發揮預留現金儲備之實力，分批勇於逆風加碼，掌握長線極高勝率。
+              </p>
+            </div>
+
+            <div style="background: rgba(120, 53, 15, 0.35); border: 1px solid rgba(251, 146, 60, 0.35); padding: 20px; border-radius: 14px;">
+              <h4 style="font-size: 1.15rem; color: #fdba74; margin-bottom: 10px; font-weight: 700;">III. 命運：資產守護</h4>
+              <p style="font-size: 1.05rem; color: #fff7ed; line-height: 1.75;">
+                當市場飆升至過熱（P75）與狂熱（P90）極致高位，保持冷靜落袋為安，分批收縮曝險並提高現金比例，安穩守護戰果並靜待下一次特價。
+              </p>
+            </div>
+
           </div>
         </div>
       </div>
+    </div>
+    <!-- END TAB 2: 觀念導航 -->
 
-      <div style="border-top: 1px solid rgba(251, 191, 36, 0.18); padding-top: 22px;">
-        <h3 style="font-size: 1.3rem; font-weight: 700; color: #fbbf24; margin-bottom: 16px;">🏛️ 三大核心策略哲學</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-          
-          <div style="background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(52, 211, 153, 0.35); padding: 20px; border-radius: 14px;">
-            <h4 style="font-size: 1.15rem; color: #6ee7b7; margin-bottom: 10px; font-weight: 700;">I. 紀律：基石扣款</h4>
-            <p style="font-size: 1.05rem; color: #ecfdf5; line-height: 1.75;">
-              不論市場高低起伏，堅持紀律定期定額與雙月度再平衡。克服人性對下跌的恐慌與對上漲的貪婪，讓時間與複利為資產奠基。
-            </p>
-          </div>
-
-          <div style="background: rgba(30, 58, 138, 0.35); border: 1px solid rgba(96, 165, 250, 0.35); padding: 20px; border-radius: 14px;">
-            <h4 style="font-size: 1.15rem; color: #93c5fd; margin-bottom: 10px; font-weight: 700;">II. 機會：波段加速</h4>
-            <p style="font-size: 1.05rem; color: #eff6ff; line-height: 1.75;">
-              當市場進入恐慌（P25）與極度恐慌（P10）打折拍賣區，發揮預留現金儲備之實力，分批勇於逆風加碼，掌握長線極高勝率。
-            </p>
-          </div>
-
-          <div style="background: rgba(120, 53, 15, 0.35); border: 1px solid rgba(251, 146, 60, 0.35); padding: 20px; border-radius: 14px;">
-            <h4 style="font-size: 1.15rem; color: #fdba74; margin-bottom: 10px; font-weight: 700;">III. 命運：資產守護</h4>
-            <p style="font-size: 1.05rem; color: #fff7ed; line-height: 1.75;">
-              當市場飆升至過熱（P75）與狂熱（P90）極致高位，保持冷靜落袋為安，分批收縮曝險並提高現金比例，安穩守護戰果並靜待下一次特價。
-            </p>
-          </div>
-
-        </div>
+    <!-- TAB 3: 歷史回測 (View Backtest) -->
+    <div id="view-backtest" class="tab-content">
+      <!-- MARKET LAB Section -->
+      <h2 class="section-title" style="flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;">
+        <span>📈 MARKET LAB 18年歷史回測與勝率統計</span>
+        <span style="font-size: 13px; color: var(--accent-gold); font-weight: 600; background: rgba(245, 158, 11, 0.12); padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.3); font-family: sans-serif;">
+          📅 最新計算日期：<span id="labCalcDateText">2026-07-29</span>
+        </span>
+      </h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>位階名稱</th>
+              <th>歷史天數 (Count)</th>
+              <th>天數佔比 (%)</th>
+              <th>1年期平均報酬率 (%)</th>
+              <th>1年期正報酬勝率 (%)</th>
+              <th>驗證說明與結論</th>
+            </tr>
+          </thead>
+          <tbody id="backtestTableBody">
+            <tr>
+              <td style="font-weight: 700; color: var(--accent-blue);">極度恐慌</td>
+              <td>450</td>
+              <td>10.0%</td>
+              <td style="font-weight: 600;">+38.50%</td>
+              <td class="win-rate">98.20%</td>
+              <td style="color: var(--text-muted);">歷史長線勝率極高，大盤超跌極致加碼區</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 700; color: var(--accent-blue);">恐慌</td>
+              <td>675</td>
+              <td>15.0%</td>
+              <td style="font-weight: 600;">+21.40%</td>
+              <td class="win-rate">92.50%</td>
+              <td style="color: var(--text-muted);">具備優良風險報酬比，長線勝率顯著偏高</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 700; color: var(--accent-blue);">順風/中性</td>
+              <td>2,250</td>
+              <td>50.0%</td>
+              <td style="font-weight: 600;">+11.80%</td>
+              <td class="win-rate">79.60%</td>
+              <td style="color: var(--text-muted);">常態分佈通道，穩健隨大盤長期成長</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 700; color: var(--accent-blue);">過熱</td>
+              <td>675</td>
+              <td>15.0%</td>
+              <td style="font-weight: 600;">+2.10%</td>
+              <td class="win-rate">54.30%</td>
+              <td style="color: var(--text-muted);">回檔風險提高，1年期前瞻報酬吸引力下降</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 700; color: var(--accent-blue);">狂熱</td>
+              <td>450</td>
+              <td>10.0%</td>
+              <td style="font-weight: 600;">-8.40%</td>
+              <td class="win-rate">32.10%</td>
+              <td style="color: var(--text-muted);">歷史修正風險極高，宜嚴格防守提高現金</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
-
-    <!-- MARKET LAB Section -->
-    <h2 class="section-title" style="flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;">
-      <span>📈 MARKET LAB 18年歷史回測與勝率統計</span>
-      <span style="font-size: 13px; color: var(--accent-gold); font-weight: 600; background: rgba(245, 158, 11, 0.12); padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.3); font-family: sans-serif;">
-        📅 最新計算日期：<span id="labCalcDateText">2026-07-29</span>
-      </span>
-    </h2>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>位階名稱</th>
-            <th>歷史天數 (Count)</th>
-            <th>天數佔比 (%)</th>
-            <th>1年期平均報酬率 (%)</th>
-            <th>1年期正報酬勝率 (%)</th>
-            <th>驗證說明與結論</th>
-          </tr>
-        </thead>
-        <tbody id="backtestTableBody">
-          <tr>
-            <td style="font-weight: 700; color: var(--accent-blue);">極度恐慌</td>
-            <td>450</td>
-            <td>10.0%</td>
-            <td style="font-weight: 600;">+38.50%</td>
-            <td class="win-rate">98.20%</td>
-            <td style="color: var(--text-muted);">歷史長線勝率極高，大盤超跌極致加碼區</td>
-          </tr>
-          <tr>
-            <td style="font-weight: 700; color: var(--accent-blue);">恐慌</td>
-            <td>675</td>
-            <td>15.0%</td>
-            <td style="font-weight: 600;">+21.40%</td>
-            <td class="win-rate">92.50%</td>
-            <td style="color: var(--text-muted);">具備優良風險報酬比，長線勝率顯著偏高</td>
-          </tr>
-          <tr>
-            <td style="font-weight: 700; color: var(--accent-blue);">順風/中性</td>
-            <td>2,250</td>
-            <td>50.0%</td>
-            <td style="font-weight: 600;">+11.80%</td>
-            <td class="win-rate">79.60%</td>
-            <td style="color: var(--text-muted);">常態分佈通道，穩健隨大盤長期成長</td>
-          </tr>
-          <tr>
-            <td style="font-weight: 700; color: var(--accent-blue);">過熱</td>
-            <td>675</td>
-            <td>15.0%</td>
-            <td style="font-weight: 600;">+2.10%</td>
-            <td class="win-rate">54.30%</td>
-            <td style="color: var(--text-muted);">回檔風險提高，1年期前瞻報酬吸引力下降</td>
-          </tr>
-          <tr>
-            <td style="font-weight: 700; color: var(--accent-blue);">狂熱</td>
-            <td>450</td>
-            <td>10.0%</td>
-            <td style="font-weight: 600;">-8.40%</td>
-            <td class="win-rate">32.10%</td>
-            <td style="color: var(--text-muted);">歷史修正風險極高，宜嚴格防守提高現金</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <!-- END TAB 3: 歷史回測 -->
 
     <!-- Footer Section with Disclaimer Card -->
     <footer style="margin-top: 48px; border-top: 1px solid rgba(251, 191, 36, 0.18); padding-top: 32px; padding-bottom: 40px;">
@@ -783,6 +861,27 @@
         });
       }
     }
+
+    // 頁籤切換處理邏輯 (Tab Switching)
+    function switchTab(tabName) {
+      document.querySelectorAll('.nav-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+      });
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === 'view-' + tabName);
+      });
+      try {
+        history.replaceState(null, null, '#' + tabName);
+      } catch (e) {}
+    }
+
+    // 頁面載入時根據 URL Hash 自動初始化對應頁籤
+    window.addEventListener('DOMContentLoaded', () => {
+      const hash = window.location.hash.replace('#', '');
+      if (['today', 'concepts', 'backtest'].includes(hash)) {
+        switchTab(hash);
+      }
+    });
 
     // 透過動態 <script> 標籤 (JSONP) 進行背景更新
     (function fetchLiveUpdates() {

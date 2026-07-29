@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.3.8)
+# HANDBOOK.md (v2.4.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -76,10 +76,10 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.3.8 小羅盤後時間 16:30 提示說明同步修正、MARKET LAB 18年歷史回測最新計算日期標籤發布！
+v2.4.0 頁面重構分頁化（SPA Tab Navigation）發布！拆分為「☕ 今日戰情」、「💡 觀念導航」與「📈 歷史回測」3 大專屬頁籤，提供極簡高對焦看盤體驗！
 
 ## ⑩ Current Version
-v2.3.8 (小羅盤後時間 16:30 修正、MARKET LAB 計算日期標籤發布版)
+v2.4.0 (頁面重構分頁化與頂端 Glassmorphism Tab 導航發布版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -141,4 +141,8 @@ v2.3.8 (小羅盤後時間 16:30 修正、MARKET LAB 計算日期標籤發布版
 - **盤後 16:30 時間文字與 MARKET LAB 計算日期標註 (v2.3.8)**：
   - 修正 [程式碼.js](file:///f:/Projects/Market_Engine/程式碼.js) 內舊殘留 14:30 說明文字為 16:30。
   - 於 Web App [index.html](file:///f:/Projects/Market_Engine/index.html) MARKET LAB 區塊頂端新增「最新計算日期：2026-07-29」標籤，並連結 GAS 後端 `backtestCalcDate` 自動更新機制。
-- **部署發布**：全數完成 GAS CLI 部署、Deployment `@2` 覆寫與 GitHub `main` 分支推播發布。
+- **頁面重構分頁化 (v2.4.0)**：
+  - 於 [index.html](file:///f:/Projects/Market_Engine/index.html) 頂端導入 Glassmorphism 頁籤切換欄（`☕ 今日戰情`, `💡 觀念導航`, `📈 歷史回測`）。
+  - 將過長內容按使用情境重構分裝至 `#view-today`、`#view-concepts` 與 `#view-backtest` 獨立視圖。
+  - 主頁開啟即集中展示每日看盤必備資訊，頁面長度巨幅縮短；觀念與回測點擊即滑順切換，並支援 `#concepts` / `#backtest` URL Hash 書籤定位。
+- **部署發布**：全數完成 GAS CLI 部署、Deployment `@35` 覆寫與 GitHub `main` 分支推播發布。
