@@ -1843,15 +1843,17 @@ function calculatePhaseAnalysis(d60Val, pValues, phase) {
   const p75PctStr = (p75 * 100).toFixed(1) + '%';
   const p90PctStr = (p90 * 100).toFixed(1) + '%';
 
-  let percentileText = `價格當前為 ${d60PctStr}，位於 P25~P75 常態區間，屬 18 年歷史合理評價範圍。`;
+  let percentileText = `當前季線偏離度為 ${d60PctStr}，位於 P25~P75 常態區間，屬 18 年歷史合理評價範圍。`;
   if (d60Val < p10) {
-    percentileText = `價格當前為 ${d60PctStr}，已跌破 P10 門檻 (${p10PctStr})，比過去 18 年中 90% 的交易日都便宜！`;
+    percentileText = `當前季線偏離度為 ${d60PctStr}，已跌破 P10 極端折價門檻 (${p10PctStr})！這代表當前價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 90% 的交易日都還要深（進入歷史級深層打折區）！`;
   } else if (d60Val < p25) {
-    percentileText = `價格當前為 ${d60PctStr}，已跌破 P25 門檻 (${p25PctStr})，比過去 18 年中 75% 的交易日都便宜！`;
+    percentileText = `當前季線偏離度為 ${d60PctStr}，已跌破 P25 恐慌打折門檻 (${p25PctStr})！這代表當前價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 75% 的交易日都還要深（進入甜甜打折區）！`;
   } else if (d60Val > p90) {
-    percentileText = `價格當前為 ${d60PctStr}，已突破 P90 門檻 (${p90PctStr})，比過去 18 年中 90% 的交易日都昂貴！`;
+    percentileText = `當前季線偏離度為 ${d60PctStr}，已突破 P90 極端過熱門檻 (${p90PctStr})！這代表當前價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 90% 的交易日都還要高（進入歷史級極致高估區）！`;
   } else if (d60Val > p75) {
-    percentileText = `價格當前為 ${d60PctStr}，已突破 P75 門檻 (${p75PctStr})，比過去 18 年中 75% 的交易日都昂貴！`;
+    percentileText = `當前季線偏離度為 ${d60PctStr}，已突破 P75 警戒過熱門檻 (${p75PctStr})！這代表當前價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 75% 的交易日都還要高（進入溢價過熱區）！`;
+  } else {
+    percentileText = `當前季線偏離度為 ${d60PctStr}，位於 P25 (${p25PctStr}) ~ P75 (${p75PctStr}) 常態區間！代表價格相對於『近 3 個月平均成本』處於 18 年歷史常態合理評價範圍。`;
   }
 
   let lowerBoundText = '';
