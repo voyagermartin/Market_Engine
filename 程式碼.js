@@ -1821,7 +1821,7 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
 }
 
 /**
- * 🔍 v2.5.1 純數據位階理性分析 (Phase Analysis - 無須 AI API)
+ * 🔍 v2.5.1 純數據位階分析 (Phase Analysis - 無須 AI API)
  */
 function calculatePhaseAnalysis(d60Val, pValues, phase) {
   const p10 = (pValues && pValues.dist60) ? pValues.dist60.p10 : -0.082;
