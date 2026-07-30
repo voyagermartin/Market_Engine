@@ -1021,7 +1021,7 @@
         updateDOM(data);
       };
       const script = document.createElement('script');
-      script.src = GAS_API_BASE + '?callback=onMarketDataCallback';
+      script.src = GAS_API_BASE + '?callback=onMarketDataCallback&_=' + new Date().getTime();
       document.body.appendChild(script);
     })();
   </script>
