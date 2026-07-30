@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.4.5)
+# HANDBOOK.md (v2.4.6)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -18,7 +18,7 @@
 
 ## ④ Function Library
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3`
-- `fetchRealMarketData()`: 即時金融行情對接器 (含 `regularMarketTime` 時間戳比對、颱風假防呆與健康狀態指標)
+- `fetchRealMarketData()`: 即時金融行情對接器 (含 `regularMarketTime` 時間戳比對、台北時間 09:30 開盤防呆限制、`isMarketOpen` 交易日判定與防快取健康狀態指標)
 - `fetchRealHistoricalMarketSeries()`: 全歷史 18 年交易日台股 (`^TWII` `period1=0`) 100% 官方實體收盤價 API 抓取器
 - `fetchRealVIXHistoricalMarketSeries()`: 全歷史 18 年 CBOE VIX 恐慌指數 (`^VIX` `period1=0`) 100% 官方實體收盤價 API 抓取器
 - `fetchRealEWTHistoricalMarketSeries()`: 全歷史 18 年 MSCI Taiwan ETF (`EWT` `period1=0`) 100% 官方實體夜盤漲跌幅 API 抓取器
@@ -49,9 +49,10 @@
   - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 16:30 值班 (小羅午茶 - 時間校正修復)
   - 專用模型: `gemini-flash-latest`
 
-## ⑦ Dashboard / UI (v2.4.5 SPA 分頁化、觀念導航 5 大圖卡精簡升級與 16:30 盤後校正版)
+## ⑦ Dashboard / UI (v2.4.6 SPA 分頁化、防快取 JSONP 與颱風假判定優化)
 - **SPA 頁面分頁化重構 (Tab Navigation)**: 3 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`），極致流暢且兼顧響應式切換。
 - **觀念導航 5 大指標圖卡大升級**: 包含 VIX (市場體溫計)、MA60/MA240 (趨勢守護地板)、Dist60 (小狗散步位階)、Slope/Delta (底氣與油門) 與 EWT 5 階門檻 (海外氣象球)，全面精簡去除「白話比喻：」前綴贅字。
+- **前端 JSONP 快取防呆 (Cache Busting)**: 於 API 請求中加入隨機毫秒時間戳參數，徹底解決瀏覽器快取舊資料的問題，確保每次重整網頁均為最新狀態。
 - **小羅 AI 導航時間點校正**: 盤後值班時段精準校正為 16:30。
 - **MARKET LAB 月度回測 4 大維度自我驗證引擎**: 新增 `LAB_CALC_DATE` 對帳日期標籤與動態勝率計算。
 - **品牌人情味與極致白話**: 巴菲特‧索羅斯的 Kopitiam (來喝咖啡看盤吧～)，全站乾淨狀態列與美味 Kopitiam 咖啡圖示 (`favicon.png` / `icon.png`)。
@@ -63,17 +64,17 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.4.5 SPA 頁面分頁化重構、觀念導航 5 大指標圖卡精簡升級、小羅 AI 導航時間點校正 (16:30) 與 MARKET LAB 月度自我驗證引擎完工發布！
+v2.4.6 修正開盤前昨日行情誤判颱風休市防呆限制，並引進前端 JSONP 隨機時間戳避免瀏覽器 API 快取！
 
 ## ⑩ Current Version
-v2.4.5 (SPA 頁面分頁化、觀念導航 5 大圖卡精簡升級、小羅 AI 導航 16:30 時間點校正與 MARKET LAB 自我驗證版)
+v2.4.6 (開盤前昨日行情誤判颱風假修復與前端 API 隨機時間戳防快取版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
 - Milestone 2: 數據健康狀態燈號與颱風假/臨時休市時間戳防呆完工。
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
-- **目前停止位置**: v2.4.5 全站 SPA 分頁化與 5 大觀念圖卡精簡發布！
+- **目前停止位置**: v2.4.6 解決開盤前昨日成交時間引發的颱風/臨時休市誤判，以及前端 API 瀏覽器快取問題！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -126,3 +127,8 @@ v2.4.5 (SPA 頁面分頁化、觀念導航 5 大圖卡精簡升級、小羅 AI �
 - **精簡去除贅字**：全面清理去除圖卡內「白話比喻：」等前綴贅字，讓畫面視覺更為乾淨現代。
 - **全站 CSS 樣式與響應式補強**：確保 `.nav-tabs` 及各分頁容器在手機與桌面極致寬度均保持完美對齊與玻璃擬物微光質感。
 - **部署發布**：全數完成 GAS CLI 部署、Deployment `@2` 覆寫與 GitHub `main` 分支推播發布。
+
+### 📅 2026-07-30 開盤前昨日行情誤判颱風假修復與前端 API 隨機時間戳防快取版 (v2.4.6)
+- **修復開盤前颱風假誤判**：修正 `fetchRealMarketData()` 判斷邏輯，當成交日期小於今日時，限制必須今天是預期開盤的交易日（`isMarketOpen` 判定），且台北時間已過 09:30 之後，才顯示為颱風/臨時休市，防止每天早上開盤前因 API 尚未更新最新一交易日行情而造成誤判。
+- **導入前端快取消除機制 (Cache Busting)**：在 [index.html](file:///d:/Projects/Market_Engine/index.html) 的 JSONP 請求 URL 中附加 `&_=` 當前時間戳參數，解決瀏覽器與 CDN 快取 API 回應之問題，確保網頁重整能立即更新今日行情。
+- **發布部署**：完成 GAS CLI 重新部署（Deployment `@43` 指向最新代碼），並推播至 GitHub 遠端儲存庫以同步更新 GitHub Pages 靜態網頁。
