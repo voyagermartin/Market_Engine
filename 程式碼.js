@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.4.5 (觀念導航視覺精簡發布版)
+ * Version: v1.8.0 (真實歷史數據校正完工版 - 原生 GOOGLEFINANCE 官方盤後價連動)
  */
 
 /**
@@ -1382,8 +1382,14 @@ function fetchRealMarketData() {
       healthStatus = `🟢 行情即時連線 (${marketTimeStr})`;
     }
     // 颱風假/臨時休市防呆判定
-    const dayOfWeek = (new Date()).getDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 5 && marketDateStr < todayStr) {
+    // 必須是：今天是預期開盤的交易日 (isMarketOpen 為 true)，且台北時間已經過了 09:30，但成交日期仍小於今日
+    const marketOpenStatus = isMarketOpen(new Date());
+    const nowTaipei = new Date();
+    const currentHour = parseInt(Utilities.formatDate(nowTaipei, "Asia/Taipei", "HH"), 10);
+    const currentMinute = parseInt(Utilities.formatDate(nowTaipei, "Asia/Taipei", "mm"), 10);
+    const currentTimeVal = currentHour * 100 + currentMinute;
+
+    if (marketOpenStatus.isOpen && currentTimeVal >= 930 && marketDateStr < todayStr) {
       healthStatus = `☕ 今日颱風/臨時休市 (成交時間未更新)`;
     }
   } else if (!twii) {
