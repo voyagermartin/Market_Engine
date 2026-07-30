@@ -1442,10 +1442,15 @@ function updateMorningMarketEngine() {
     rawSheet.getRange(3, 2, 1, 2).setValues([[prevTwii, prevVix]]);
   }
 
-  // 抓取夜盤 EWT 真實變動
+  // 抓取夜盤 EWT 真實變動與最新 VIX
   const realData = fetchRealMarketData();
   const newEwtChange = (realData.ewtChange !== null) ? realData.ewtChange : -0.0183;
   rawSheet.getRange(3, 10).setValue(newEwtChange);
+
+  // 盤前即時更新最新已收盤之 VIX，防止判讀誤解
+  if (realData.vix !== null) {
+    rawSheet.getRange(3, 3).setValue(realData.vix);
+  }
 
   // 重新按實體資料列數更新批次公式 (自動算 MA60 & MA240)
   const totalRows = Math.max(3, rawSheet.getLastRow());

@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.4.6)
+# HANDBOOK.md (v2.4.7)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -64,17 +64,17 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.4.6 修正開盤前昨日行情誤判颱風休市防呆限制，並引進前端 JSONP 隨機時間戳避免瀏覽器 API 快取！
+v2.4.7 修正盤前 VIX 數值未即時更新之問題，改於 07:30 盤前直接更新已收盤之最新 VIX 數據！
 
 ## ⑩ Current Version
-v2.4.6 (開盤前昨日行情誤判颱風假修復與前端 API 隨機時間戳防快取版)
+v2.4.7 (修正盤前 VIX 指數繼承舊值問題，改為盤前即時更新最新已收盤 VIX 版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
 - Milestone 2: 數據健康狀態燈號與颱風假/臨時休市時間戳防呆完工。
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
-- **目前停止位置**: v2.4.6 解決開盤前昨日成交時間引發的颱風/臨時休市誤判，以及前端 API 瀏覽器快取問題！
+- **目前停止位置**: v2.4.7 修正盤前 VIX 指數顯示舊值之問題，改於盤前直接透過 API 更新為最新 VIX！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -132,3 +132,7 @@ v2.4.6 (開盤前昨日行情誤判颱風假修復與前端 API 隨機時間戳�
 - **修復開盤前颱風假誤判**：修正 `fetchRealMarketData()` 判斷邏輯，當成交日期小於今日時，限制必須今天是預期開盤的交易日（`isMarketOpen` 判定），且台北時間已過 09:30 之後，才顯示為颱風/臨時休市，防止每天早上開盤前因 API 尚未更新最新一交易日行情而造成誤判。
 - **導入前端快取消除機制 (Cache Busting)**：在 [index.html](file:///d:/Projects/Market_Engine/index.html) 的 JSONP 請求 URL 中附加 `&_=` 當前時間戳參數，解決瀏覽器與 CDN 快取 API 回應之問題，確保網頁重整能立即更新今日行情。
 - **發布部署**：完成 GAS CLI 重新部署（Deployment `@43` 指向最新代碼），並推播至 GitHub 遠端儲存庫以同步更新 GitHub Pages 靜態網頁。
+
+### 📅 2026-07-30 盤前 VIX 指數即時更新與防判讀誤解版 (v2.4.7)
+- **修復盤前 VIX 顯示舊值**：修改 `updateMorningMarketEngine()` 函式，由原本繼承昨日 VIX 初始占位值，改為在盤前更新時即時透過 API 擷取最新已收盤之 VIX 指數（美股今晨收盤價），避免因時差造成白天判讀之誤解。
+- **發布部署**：完成 GAS CLI 重新部署與 GitHub Pages 同步發布。
