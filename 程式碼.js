@@ -1725,9 +1725,7 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
     ? `🛒 打折第 ${consecutiveDays} 天 / 歷史平均持續約 ${avgDays} 天`
     : `🛒 已持續第 ${consecutiveDays} 天`;
     
-  const phaseReliefGuide = isPanic
-    ? `💡 心理指南：歷史數據顯示恐慌區間具有持續性，錯過今日無須焦慮，打折視窗仍在！`
-    : `💡 心理指南：大盤行情走勢健康平穩，按既定策略穩定執行與觀望即可。`;
+  const phaseReliefGuide = `基於 18 年動態分位數連動校正`;
 
   return {
     consecutiveDays: consecutiveDays,
