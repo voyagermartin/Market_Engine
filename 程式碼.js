@@ -1374,13 +1374,13 @@ function fetchRealMarketData() {
   }
 
   const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
-  let timeStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm");
+  let timeStr = Utilities.formatDate(new Date(), "Asia/Taipei", "HH:mm");
 
   if (regularMarketTime) {
     const marketDateStr = Utilities.formatDate(regularMarketTime, "Asia/Taipei", "yyyy-MM-dd");
-    const marketTimeStr = Utilities.formatDate(regularMarketTime, "Asia/Taipei", "yyyy-MM-dd HH:mm");
+    const marketTimeStr = Utilities.formatDate(regularMarketTime, "Asia/Taipei", "HH:mm");
     if (twii) {
-      healthStatus = `🟢 行情即時連線 (${marketTimeStr})`;
+      healthStatus = `🟢 行情即時連線 (連線 ${timeStr} | 收盤 ${marketTimeStr})`;
     }
     // 颱風假/臨時休市防呆判定
     // 必須是：今天是預期開盤的交易日 (isMarketOpen 為 true)，且台北時間已經過了 09:30，但成交日期仍小於今日
