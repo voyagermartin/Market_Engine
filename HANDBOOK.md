@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.4.7)
+# HANDBOOK.md (v2.4.8)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -64,17 +64,17 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.4.7 修正盤前 VIX 數值未即時更新之問題，改於 07:30 盤前直接更新已收盤之最新 VIX 數據！
+v2.4.8 修正試算表插入行導致 DASHBOARD 公式參照漂移問題，引進 INDIRECT 公式與後端 JS 位階判定覆寫！
 
 ## ⑩ Current Version
-v2.4.7 (修正盤前 VIX 指數繼承舊值問題，改為盤前即時更新最新已收盤 VIX 版)
+v2.4.8 (引進 INDIRECT 公式防漂移與後端 JS 位階雙重覆寫強固版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
 - Milestone 2: 數據健康狀態燈號與颱風假/臨時休市時間戳防呆完工。
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
-- **目前停止位置**: v2.4.7 修正盤前 VIX 指數顯示舊值之問題，改於盤前直接透過 API 更新為最新 VIX！
+- **目前停止位置**: v2.4.8 修正試算表公式參照漂移，引入 INDIRECT 及後端動態 JS 位階雙重判定覆寫！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -136,3 +136,8 @@ v2.4.7 (修正盤前 VIX 指數繼承舊值問題，改為盤前即時更新最�
 ### 📅 2026-07-30 盤前 VIX 指數即時更新與防判讀誤解版 (v2.4.7)
 - **修復盤前 VIX 顯示舊值**：修改 `updateMorningMarketEngine()` 函式，由原本繼承昨日 VIX 初始占位值，改為在盤前更新時即時透過 API 擷取最新已收盤之 VIX 指數（美股今晨收盤價），避免因時差造成白天判讀之誤解。
 - **發布部署**：完成 GAS CLI 重新部署與 GitHub Pages 同步發布。
+
+### 📅 2026-07-30 DASHBOARD 公式參照漂移與後端位階動態計算覆寫 (v2.4.8)
+- **修正公式參照漂移**：由於 RAW_HISTORY 每日更新會插入新行，導致 Google Sheet 自動將 DASHBOARD 參照向下漂移至昨日舊數值（如 B7 由 `=RAW_HISTORY!F3` 變成 `=RAW_HISTORY!F4`）。已將 DASHBOARD 中所有 RAW_HISTORY 參照公式全面改用 `=INDIRECT("RAW_HISTORY!XX")` 包裹，防止漂移。
+- **引入後端 JS 位階動態計算覆寫**：為了使 Web App 行情數據與位階絕對正確，在 `getMarketEngineData()` 後端直接從 THRESHOLD_CONFIG 讀取分位數，在記憶體中利用 JS 動態計算當日市場位階（T1~T5）及策略指南，實現雙重覆寫保護，徹底解決試算表計算延遲或漂移引起的市場位階誤判。
+- **發布部署**：完成 GAS CLI 重新部署（Deployment `@46`）與 GitHub Pages 同步發布。

@@ -871,16 +871,16 @@ function buildDashboardSheet(sheet) {
 
   setTableHeader(sheet, 'A4:E4', ['指標名稱', '最新數值', '參考指標', '單項狀態 / 趨勢燈號', '備註說明'], '#334155');
 
-  // 精準參照 Row 3 (RAW_HISTORY 最新一筆交易日)
+  // 精準參照 Row 3 (使用 INDIRECT 防止因插入資料列導致公式參照漂移)
   const metrics = [
-    ['最新資料日期', '=RAW_HISTORY!A3', 'Trading Date', '最新交易日', '自動同步 RAW_HISTORY 最新日期'],
-    ['台股收盤 (TWII)', '=RAW_HISTORY!B3', '加權指數', '市場價格', '最近一次收盤價'],
-    ['季線乖離率 (Dist60)', '=RAW_HISTORY!F3', 'MA60 季線', '=IF(B7<0, "🛒 價格低於季線，中短期出現撿便宜的好時機！", "🔥 價格穩在季線之上，中短期買氣仍然暖洋洋的！")', '中短期位階指標'],
-    ['年線乖離率 (Dist240)', '=RAW_HISTORY!G3', 'MA240 年線', '=IF(B8<0, "💎 價格低於年線，長線超級大特價機會來臨！", "🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！")', '中長期趨勢指標'],
-    ['VIX 恐慌指數', '=RAW_HISTORY!C3', 'VIX Index', '=IF(B9>=30, "🚨 恐慌爆發", IF(B9>=20, "⚠️ 警戒", "✅ 平穩"))', '市場波動度情緒'],
-    ['季線 5日斜率 (MA60 Slope)', '=RAW_HISTORY!H3', 'MA60 5日變化率', '=IF(B10>0.003, "📈 強勢走升", IF(B10<-0.003, "📉 彎頭向下", "➡️ 橫盤走平"))', '季線趨勢方向'],
-    ['5日乖離動能 (Dist60 Delta)', '=RAW_HISTORY!I3', 'Dist60 5日動能', '=IF(B11>0.01, "🚀 強勢反彈", IF(B11<-0.01, "⚠️ 修正加劇", "➡️ 動能平穩"))', '乖離率收斂/發散速度'],
-    ['夜盤/EWT漲跌幅 (EWT Change)', '=RAW_HISTORY!J3', 'iShares Taiwan ETF', '=IF(ISBLANK(B12), "➡️ 夜盤平穩", IFERROR(IFS(VALUE(B12)<=-0.015, "🚨 夜盤急殺", VALUE(B12)<=-0.005, "⚠️ 夜盤回檔", VALUE(B12)>=0.015, "🚀 夜盤大漲", VALUE(B12)>=0.005, "📈 夜盤偏強", TRUE, "➡️ 夜盤平穩"), "➡️ 夜盤平穩"))', '盤前極短線情緒與開盤指引']
+    ['最新資料日期', '=INDIRECT("RAW_HISTORY!A3")', 'Trading Date', '最新交易日', '自動同步 RAW_HISTORY 最新日期'],
+    ['台股收盤 (TWII)', '=INDIRECT("RAW_HISTORY!B3")', '加權指數', '市場價格', '最近一次收盤價'],
+    ['季線乖離率 (Dist60)', '=INDIRECT("RAW_HISTORY!F3")', 'MA60 季線', '=IF(B7<0, "🛒 價格低於季線，中短期出現撿便宜的好時機！", "🔥 價格穩在季線之上，中短期買氣仍然暖洋洋的！")', '中短期位階指標'],
+    ['年線乖離率 (Dist240)', '=INDIRECT("RAW_HISTORY!G3")', 'MA240 年線', '=IF(B8<0, "💎 價格低於年線，長線超級大特價機會來臨！", "🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！")', '中長期趨勢指標'],
+    ['VIX 恐慌指數', '=INDIRECT("RAW_HISTORY!C3")', 'VIX Index', '=IF(B9>=30, "🚨 恐慌爆發", IF(B9>=20, "⚠️ 警戒", "✅ 平穩"))', '市場波動度情緒'],
+    ['季線 5日斜率 (MA60 Slope)', '=INDIRECT("RAW_HISTORY!H3")', 'MA60 5日變化率', '=IF(B10>0.003, "📈 強勢走升", IF(B10<-0.003, "📉 彎頭向下", "➡️ 橫盤走平"))', '季線趨勢方向'],
+    ['5日乖離動能 (Dist60 Delta)', '=INDIRECT("RAW_HISTORY!I3")', 'Dist60 5日動能', '=IF(B11>0.01, "🚀 強勢反彈", IF(B11<-0.01, "⚠️ 修正加劇", "➡️ 動能平穩"))', '乖離率收斂/發散速度'],
+    ['夜盤/EWT漲跌幅 (EWT Change)', '=INDIRECT("RAW_HISTORY!J3")', 'iShares Taiwan ETF', '=IF(ISBLANK(B12), "➡️ 夜盤平穩", IFERROR(IFS(VALUE(B12)<=-0.015, "🚨 夜盤急殺", VALUE(B12)<=-0.005, "⚠️ 夜盤回檔", VALUE(B12)>=0.015, "🚀 夜盤大漲", VALUE(B12)>=0.005, "📈 夜盤偏強", TRUE, "➡️ 夜盤平穩"), "➡️ 夜盤平穩"))', '盤前極短線情緒與開盤指引']
   ];
 
   for (let i = 0; i < metrics.length; i++) {
@@ -1723,6 +1723,63 @@ function getMarketEngineData() {
     if (dca && dca !== '' && dca !== 'N/A') data.dcaGuide = dca;
     if (aiM && aiM !== '' && aiM !== 'N/A') data.aiMorningStory = aiM;
     if (aiA && aiA !== '' && aiA !== 'N/A') data.aiAfternoonStory = aiA;
+
+    // ========================================================
+    // ⚠️ 核心位階與行動指引覆寫 (防止試算表插入新行導致 DASHBOARD 參照漂移而顯示舊狀態)
+    // ========================================================
+    const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
+    if (configSheet && data.dist60 && data.dist240 && data.dist60 !== 'N/A' && data.dist240 !== 'N/A') {
+      try {
+        const v = configSheet.getRange('C12:D15').getValues();
+        const pValues = {
+          dist60: {
+            p10: Number(v[0][0]),
+            p25: Number(v[1][0]),
+            p75: Number(v[2][0]),
+            p90: Number(v[3][0])
+          },
+          dist240: {
+            p10: Number(v[0][1]),
+            p25: Number(v[1][1]),
+            p75: Number(v[2][1]),
+            p90: Number(v[3][1])
+          }
+        };
+
+        const d60 = parseFloat(String(data.dist60).replace('%', '').trim()) / 100;
+        const d240 = parseFloat(String(data.dist240).replace('%', '').trim()) / 100;
+        
+        if (!isNaN(d60) && !isNaN(d240)) {
+          let phase = '順風/中性';
+          let actionGuide = '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！';
+          let dcaGuide = '🟢 明天照常扣款，維持原本扣款金額即可！';
+          
+          if (d60 < pValues.dist60.p10 || d240 < pValues.dist240.p10) {
+            phase = '極度恐慌';
+            actionGuide = '股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！';
+            dcaGuide = '🚀 明天照常扣款，並且可以加碼多買一點！';
+          } else if (d60 < pValues.dist60.p25 || d240 < pValues.dist240.p25) {
+            phase = '恐慌';
+            actionGuide = '股市打折中！價格很划算，維持定期定額並可以逢低多買一點！';
+            dcaGuide = '🚀 明天照常扣款，並且可以加碼多買一點！';
+          } else if (d60 > pValues.dist60.p90 || d240 > pValues.dist240.p90) {
+            phase = '狂熱';
+            actionGuide = '股市非常危險！行情熱到發燙，請務必保留大量現金防範回檔！';
+            dcaGuide = '⚠️ 明天建議暫停扣款，把錢存起來等打折！';
+          } else if (d60 > pValues.dist60.p75 || d240 > pValues.dist240.p75) {
+            phase = '過熱';
+            actionGuide = '股市有點貴囉！不要衝動追高，可以陸續把賺到的部分落袋為安！';
+            dcaGuide = '⚠️ 明天建議暫停扣款，把錢存起來等打折！';
+          }
+          
+          data.phase = phase;
+          data.actionGuide = actionGuide;
+          data.dcaGuide = dcaGuide;
+        }
+      } catch (err) {
+        Logger.log('Error overriding phase: ' + err.message);
+      }
+    }
 
     data.aiActiveStory = isMorning ? data.aiMorningStory : data.aiAfternoonStory;
 
