@@ -1722,8 +1722,8 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
 
   const isPanic = (currentPhase === '極度恐慌' || currentPhase === '恐慌');
   const phaseDurationText = isPanic 
-    ? `🛒 當前位階：${currentPhase} (打折第 ${consecutiveDays} 天 / 歷史平均持續約 ${avgDays} 天)`
-    : `🛒 當前位階：${currentPhase} (持續第 ${consecutiveDays} 天)`;
+    ? `🛒 打折第 ${consecutiveDays} 天 / 歷史平均持續約 ${avgDays} 天`
+    : `🛒 已持續第 ${consecutiveDays} 天`;
     
   const phaseReliefGuide = isPanic
     ? `💡 心理指南：歷史數據顯示恐慌區間具有持續性，錯過今日無須焦慮，打折視窗仍在！`
