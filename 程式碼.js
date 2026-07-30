@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v1.8.0 (真實歷史數據校正完工版 - 原生 GOOGLEFINANCE 官方盤後價連動)
+ * Version: v2.5.0 (邏輯深水區：資金池 CD 控管、打折天數撫平器與 EWT 開盤心理準備卡升級版)
  */
 
 /**
@@ -195,7 +195,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v1.5.0) 更新完成！\n已成功導入休市日 isMarketOpen() 判定與 AI 導航連動！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.0) 更新完成！\n已成功導入資金池 CD 冷卻期控管、打折天數撫平器與 EWT 開盤心理準備卡！');
 }
 
 /**
@@ -1064,6 +1064,7 @@ ${holidayNotice}【市場環境資訊】
 季線5日斜率(MA60 Slope)：${ma60Slope}
 5日乖離動能(Dist60 Delta)：${dist60Delta}
 夜盤(EWT漲跌幅)：${ewtChange}
+EWT開盤心理準備指引：${(calculateEwtReadiness(ewtChange) || {}).guide || ''}
 VIX恐慌指數：${vix}
 
 【近7日市場航跡】
@@ -1611,6 +1612,216 @@ function calculateEwtStatus(ewtValStr) {
 }
 
 /**
+ * ⚡ v2.5.0 EWT 開盤心理準備卡 (純開盤心理防禦，非點數預估)
+ */
+function calculateEwtReadiness(ewtValStr) {
+  if (!ewtValStr || ewtValStr === 'N/A' || ewtValStr === '') {
+    return {
+      status: '➡️ 夜盤平穩',
+      guide: '☕ 開盤心理準備：海外市場平靜，今晨台股預計平穩開出，享受平靜的一天。'
+    };
+  }
+  let val = parseFloat(String(ewtValStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
+  if (isNaN(val)) {
+    return {
+      status: '➡️ 夜盤平穩',
+      guide: '☕ 開盤心理準備：海外市場平靜，今晨台股預計平穩開出，享受平靜的一天。'
+    };
+  }
+  if (Math.abs(val) > 0.15) val = val / 100;
+
+  if (val <= -0.015) {
+    return {
+      status: '🚨 夜盤急殺',
+      guide: '⚡ 開盤心理準備：美股夜盤出現重挫，今晨開盤預計面臨較大壓回，請保持冷靜，切勿急於開盤追高殺低！'
+    };
+  } else if (val <= -0.005) {
+    return {
+      status: '⚠️ 夜盤回檔',
+      guide: '🌊 開盤心理準備：美股夜盤小幅回檔，今晨開盤可能震盪整理，按既定策略觀察即可。'
+    };
+  } else if (val >= 0.015) {
+    return {
+      status: '🚀 夜盤大漲',
+      guide: '🔥 開盤心理準備：海外夜盤大幅強彈，今晨開盤多頭氣勢旺盛，耐心守候打折機會。'
+    };
+  } else if (val >= 0.005) {
+    return {
+      status: '📈 夜盤偏強',
+      guide: '🌤️ 開盤心理準備：美股夜盤偏強，今晨開盤氛圍偏多，追高宜克制。'
+    };
+  }
+  return {
+    status: '➡️ 夜盤平穩',
+    guide: '☕ 開盤心理準備：海外市場平靜，今晨台股預計平穩開出，享受平靜的一天。'
+  };
+}
+
+/**
+ * 💡 v2.5.0「打折視窗與天數撫平器」 (Missed-out Relief)
+ * 掃描 RAW_HISTORY 統計當前位階持續天數與歷史平均持續天數
+ */
+function calculatePhaseDurationAndRelief(currentPhase, ss) {
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
+  
+  let consecutiveDays = 1;
+  const avgDaysMap = {
+    '極度恐慌': 11,
+    '恐慌': 19,
+    '順風/中性': 45,
+    '過熱': 25,
+    '狂熱': 14
+  };
+  const avgDays = avgDaysMap[currentPhase] || 15;
+
+  if (rawSheet && configSheet && rawSheet.getLastRow() >= 3) {
+    try {
+      const v = configSheet.getRange('C12:D15').getValues();
+      const p10_60 = Number(v[0][0]), p25_60 = Number(v[1][0]), p75_60 = Number(v[2][0]), p90_60 = Number(v[3][0]);
+      const p10_240 = Number(v[0][1]), p25_240 = Number(v[1][1]), p75_240 = Number(v[2][1]), p90_240 = Number(v[3][1]);
+      
+      const lastRow = Math.min(100, rawSheet.getLastRow());
+      const distData = rawSheet.getRange(3, 6, lastRow - 2, 2).getValues(); // Col 6: Dist60, Col 7: Dist240
+      
+      for (let i = 1; i < distData.length; i++) {
+        const d60 = Number(distData[i][0]);
+        const d240 = Number(distData[i][1]);
+        if (isNaN(d60) || isNaN(d240)) break;
+        
+        let rowPhase = '順風/中性';
+        if (d60 < p10_60 || d240 < p10_240) rowPhase = '極度恐慌';
+        else if (d60 < p25_60 || d240 < p25_240) rowPhase = '恐慌';
+        else if (d60 > p90_60 || d240 > p90_240) rowPhase = '狂熱';
+        else if (d60 > p75_60 || d240 > p75_240) rowPhase = '過熱';
+        
+        if (rowPhase === currentPhase) {
+          consecutiveDays++;
+        } else {
+          break;
+        }
+      }
+    } catch (e) {
+      Logger.log('Error calculating phase duration: ' + e.message);
+    }
+  }
+
+  const isPanic = (currentPhase === '極度恐慌' || currentPhase === '恐慌');
+  const phaseDurationText = isPanic 
+    ? `🛒 當前位階：${currentPhase} (打折第 ${consecutiveDays} 天 / 歷史平均持續約 ${avgDays} 天)`
+    : `🛒 當前位階：${currentPhase} (持續第 ${consecutiveDays} 天)`;
+    
+  const phaseReliefGuide = isPanic
+    ? `💡 心理指南：歷史數據顯示恐慌區間具有持續性，錯過今日無須焦慮，打折視窗仍在！`
+    : `💡 心理指南：大盤行情走勢健康平穩，按既定策略穩定執行與觀望即可。`;
+
+  return {
+    consecutiveDays: consecutiveDays,
+    avgDays: avgDays,
+    phaseDurationText: phaseDurationText,
+    phaseReliefGuide: phaseReliefGuide
+  };
+}
+
+/**
+ * 🧊 v2.5.0「階梯式資金池開火 + 3天 CD 冷卻期」 (Powder Allocation & CD Logic)
+ */
+function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
+  let baseAllocation = '0%';
+  if (currentPhase === '極度恐慌') {
+    baseAllocation = '動用資金池 20%';
+  } else if (currentPhase === '恐慌') {
+    baseAllocation = '動用資金池 10%';
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  const lastDateStr = props.getProperty('LAST_POWDER_DATE');
+  const lastDist60Str = props.getProperty('LAST_POWDER_DIST60');
+
+  let cdStatus = {
+    inCD: false,
+    isUnlockedEarly: false,
+    cdDaysLeft: 0,
+    lastDate: lastDateStr || '',
+    lastDist60: lastDist60Str || ''
+  };
+
+  let powderAllocation = baseAllocation;
+  let dcaGuide = (currentPhase === '極度恐慌' || currentPhase === '恐慌')
+    ? `🚀 明天照常扣款，並且可以${baseAllocation}手動加碼！`
+    : (currentPhase === '過熱' || currentPhase === '狂熱')
+      ? `⚠️ 明天建議暫停扣款，把錢存起來等打折！`
+      : `🟢 明天照常扣款，維持原本扣款金額即可！`;
+
+  if ((currentPhase === '極度恐慌' || currentPhase === '恐慌') && lastDateStr) {
+    const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+    let tradingDaysSince = 999;
+    
+    if (rawSheet && rawSheet.getLastRow() >= 3) {
+      const dates = rawSheet.getRange(3, 1, Math.min(30, rawSheet.getLastRow() - 2), 1).getValues();
+      for (let i = 0; i < dates.length; i++) {
+        let dStr = '';
+        if (dates[i][0] instanceof Date) {
+          dStr = Utilities.formatDate(dates[i][0], 'Asia/Taipei', 'yyyy-MM-dd');
+        } else {
+          dStr = String(dates[i][0]);
+        }
+        if (dStr === lastDateStr) {
+          tradingDaysSince = i;
+          break;
+        }
+      }
+    }
+
+    if (tradingDaysSince < 3) {
+      let lastDist60Val = null;
+      if (lastDist60Str) {
+        lastDist60Val = parseFloat(String(lastDist60Str).replace('%', '').trim()) / 100;
+      }
+      
+      // CD 提前解鎖條款：Dist60 再下殺創下比上次加碼時更低 2% 以上的新低點 (-0.02)
+      if (lastDist60Val !== null && !isNaN(currentDist60Val) && (currentDist60Val <= lastDist60Val - 0.02)) {
+        cdStatus.isUnlockedEarly = true;
+        cdStatus.inCD = false;
+        dcaGuide = `⚡ CD 提前解鎖 (大盤深跌觸發) | 明天照常扣款，並允許${baseAllocation}手動加碼！`;
+      } else {
+        cdStatus.inCD = true;
+        cdStatus.cdDaysLeft = 3 - tradingDaysSince;
+        powderAllocation = '0% (CD冷卻中)';
+        dcaGuide = `🧊 資金池加碼冷卻中 (CD 剩餘 ${cdStatus.cdDaysLeft} 天) | 讓常態定期定額發揮作用，靜待下一次開火視窗`;
+      }
+    }
+  }
+
+  return {
+    powderAllocation: powderAllocation,
+    cdStatus: cdStatus,
+    dcaGuide: dcaGuide
+  };
+}
+
+/**
+ * ⚡ 記錄手動/觸發資金池加碼紀錄（供 CD 冷卻期計算使用）
+ */
+function recordPowderAllocation(customDate, customDist60) {
+  const props = PropertiesService.getScriptProperties();
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  let dateStr = customDate;
+  let dist60Val = customDist60;
+  if (!dateStr && rawSheet && rawSheet.getLastRow() >= 3) {
+    const dCell = rawSheet.getRange(3, 1).getValue();
+    dateStr = (dCell instanceof Date) ? Utilities.formatDate(dCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(dCell);
+  }
+  if (dist60Val === undefined && rawSheet && rawSheet.getLastRow() >= 3) {
+    dist60Val = rawSheet.getRange(3, 6).getDisplayValue();
+  }
+  if (dateStr) props.setProperty('LAST_POWDER_DATE', String(dateStr));
+  if (dist60Val !== undefined) props.setProperty('LAST_POWDER_DIST60', String(dist60Val));
+  return { success: true, date: dateStr, dist60: dist60Val };
+}
+
+/**
  * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
 function getMarketEngineData() {
@@ -1820,13 +2031,32 @@ function getMarketEngineData() {
       }
     }
 
-    // 4. 夜盤/EWT漲跌幅
+    // 4. 夜盤/EWT漲跌幅與開盤心理準備
     if (data.ewtChange && data.ewtChange !== 'N/A') {
       data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
+    }
+    const ewtReadiness = calculateEwtReadiness(data.ewtChange);
+    data.ewtReadinessGuide = ewtReadiness.guide;
+    if (data.metricsStatus) {
+      data.metricsStatus.ewtReadinessGuide = ewtReadiness.guide;
     }
 
     if (sSlope) data.metricsStatus.ma60Slope = sSlope;
     if (sDelta) data.metricsStatus.dist60Delta = sDelta;
+
+    // 5. v2.5.0 打折天數撫平器 (Missed-out Relief)
+    const reliefInfo = calculatePhaseDurationAndRelief(data.phase, ss);
+    data.consecutiveDays = reliefInfo.consecutiveDays;
+    data.avgDays = reliefInfo.avgDays;
+    data.phaseDurationText = reliefInfo.phaseDurationText;
+    data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
+
+    // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)
+    const d60ValForCd = parseFloat(String(data.dist60).replace('%', '').trim()) / 100;
+    const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, ss);
+    data.powderAllocation = powderCdInfo.powderAllocation;
+    data.cdStatus = powderCdInfo.cdStatus;
+    data.dcaGuide = powderCdInfo.dcaGuide;
   }
 
   if (backtestSheet) {

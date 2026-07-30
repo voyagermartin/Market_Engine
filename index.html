@@ -390,7 +390,8 @@
       <div class="glass-card phase-card">
         <div class="phase-title">☕ 今日市場溫度</div>
         <div class="phase-badge" id="phaseBadge">連線中...</div>
-        <div style="font-size: 13px; color: #d6d3d1; margin-top: 6px;">基於 18 年動態分位數連動校正</div>
+        <div id="phaseDurationText" style="font-size: 13px; font-weight: 700; color: #fde047; margin-top: 6px;">🛒 當前位階計算中...</div>
+        <div id="phaseReliefGuide" style="font-size: 12px; color: #d6d3d1; margin-top: 4px; line-height: 1.5;">基於 18 年動態分位數連動校正</div>
       </div>
       <div class="glass-card action-guide-card">
         <div class="action-header">
@@ -404,8 +405,11 @@
 
     <!-- DCA Decision Card -->
     <div class="glass-card" style="margin-bottom: 28px; border-left: 5px solid #9ca3af; padding: 22px;">
-      <div style="margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
         <h3 style="font-size: 1.4rem; font-weight: 700; color: #9ca3af; margin: 0;">如果明天定期定額要扣款......</h3>
+        <span id="powderBadge" style="font-size: 13px; font-weight: 700; background: rgba(245, 158, 11, 0.18); color: #fbbf24; padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.3);">
+          資金池加碼配額：0%
+        </span>
       </div>
       <div id="dcaGuide" style="font-size: 1.25rem; font-weight: 700; color: #e5e7eb; background: rgba(156, 163, 175, 0.18); padding: 16px 20px; border-radius: 12px; line-height: 1.8;">
         決策卡讀取中...
@@ -470,11 +474,14 @@
         </div>
       </div>
 
-      <div class="metric-card">
+      <div class="metric-card" style="grid-column: 1 / -1; border: 1px solid rgba(156, 163, 175, 0.2);">
         <div class="metric-name">夜盤/EWT漲跌幅 (EWT Change)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valEwtChange">連線中...</span>
           <span class="metric-tag" id="tagEwtChange" style="color: #9ca3af; background: rgba(156, 163, 175, 0.08);">連線中...</span>
+        </div>
+        <div id="noteEwtReadiness" style="font-size: 13px; font-weight: 700; color: #fde047; background: rgba(251, 191, 36, 0.08); padding: 8px 12px; border-radius: 8px; margin-top: 6px; border: 1px solid rgba(251, 191, 36, 0.18); line-height: 1.6;">
+          ☕ 開盤心理準備：連線中...
         </div>
       </div>
     </div>
@@ -735,7 +742,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.0.0
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.0
       </div>
     </footer>
   </div>
@@ -810,12 +817,39 @@
       }
 
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
+      if (data.phaseDurationText) document.getElementById('phaseDurationText').textContent = data.phaseDurationText;
+      if (data.phaseReliefGuide) document.getElementById('phaseReliefGuide').textContent = data.phaseReliefGuide;
+      
+      if (data.powderAllocation) {
+        const pBadge = document.getElementById('powderBadge');
+        if (pBadge) {
+          pBadge.textContent = '資金池加碼配額：' + data.powderAllocation;
+          if (data.powderAllocation.includes('CD冷卻中')) {
+            pBadge.style.color = '#38bdf8';
+            pBadge.style.background = 'rgba(56, 189, 248, 0.15)';
+            pBadge.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+          } else if (data.powderAllocation.includes('10%') || data.powderAllocation.includes('20%')) {
+            pBadge.style.color = '#34d399';
+            pBadge.style.background = 'rgba(52, 211, 153, 0.15)';
+            pBadge.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+          } else {
+            pBadge.style.color = '#fbbf24';
+            pBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+            pBadge.style.borderColor = 'rgba(251, 191, 36, 0.3)';
+          }
+        }
+      }
+
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
       if (data.dcaGuide && data.dcaGuide !== 'N/A') {
         const dcaEl = document.getElementById('dcaGuide');
         if (dcaEl) {
           dcaEl.textContent = data.dcaGuide;
-          if (data.dcaGuide.includes('加碼')) {
+          if (data.dcaGuide.includes('冷卻中')) {
+            dcaEl.style.color = '#38bdf8';
+            dcaEl.style.background = 'rgba(56, 189, 248, 0.15)';
+            dcaEl.parentElement.style.borderLeftColor = '#38bdf8';
+          } else if (data.dcaGuide.includes('加碼')) {
             dcaEl.style.color = '#34d399';
             dcaEl.style.background = 'rgba(52, 211, 153, 0.12)';
             dcaEl.parentElement.style.borderLeftColor = '#34d399';
@@ -1009,6 +1043,13 @@
             elEwt.style.color = '#fbbf24';
             elEwt.style.background = 'rgba(251, 191, 36, 0.08)';
             elEwt.style.borderColor = 'rgba(251, 191, 36, 0.2)';
+          }
+        }
+
+        if (data.ewtReadinessGuide || (data.metricsStatus && data.metricsStatus.ewtReadinessGuide)) {
+          const elReadiness = document.getElementById('noteEwtReadiness');
+          if (elReadiness) {
+            elReadiness.textContent = data.ewtReadinessGuide || data.metricsStatus.ewtReadinessGuide;
           }
         }
       }
