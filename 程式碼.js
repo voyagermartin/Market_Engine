@@ -1742,6 +1742,16 @@ function getMarketEngineData() {
       data.metricsStatus.ewtChange = sEwt;
     }
 
+    // 若算出來有更具體的 VIX 狀態，以程式端邏輯計算為最高優先級，防止 Sheet 延遲或公式版本不同
+    if (data.vix && data.vix !== 'N/A') {
+      const vixVal = parseFloat(String(data.vix).replace('%', '').trim());
+      if (!isNaN(vixVal)) {
+        if (vixVal >= 30) data.metricsStatus.vix = '🚨 恐慌爆發';
+        else if (vixVal >= 20) data.metricsStatus.vix = '⚠️ 警戒';
+        else data.metricsStatus.vix = '✅ 平穩';
+      }
+    }
+
     // 若算出來有更具體的夜盤狀態 (非預設平穩)，以 calculateEwtStatus 為最高優先級
     if (data.ewtChange && data.ewtChange !== 'N/A') {
       const calcStatus = calculateEwtStatus(data.ewtChange);

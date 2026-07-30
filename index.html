@@ -962,7 +962,24 @@
             }
           }
         }
-        if (data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A') document.getElementById('tagVix').textContent = data.metricsStatus.vix;
+        const elVix = document.getElementById('tagVix');
+        if (elVix && data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A') {
+          const vixStatusText = data.metricsStatus.vix;
+          elVix.textContent = vixStatusText;
+          if (vixStatusText.includes('恐慌') || vixStatusText.includes('🚨')) {
+            elVix.style.color = '#f87171';
+            elVix.style.background = 'rgba(248, 113, 113, 0.12)';
+            elVix.style.border = '1px solid rgba(248, 113, 113, 0.25)';
+          } else if (vixStatusText.includes('警戒') || vixStatusText.includes('⚠️')) {
+            elVix.style.color = '#fbbf24';
+            elVix.style.background = 'rgba(251, 191, 36, 0.12)';
+            elVix.style.border = '1px solid rgba(251, 191, 36, 0.25)';
+          } else {
+            elVix.style.color = '#34d399';
+            elVix.style.background = 'rgba(52, 211, 153, 0.12)';
+            elVix.style.border = '1px solid rgba(52, 211, 153, 0.25)';
+          }
+        }
         const rawEwtStr = (data.ewtChange && data.ewtChange !== 'N/A') ? data.ewtChange : null;
         let ewtStatusText = (data.metricsStatus && data.metricsStatus.ewtChange) ? data.metricsStatus.ewtChange : '➡️ 夜盤平穩';
         if (rawEwtStr) {
