@@ -405,11 +405,8 @@
 
     <!-- DCA Decision Card -->
     <div class="glass-card" style="margin-bottom: 28px; border-left: 5px solid #9ca3af; padding: 22px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+      <div style="margin-bottom: 10px;">
         <h3 style="font-size: 1.4rem; font-weight: 700; color: #9ca3af; margin: 0;">如果明天定期定額要扣款......</h3>
-        <span id="powderBadge" style="font-size: 13px; font-weight: 700; background: rgba(245, 158, 11, 0.18); color: #fbbf24; padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.3);">
-          資金池加碼配額：0%
-        </span>
       </div>
       <div id="dcaGuide" style="font-size: 1.25rem; font-weight: 700; color: #e5e7eb; background: rgba(156, 163, 175, 0.18); padding: 16px 20px; border-radius: 12px; line-height: 1.8;">
         決策卡讀取中...
@@ -819,26 +816,6 @@
       if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
       if (data.phaseDurationText) document.getElementById('phaseDurationText').textContent = data.phaseDurationText;
       if (data.phaseReliefGuide) document.getElementById('phaseReliefGuide').textContent = data.phaseReliefGuide;
-      
-      if (data.powderAllocation) {
-        const pBadge = document.getElementById('powderBadge');
-        if (pBadge) {
-          pBadge.textContent = '資金池加碼配額：' + data.powderAllocation;
-          if (data.powderAllocation.includes('CD冷卻中')) {
-            pBadge.style.color = '#38bdf8';
-            pBadge.style.background = 'rgba(56, 189, 248, 0.15)';
-            pBadge.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-          } else if (data.powderAllocation.includes('10%') || data.powderAllocation.includes('20%')) {
-            pBadge.style.color = '#34d399';
-            pBadge.style.background = 'rgba(52, 211, 153, 0.15)';
-            pBadge.style.borderColor = 'rgba(52, 211, 153, 0.3)';
-          } else {
-            pBadge.style.color = '#fbbf24';
-            pBadge.style.background = 'rgba(245, 158, 11, 0.15)';
-            pBadge.style.borderColor = 'rgba(251, 191, 36, 0.3)';
-          }
-        }
-      }
 
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
       if (data.dcaGuide && data.dcaGuide !== 'N/A') {

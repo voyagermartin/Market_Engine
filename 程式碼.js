@@ -1658,13 +1658,22 @@ function calculateEwtReadiness(ewtValStr) {
 }
 
 /**
+ * ⚡ 數字/百分比字串通配解析器
+ */
+function parseDistValue(val) {
+  if (val === null || val === undefined || val === '') return NaN;
+  if (typeof val === 'number') return val;
+  const str = String(val).replace('%', '').replace('+', '').trim();
+  const num = parseFloat(str);
+  if (isNaN(num)) return NaN;
+  return Math.abs(num) > 0.5 ? num / 100 : num;
+}
+
+/**
  * 💡 v2.5.0「打折視窗與天數撫平器」 (Missed-out Relief)
  * 掃描 RAW_HISTORY 統計當前位階持續天數與歷史平均持續天數
  */
 function calculatePhaseDurationAndRelief(currentPhase, ss) {
-  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
-  
   let consecutiveDays = 1;
   const avgDaysMap = {
     '極度恐慌': 11,
@@ -1675,35 +1684,40 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
   };
   const avgDays = avgDaysMap[currentPhase] || 15;
 
-  if (rawSheet && configSheet && rawSheet.getLastRow() >= 3) {
-    try {
+  try {
+    const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+    const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
+
+    if (rawSheet && configSheet && rawSheet.getLastRow() >= 4) {
       const v = configSheet.getRange('C12:D15').getValues();
       const p10_60 = Number(v[0][0]), p25_60 = Number(v[1][0]), p75_60 = Number(v[2][0]), p90_60 = Number(v[3][0]);
       const p10_240 = Number(v[0][1]), p25_240 = Number(v[1][1]), p75_240 = Number(v[2][1]), p90_240 = Number(v[3][1]);
       
-      const lastRow = Math.min(100, rawSheet.getLastRow());
-      const distData = rawSheet.getRange(3, 6, lastRow - 2, 2).getValues(); // Col 6: Dist60, Col 7: Dist240
-      
-      for (let i = 1; i < distData.length; i++) {
-        const d60 = Number(distData[i][0]);
-        const d240 = Number(distData[i][1]);
-        if (isNaN(d60) || isNaN(d240)) break;
+      const numRows = Math.min(100, rawSheet.getLastRow() - 2);
+      if (numRows > 0) {
+        const distData = rawSheet.getRange(3, 6, numRows, 2).getValues(); // Col 6: Dist60, Col 7: Dist240
         
-        let rowPhase = '順風/中性';
-        if (d60 < p10_60 || d240 < p10_240) rowPhase = '極度恐慌';
-        else if (d60 < p25_60 || d240 < p25_240) rowPhase = '恐慌';
-        else if (d60 > p90_60 || d240 > p90_240) rowPhase = '狂熱';
-        else if (d60 > p75_60 || d240 > p75_240) rowPhase = '過熱';
-        
-        if (rowPhase === currentPhase) {
-          consecutiveDays++;
-        } else {
-          break;
+        for (let i = 1; i < distData.length; i++) {
+          const d60 = parseDistValue(distData[i][0]);
+          const d240 = parseDistValue(distData[i][1]);
+          if (isNaN(d60) || isNaN(d240)) break;
+          
+          let rowPhase = '順風/中性';
+          if (d60 < p10_60 || d240 < p10_240) rowPhase = '極度恐慌';
+          else if (d60 < p25_60 || d240 < p25_240) rowPhase = '恐慌';
+          else if (d60 > p90_60 || d240 > p90_240) rowPhase = '狂熱';
+          else if (d60 > p75_60 || d240 > p75_240) rowPhase = '過熱';
+          
+          if (rowPhase === currentPhase) {
+            consecutiveDays++;
+          } else {
+            break;
+          }
         }
       }
-    } catch (e) {
-      Logger.log('Error calculating phase duration: ' + e.message);
     }
+  } catch (e) {
+    Logger.log('Error calculating phase duration: ' + e.message);
   }
 
   const isPanic = (currentPhase === '極度恐慌' || currentPhase === '恐慌');
@@ -1747,50 +1761,58 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
   };
 
   let powderAllocation = baseAllocation;
-  let dcaGuide = (currentPhase === '極度恐慌' || currentPhase === '恐慌')
-    ? `🚀 明天照常扣款，並且可以${baseAllocation}手動加碼！`
-    : (currentPhase === '過熱' || currentPhase === '狂熱')
-      ? `⚠️ 明天建議暫停扣款，把錢存起來等打折！`
-      : `🟢 明天照常扣款，維持原本扣款金額即可！`;
+  let dcaGuide = '🟢 明天照常扣款，維持原本扣款金額即可！';
 
-  if ((currentPhase === '極度恐慌' || currentPhase === '恐慌') && lastDateStr) {
-    const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-    let tradingDaysSince = 999;
-    
-    if (rawSheet && rawSheet.getLastRow() >= 3) {
-      const dates = rawSheet.getRange(3, 1, Math.min(30, rawSheet.getLastRow() - 2), 1).getValues();
-      for (let i = 0; i < dates.length; i++) {
-        let dStr = '';
-        if (dates[i][0] instanceof Date) {
-          dStr = Utilities.formatDate(dates[i][0], 'Asia/Taipei', 'yyyy-MM-dd');
-        } else {
-          dStr = String(dates[i][0]);
-        }
-        if (dStr === lastDateStr) {
-          tradingDaysSince = i;
-          break;
-        }
-      }
-    }
+  if (currentPhase === '極度恐慌') {
+    dcaGuide = '🚀 明天照常扣款，並可動用資金池 20% 手動加碼！';
+  } else if (currentPhase === '恐慌') {
+    dcaGuide = '🚀 明天照常扣款，並可動用資金池 10% 手動加碼！';
+  } else if (currentPhase === '過熱' || currentPhase === '狂熱') {
+    dcaGuide = '⚠️ 明天建議暫停扣款，把錢存起來等打折！';
+  }
 
-    if (tradingDaysSince < 3) {
-      let lastDist60Val = null;
-      if (lastDist60Str) {
-        lastDist60Val = parseFloat(String(lastDist60Str).replace('%', '').trim()) / 100;
-      }
+  try {
+    if ((currentPhase === '極度恐慌' || currentPhase === '恐慌') && lastDateStr) {
+      const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+      let tradingDaysSince = 999;
       
-      // CD 提前解鎖條款：Dist60 再下殺創下比上次加碼時更低 2% 以上的新低點 (-0.02)
-      if (lastDist60Val !== null && !isNaN(currentDist60Val) && (currentDist60Val <= lastDist60Val - 0.02)) {
-        cdStatus.isUnlockedEarly = true;
-        cdStatus.inCD = false;
-        dcaGuide = `⚡ CD 提前解鎖 (大盤深跌觸發) | 明天照常扣款，並允許${baseAllocation}手動加碼！`;
-      } else {
-        cdStatus.inCD = true;
-        cdStatus.cdDaysLeft = 3 - tradingDaysSince;
-        powderAllocation = '0% (CD冷卻中)';
-        dcaGuide = `🧊 資金池加碼冷卻中 (CD 剩餘 ${cdStatus.cdDaysLeft} 天) | 讓常態定期定額發揮作用，靜待下一次開火視窗`;
+      if (rawSheet && rawSheet.getLastRow() >= 3) {
+        const rowCount = Math.min(30, rawSheet.getLastRow() - 2);
+        if (rowCount > 0) {
+          const dates = rawSheet.getRange(3, 1, rowCount, 1).getValues();
+          for (let i = 0; i < dates.length; i++) {
+            let dStr = '';
+            if (dates[i][0] instanceof Date) {
+              dStr = Utilities.formatDate(dates[i][0], 'Asia/Taipei', 'yyyy-MM-dd');
+            } else {
+              dStr = String(dates[i][0]);
+            }
+            if (dStr === lastDateStr) {
+              tradingDaysSince = i;
+              break;
+            }
+          }
+        }
+      }
+
+      if (tradingDaysSince < 3) {
+        let lastDist60Val = parseDistValue(lastDist60Str);
+        
+        // CD 提前解鎖條款：Dist60 再下殺創下比上次加碼時更低 2% 以上的新低點 (-0.02)
+        if (!isNaN(lastDist60Val) && !isNaN(currentDist60Val) && (currentDist60Val <= lastDist60Val - 0.02)) {
+          cdStatus.isUnlockedEarly = true;
+          cdStatus.inCD = false;
+          dcaGuide = `⚡ CD 提前解鎖 (大盤深跌觸發) | 明天照常扣款，並可${baseAllocation}手動加碼！`;
+        } else {
+          cdStatus.inCD = true;
+          cdStatus.cdDaysLeft = 3 - tradingDaysSince;
+          powderAllocation = '0% (CD冷卻中)';
+          dcaGuide = `🧊 資金池加碼冷卻中 (CD 剩餘 ${cdStatus.cdDaysLeft} 天) | 讓常態定期定額發揮作用，靜待下一次開火視窗`;
+        }
       }
     }
+  } catch (e) {
+    Logger.log('Error calculating CD status: ' + e.message);
   }
 
   return {
@@ -2045,18 +2067,28 @@ function getMarketEngineData() {
     if (sDelta) data.metricsStatus.dist60Delta = sDelta;
 
     // 5. v2.5.0 打折天數撫平器 (Missed-out Relief)
-    const reliefInfo = calculatePhaseDurationAndRelief(data.phase, ss);
-    data.consecutiveDays = reliefInfo.consecutiveDays;
-    data.avgDays = reliefInfo.avgDays;
-    data.phaseDurationText = reliefInfo.phaseDurationText;
-    data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
+    try {
+      const reliefInfo = calculatePhaseDurationAndRelief(data.phase, ss);
+      data.consecutiveDays = reliefInfo.consecutiveDays;
+      data.avgDays = reliefInfo.avgDays;
+      data.phaseDurationText = reliefInfo.phaseDurationText;
+      data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
+    } catch (e) {
+      Logger.log('Relief calc error: ' + e.message);
+      data.phaseDurationText = `🛒 當前位階：${data.phase}`;
+      data.phaseReliefGuide = `💡 心理指南：按既定策略穩定執行即可。`;
+    }
 
     // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)
-    const d60ValForCd = parseFloat(String(data.dist60).replace('%', '').trim()) / 100;
-    const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, ss);
-    data.powderAllocation = powderCdInfo.powderAllocation;
-    data.cdStatus = powderCdInfo.cdStatus;
-    data.dcaGuide = powderCdInfo.dcaGuide;
+    try {
+      const d60ValForCd = parseDistValue(data.dist60);
+      const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, ss);
+      data.powderAllocation = powderCdInfo.powderAllocation;
+      data.cdStatus = powderCdInfo.cdStatus;
+      data.dcaGuide = powderCdInfo.dcaGuide;
+    } catch (e) {
+      Logger.log('CD calc error: ' + e.message);
+    }
   }
 
   if (backtestSheet) {
