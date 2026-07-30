@@ -1733,16 +1733,27 @@ function getMarketEngineData() {
     const sDelta = dashboardSheet.getRange('D11').getDisplayValue();
     const sEwt = dashboardSheet.getRange('D12').getDisplayValue();
 
-    if (sDist60) data.metricsStatus.dist60 = sDist60;
-    if (sDist240) data.metricsStatus.dist240 = sDist240;
-    if (sVix) data.metricsStatus.vix = sVix;
-    if (sSlope) data.metricsStatus.ma60Slope = sSlope;
-    if (sDelta) data.metricsStatus.dist60Delta = sDelta;
-    if (sEwt && sEwt !== '' && sEwt !== 'N/A' && !sEwt.includes('計算中')) {
-      data.metricsStatus.ewtChange = sEwt;
+    // 1. 季線乖離率 (Dist60)
+    if (data.dist60 && data.dist60 !== 'N/A') {
+      const val = parseFloat(String(data.dist60).replace('%', '').trim()) / 100;
+      if (!isNaN(val)) {
+        data.metricsStatus.dist60 = val < 0 
+          ? '🛒 價格低於季線，中短期出現撿便宜的好時機！' 
+          : '🔥 價格穩在季線之上，中短期買氣仍然暖洋洋的！';
+      }
     }
 
-    // 若算出來有更具體的 VIX 狀態，以程式端邏輯計算為最高優先級，防止 Sheet 延遲或公式版本不同
+    // 2. 年線乖離率 (Dist240)
+    if (data.dist240 && data.dist240 !== 'N/A') {
+      const val = parseFloat(String(data.dist240).replace('%', '').trim()) / 100;
+      if (!isNaN(val)) {
+        data.metricsStatus.dist240 = val < 0 
+          ? '💎 價格低於年線，長線超級大特價機會來臨！' 
+          : '🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！';
+      }
+    }
+
+    // 3. VIX 恐慌指數
     if (data.vix && data.vix !== 'N/A') {
       const vixVal = parseFloat(String(data.vix).replace('%', '').trim());
       if (!isNaN(vixVal)) {
@@ -1752,13 +1763,13 @@ function getMarketEngineData() {
       }
     }
 
-    // 若算出來有更具體的夜盤狀態 (非預設平穩)，以 calculateEwtStatus 為最高優先級
+    // 4. 夜盤/EWT漲跌幅
     if (data.ewtChange && data.ewtChange !== 'N/A') {
-      const calcStatus = calculateEwtStatus(data.ewtChange);
-      if (calcStatus !== '➡️ 夜盤平穩') {
-        data.metricsStatus.ewtChange = calcStatus;
-      }
+      data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
     }
+
+    if (sSlope) data.metricsStatus.ma60Slope = sSlope;
+    if (sDelta) data.metricsStatus.dist60Delta = sDelta;
   }
 
   if (backtestSheet) {
