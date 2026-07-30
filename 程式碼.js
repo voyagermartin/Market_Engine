@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.1 (純數據位階理性分析解耦版)
+ * Version: v2.5.2 (大師心態與邏輯解密 QA 觀念導航升級版)
  */
 
 /**
@@ -195,7 +195,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.1) 更新完成！\n已成功導入純數據位階理性分析解耦版！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.2) 更新完成！\n已成功導入觀念導航大師心態與邏輯解密 QA 區塊！');
 }
 
 /**
