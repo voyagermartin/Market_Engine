@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.0 (邏輯深水區：資金池 CD 控管、打折天數撫平器與 EWT 開盤心理準備卡升級版)
+ * Version: v2.5.1 (純數據位階理性分析解耦版)
  */
 
 /**
@@ -195,7 +195,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.0) 更新完成！\n已成功導入資金池 CD 冷卻期控管、打折天數撫平器與 EWT 開盤心理準備卡！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.1) 更新完成！\n已成功導入純數據位階理性分析解耦版！');
 }
 
 /**
@@ -1821,6 +1821,80 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
 }
 
 /**
+ * 🔍 v2.5.1 純數據位階理性分析 (Phase Analysis - 無須 AI API)
+ */
+function calculatePhaseAnalysis(d60Val, pValues, phase) {
+  const p10 = (pValues && pValues.dist60) ? pValues.dist60.p10 : -0.082;
+  const p25 = (pValues && pValues.dist60) ? pValues.dist60.p25 : -0.032;
+  const p75 = (pValues && pValues.dist60) ? pValues.dist60.p75 : 0.065;
+  const p90 = (pValues && pValues.dist60) ? pValues.dist60.p90 : 0.121;
+
+  if (isNaN(d60Val)) {
+    return {
+      percentileText: '數據連線對照中...',
+      lowerBoundText: '計算中...',
+      upperBoundText: '計算中...'
+    };
+  }
+
+  const d60PctStr = (d60Val * 100).toFixed(2) + '%';
+  const p10PctStr = (p10 * 100).toFixed(1) + '%';
+  const p25PctStr = (p25 * 100).toFixed(1) + '%';
+  const p75PctStr = (p75 * 100).toFixed(1) + '%';
+  const p90PctStr = (p90 * 100).toFixed(1) + '%';
+
+  let percentileText = `價格當前為 ${d60PctStr}，位於 P25~P75 常態區間，屬 18 年歷史合理評價範圍。`;
+  if (d60Val < p10) {
+    percentileText = `價格當前為 ${d60PctStr}，已跌破 P10 門檻 (${p10PctStr})，比過去 18 年中 90% 的交易日都便宜！`;
+  } else if (d60Val < p25) {
+    percentileText = `價格當前為 ${d60PctStr}，已跌破 P25 門檻 (${p25PctStr})，比過去 18 年中 75% 的交易日都便宜！`;
+  } else if (d60Val > p90) {
+    percentileText = `價格當前為 ${d60PctStr}，已突破 P90 門檻 (${p90PctStr})，比過去 18 年中 90% 的交易日都昂貴！`;
+  } else if (d60Val > p75) {
+    percentileText = `價格當前為 ${d60PctStr}，已突破 P75 門檻 (${p75PctStr})，比過去 18 年中 75% 的交易日都昂貴！`;
+  }
+
+  let lowerBoundText = '';
+  let upperBoundText = '';
+
+  if (phase === '極度恐慌' || d60Val < p10) {
+    lowerBoundText = `已居於歷史最便宜的 10% 極致打折區 (P10: ${p10PctStr})`;
+    const distToUpper = Math.abs((p25 - d60Val) * 100).toFixed(2) + '%';
+    upperBoundText = `再上漲 ${distToUpper} 即回升至 T2 恐慌區 (P25: ${p25PctStr})`;
+  } else if (phase === '恐慌' || d60Val < p25) {
+    const distToLower = Math.abs((d60Val - p10) * 100).toFixed(2) + '%';
+    const distToUpper = Math.abs((p25 - d60Val) * 100).toFixed(2) + '%';
+    lowerBoundText = `再下跌 ${distToLower} 即進入 T1 極度恐慌區 (P10: ${p10PctStr})`;
+    upperBoundText = `再上漲 ${distToUpper} 即回升至 T3 順風中性區 (P25: ${p25PctStr})`;
+  } else if (phase === '順風/中性') {
+    const distToLower = Math.abs((d60Val - p25) * 100).toFixed(2) + '%';
+    const distToUpper = Math.abs((p75 - d60Val) * 100).toFixed(2) + '%';
+    lowerBoundText = `再下跌 ${distToLower} 即進入 T2 恐慌打折區 (P25: ${p25PctStr})`;
+    upperBoundText = `再上漲 ${distToUpper} 即進入 T4 過熱警戒區 (P75: ${p75PctStr})`;
+  } else if (phase === '過熱' || d60Val > p75) {
+    const distToLower = Math.abs((d60Val - p75) * 100).toFixed(2) + '%';
+    const distToUpper = Math.abs((p90 - d60Val) * 100).toFixed(2) + '%';
+    lowerBoundText = `距離回落至 T3 順風中性區向下空間 ${distToLower} (P75: ${p75PctStr})`;
+    upperBoundText = `再上漲 ${distToUpper} 即進入 T5 狂熱危險區 (P90: ${p90PctStr})`;
+  } else if (phase === '狂熱' || d60Val > p90) {
+    const distToLower = Math.abs((d60Val - p90) * 100).toFixed(2) + '%';
+    lowerBoundText = `距離回落至 T4 過熱區向下空間 ${distToLower} (P90: ${p90PctStr})`;
+    upperBoundText = `已居於歷史最昂貴的 10% 狂熱極致高位 (P90: ${p90PctStr})`;
+  } else {
+    const distToLower = Math.abs((d60Val - p25) * 100).toFixed(2) + '%';
+    const distToUpper = Math.abs((p75 - d60Val) * 100).toFixed(2) + '%';
+    lowerBoundText = `再下跌 ${distToLower} 即進入 T2 恐慌打折區 (P25: ${p25PctStr})`;
+    upperBoundText = `再上漲 ${distToUpper} 即進入 T4 過熱警戒區 (P75: ${p75PctStr})`;
+  }
+
+  return {
+    percentileText: percentileText,
+    lowerBoundText: lowerBoundText,
+    upperBoundText: upperBoundText
+  };
+}
+
+/**
  * ⚡ 記錄手動/觸發資金池加碼紀錄（供 CD 冷卻期計算使用）
  */
 function recordPowderAllocation(customDate, customDist60) {
@@ -2078,6 +2152,7 @@ function getMarketEngineData() {
     }
 
     // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)
+    let pValuesRef = null;
     try {
       const d60ValForCd = parseDistValue(data.dist60);
       const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, ss);
@@ -2086,6 +2161,26 @@ function getMarketEngineData() {
       data.dcaGuide = powderCdInfo.dcaGuide;
     } catch (e) {
       Logger.log('CD calc error: ' + e.message);
+    }
+
+    // 7. v2.5.1 純數據位階理性分析 (Phase Analysis - 無須 AI API)
+    try {
+      const d60ValForAnalysis = parseDistValue(data.dist60);
+      const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
+      if (configSheet) {
+        const v = configSheet.getRange('C12:D15').getValues();
+        pValuesRef = {
+          dist60: {
+            p10: Number(v[0][0]),
+            p25: Number(v[1][0]),
+            p75: Number(v[2][0]),
+            p90: Number(v[3][0])
+          }
+        };
+      }
+      data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, pValuesRef, data.phase);
+    } catch (e) {
+      Logger.log('Phase analysis calc error: ' + e.message);
     }
   }
 
