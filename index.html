@@ -1051,31 +1051,64 @@
       if (data.phaseReliefGuide) document.getElementById('phaseReliefGuide').textContent = data.phaseReliefGuide;
 
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
-      if (data.dcaRegularGuide && data.dcaRegularGuide !== 'N/A') {
-        const regEl = document.getElementById('dcaRegularGuide');
-        if (regEl) {
-          regEl.textContent = data.dcaRegularGuide;
-          if (data.dcaRegularGuide.includes('暫停')) {
-            regEl.style.color = '#f87171';
-          } else {
-            regEl.style.color = '#fbbf24';
-          }
+      // Resolve dual guides with frontend fallback for cached/older deployments
+      let regGuide = data.dcaRegularGuide;
+      let pwdGuide = data.dcaPowderGuide;
+
+      if (!regGuide || regGuide === 'N/A' || regGuide === '資料加載中...') {
+        if (data.phase === '過熱' || data.phase === '狂熱') {
+          regGuide = '🛑 暫停定期定額';
+        } else {
+          regGuide = '🚀 明天照常自動扣款';
         }
       }
 
-      if (data.dcaPowderGuide && data.dcaPowderGuide !== 'N/A') {
-        const pwdEl = document.getElementById('dcaPowderGuide');
-        if (pwdEl) {
-          pwdEl.textContent = data.dcaPowderGuide;
-          if (pwdEl.textContent.includes('冷卻中')) {
-            pwdEl.style.color = '#38bdf8';
-          } else if (pwdEl.textContent.includes('加碼')) {
-            pwdEl.style.color = '#34d399';
-          } else if (pwdEl.textContent.includes('強彈') || pwdEl.textContent.includes('觀望')) {
-            pwdEl.style.color = '#fbbf24';
-          } else {
-            pwdEl.style.color = '#a8a29e';
+      if (!pwdGuide || pwdGuide === 'N/A' || pwdGuide === '資料加載中...') {
+        if (data.dcaGuide && data.dcaGuide.includes('冷卻中')) {
+          const match = data.dcaGuide.match(/CD 剩餘 (\d+) 天/);
+          const days = match ? match[1] : 'X';
+          pwdGuide = `🧊 資金池加碼冷卻中 (建議 CD 剩餘 ${days} 天)`;
+        } else if (data.phase === '極度恐慌' || data.phase === '恐慌') {
+          let isExcited = false;
+          if (data.ewtChange && data.ewtChange !== 'N/A') {
+            const ewtVal = parseFloat(String(data.ewtChange).replace('%', '').replace('+', '').trim());
+            if (!isNaN(ewtVal) && ewtVal >= 2.5) {
+              isExcited = true;
+            }
           }
+          const prefix = (data.dcaGuide && data.dcaGuide.includes('提前解鎖')) ? '⚡ CD 提前解鎖 (大盤深跌觸發) | ' : '';
+          if (isExcited) {
+            pwdGuide = `${prefix}⚠️ 開盤激情強彈 (${data.ewtChange || '大漲'})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
+          } else {
+            const alloc = (data.phase === '極度恐慌' ? '20%' : '10%');
+            pwdGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
+          }
+        } else {
+          pwdGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
+        }
+      }
+
+      const regEl = document.getElementById('dcaRegularGuide');
+      if (regEl) {
+        regEl.textContent = regGuide;
+        if (regGuide.includes('暫停')) {
+          regEl.style.color = '#f87171';
+        } else {
+          regEl.style.color = '#fbbf24';
+        }
+      }
+
+      const pwdEl = document.getElementById('dcaPowderGuide');
+      if (pwdEl) {
+        pwdEl.textContent = pwdGuide;
+        if (pwdGuide.includes('冷卻中')) {
+          pwdEl.style.color = '#38bdf8';
+        } else if (pwdGuide.includes('加碼')) {
+          pwdEl.style.color = '#34d399';
+        } else if (pwdGuide.includes('強彈') || pwdGuide.includes('觀望')) {
+          pwdEl.style.color = '#fbbf24';
+        } else {
+          pwdEl.style.color = '#a8a29e';
         }
       }
 
