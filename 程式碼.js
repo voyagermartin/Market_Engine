@@ -930,11 +930,17 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B19:E19').merge().setValue('若明天要執行定期定額扣款，請參照下方行動建議')
        .setBackground('#f0fdf4').setFontColor('#047857');
 
-  sheet.getRange('A20').setValue('定期定額行動指引').setFontWeight('bold');
+  sheet.getRange('A20').setValue('常態定期定額指引').setFontWeight('bold');
   sheet.getRange('20:20').breakApart();
   sheet.getRange('B20:E20').merge().setFormula(
-    '=IF(OR(B15="恐慌", B15="極度恐慌"), "🚀 明天照常扣款，並且可以加碼多買一點！", IF(B15="順風/中性", "🟢 明天照常扣款，維持原本扣款金額即可！", "⚠️ 明天建議暫停扣款，把錢存起來等打折！"))'
+    '=IF(OR(B15="極度恐慌", B15="恐慌", B15="順風/中性"), "🚀 明天照常自動扣款", "🛑 暫停定期定額")'
   ).setFontWeight('bold').setFontSize(12).setBackground('#ecfdf5').setFontColor('#065f46');
+
+  sheet.getRange('A21').setValue('資金池手動加碼指引').setFontWeight('bold');
+  sheet.getRange('21:21').breakApart();
+  sheet.getRange('B21:E21').merge().setFormula(
+    '=IF(OR(B15="極度恐慌", B15="恐慌"), IF(IFERROR(VALUE(B12), 0)>=0.025, "⚠️ 開盤激情強彈！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估", "🚀 可動用資金池手動加碼 (請於 Web App 確認是否在 CD 冷卻期)"), "🟢 備戰狀態，按兵不動 (資金池 0%)")'
+  ).setFontWeight('bold').setFontSize(11).setBackground('#f3e8ff').setFontColor('#6b21a8');
 
   // AI 顧問值班觀點 (單一卡片輪播)
   sheet.getRange('22:22').breakApart();
@@ -1738,7 +1744,7 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
 /**
  * 🧊 v2.5.0「階梯式資金池開火 + 3天 CD 冷卻期」 (Powder Allocation & CD Logic)
  */
-function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
+function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ewtChange, ss) {
   let baseAllocation = '0%';
   if (currentPhase === '極度恐慌') {
     baseAllocation = '動用資金池 20%';
@@ -1759,18 +1765,20 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
   };
 
   let powderAllocation = baseAllocation;
-  let dcaGuide = '🟢 明天照常扣款，維持原本扣款金額即可！';
 
-  if (currentPhase === '極度恐慌') {
-    dcaGuide = '🚀 明天照常扣款，並可動用資金池 20% 手動加碼！';
-  } else if (currentPhase === '恐慌') {
-    dcaGuide = '🚀 明天照常扣款，並可動用資金池 10% 手動加碼！';
-  } else if (currentPhase === '過熱' || currentPhase === '狂熱') {
-    dcaGuide = '⚠️ 明天建議暫停扣款，把錢存起來等打折！';
+  // 1. Regular DCA Investment (常態定期定額)
+  let dcaRegularGuide = '🚀 明天照常自動扣款';
+  if (currentPhase === '過熱' || currentPhase === '狂熱') {
+    dcaRegularGuide = '🛑 暫停定期定額';
   }
 
+  // 2. Powder Manual Allocation (資金池手動加碼)
+  let dcaPowderGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
+
+  const hasAllocationEligibility = (currentPhase === '極度恐慌' || currentPhase === '恐慌');
+
   try {
-    if ((currentPhase === '極度恐慌' || currentPhase === '恐慌') && lastDateStr) {
+    if (hasAllocationEligibility && lastDateStr) {
       const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
       let tradingDaysSince = 999;
       
@@ -1800,12 +1808,10 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
         if (!isNaN(lastDist60Val) && !isNaN(currentDist60Val) && (currentDist60Val <= lastDist60Val - 0.02)) {
           cdStatus.isUnlockedEarly = true;
           cdStatus.inCD = false;
-          dcaGuide = `⚡ CD 提前解鎖 (大盤深跌觸發) | 明天照常扣款，並可${baseAllocation}手動加碼！`;
         } else {
           cdStatus.inCD = true;
           cdStatus.cdDaysLeft = 3 - tradingDaysSince;
           powderAllocation = '0% (CD冷卻中)';
-          dcaGuide = `🧊 資金池加碼冷卻中 (CD 剩餘 ${cdStatus.cdDaysLeft} 天) | 讓常態定期定額發揮作用，靜待下一次開火視窗`;
         }
       }
     }
@@ -1813,9 +1819,34 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ss) {
     Logger.log('Error calculating CD status: ' + e.message);
   }
 
+  // Calculate powder guide based on eligibility, CD, and EWT change
+  if (hasAllocationEligibility) {
+    if (cdStatus.inCD) {
+      dcaPowderGuide = `🧊 資金池加碼冷卻中 (建議 CD 剩餘 ${cdStatus.cdDaysLeft} 天)`;
+    } else {
+      const ewtVal = parseDistValue(ewtChange);
+      const prefix = cdStatus.isUnlockedEarly ? '⚡ CD 提前解鎖 (大盤深跌觸發) | ' : '';
+      
+      if (!isNaN(ewtVal) && ewtVal >= 0.025) {
+        dcaPowderGuide = `${prefix}⚠️ 開盤激情強彈 (${ewtChange})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
+      } else {
+        const alloc = (currentPhase === '極度恐慌' ? '20%' : '10%');
+        dcaPowderGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
+      }
+    }
+  }
+
+  // Combined guide for compatibility
+  let dcaGuide = dcaRegularGuide;
+  if (hasAllocationEligibility) {
+    dcaGuide = `${dcaRegularGuide} | ${dcaPowderGuide}`;
+  }
+
   return {
     powderAllocation: powderAllocation,
     cdStatus: cdStatus,
+    dcaRegularGuide: dcaRegularGuide,
+    dcaPowderGuide: dcaPowderGuide,
     dcaGuide: dcaGuide
   };
 }
@@ -1959,6 +1990,8 @@ function getMarketEngineData() {
     navMode: navMode,
     marketStatus: marketStatusPayload,
     dcaGuide: '🟢 明天照常扣款，維持原本扣款金額即可！',
+    dcaRegularGuide: '🚀 明天照常自動扣款',
+    dcaPowderGuide: '🟢 備戰狀態，按兵不動 (資金池 0%)',
     aiDutyAdvisor: isMorning ? '老巴' : '小羅',
     aiActiveTitle: isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光',
     aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)',
@@ -2059,29 +2092,29 @@ function getMarketEngineData() {
         if (!isNaN(d60) && !isNaN(d240)) {
           let phase = '順風/中性';
           let actionGuide = '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！';
-          let dcaGuide = '🟢 明天照常扣款，維持原本扣款金額即可！';
+          let dcaRegularGuide = '🚀 明天照常自動扣款';
+          let dcaPowderGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
           
           if (d60 < pValues.dist60.p10 || d240 < pValues.dist240.p10) {
             phase = '極度恐慌';
             actionGuide = '股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！';
-            dcaGuide = '🚀 明天照常扣款，並且可以加碼多買一點！';
           } else if (d60 < pValues.dist60.p25 || d240 < pValues.dist240.p25) {
             phase = '恐慌';
             actionGuide = '股市打折中！價格很划算，維持定期定額並可以逢低多買一點！';
-            dcaGuide = '🚀 明天照常扣款，並且可以加碼多買一點！';
           } else if (d60 > pValues.dist60.p90 || d240 > pValues.dist240.p90) {
             phase = '狂熱';
             actionGuide = '股市非常危險！行情熱到發燙，請務必保留大量現金防範回檔！';
-            dcaGuide = '⚠️ 明天建議暫停扣款，把錢存起來等打折！';
+            dcaRegularGuide = '🛑 暫停定期定額';
           } else if (d60 > pValues.dist60.p75 || d240 > pValues.dist240.p75) {
             phase = '過熱';
             actionGuide = '股市有點貴囉！不要衝動追高，可以陸續把賺到的部分落袋為安！';
-            dcaGuide = '⚠️ 明天建議暫停扣款，把錢存起來等打折！';
+            dcaRegularGuide = '🛑 暫停定期定額';
           }
           
           data.phase = phase;
           data.actionGuide = actionGuide;
-          data.dcaGuide = dcaGuide;
+          data.dcaRegularGuide = dcaRegularGuide;
+          data.dcaPowderGuide = dcaPowderGuide;
         }
       } catch (err) {
         Logger.log('Error overriding phase: ' + err.message);
@@ -2157,9 +2190,11 @@ function getMarketEngineData() {
     let pValuesRef = null;
     try {
       const d60ValForCd = parseDistValue(data.dist60);
-      const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, ss);
+      const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, data.ewtChange, ss);
       data.powderAllocation = powderCdInfo.powderAllocation;
       data.cdStatus = powderCdInfo.cdStatus;
+      data.dcaRegularGuide = powderCdInfo.dcaRegularGuide;
+      data.dcaPowderGuide = powderCdInfo.dcaPowderGuide;
       data.dcaGuide = powderCdInfo.dcaGuide;
     } catch (e) {
       Logger.log('CD calc error: ' + e.message);

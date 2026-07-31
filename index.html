@@ -449,13 +449,34 @@
       </div>
     </div>
 
-    <!-- DCA Decision Card -->
-    <div class="glass-card" style="margin-bottom: 28px; border-left: 5px solid #9ca3af; padding: 22px;">
-      <div style="margin-bottom: 10px;">
-        <h3 style="font-size: 1.4rem; font-weight: 700; color: #9ca3af; margin: 0;">如果明天定期定額要扣款......</h3>
+    <!-- DCA & Powder Double-Track Decision Card -->
+    <div class="glass-card" id="dcaCard" style="margin-bottom: 28px; border-left: 5px solid #9ca3af; padding: 22px;">
+      <div style="margin-bottom: 16px;">
+        <h3 style="font-size: 1.4rem; font-weight: 700; color: #fbbf24; margin: 0; display: flex; align-items: center; gap: 8px;">
+          🛒 定期定額與資金池雙軌決策卡
+        </h3>
       </div>
-      <div id="dcaGuide" style="font-size: 1.25rem; font-weight: 700; color: #e5e7eb; background: rgba(156, 163, 175, 0.18); padding: 16px 20px; border-radius: 12px; line-height: 1.8;">
-        決策卡讀取中...
+      
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- Upper Layer: Regular Investment -->
+        <div style="background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.25); border-left: 4px solid #fbbf24;">
+          <div style="font-size: 1rem; font-weight: 700; color: #fbbf24; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            📅 常態定期定額（純位階紀律）
+          </div>
+          <div id="dcaRegularGuide" style="font-size: 1.15rem; font-weight: 700; color: #fffbeb;">
+            決策卡讀取中...
+          </div>
+        </div>
+
+        <!-- Lower Layer: Powder Manual Allocation -->
+        <div style="background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 12px; border: 1px solid rgba(192, 132, 252, 0.25); border-left: 4px solid #c084fc;">
+          <div style="font-size: 1rem; font-weight: 700; color: #c084fc; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            💣 資金池手動加碼（位階 ＋ 夜盤 EWT 雙重動能對照）
+          </div>
+          <div id="dcaPowderGuide" style="font-size: 1.15rem; font-weight: 700; color: #fffbeb;">
+            決策卡讀取中...
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1030,27 +1051,42 @@
       if (data.phaseReliefGuide) document.getElementById('phaseReliefGuide').textContent = data.phaseReliefGuide;
 
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
-      if (data.dcaGuide && data.dcaGuide !== 'N/A') {
-        const dcaEl = document.getElementById('dcaGuide');
-        if (dcaEl) {
-          dcaEl.textContent = data.dcaGuide;
-          if (data.dcaGuide.includes('冷卻中')) {
-            dcaEl.style.color = '#38bdf8';
-            dcaEl.style.background = 'rgba(56, 189, 248, 0.15)';
-            dcaEl.parentElement.style.borderLeftColor = '#38bdf8';
-          } else if (data.dcaGuide.includes('加碼')) {
-            dcaEl.style.color = '#34d399';
-            dcaEl.style.background = 'rgba(52, 211, 153, 0.12)';
-            dcaEl.parentElement.style.borderLeftColor = '#34d399';
-          } else if (data.dcaGuide.includes('維持') || data.dcaGuide.includes('照常')) {
-            dcaEl.style.color = '#fde047';
-            dcaEl.style.background = 'rgba(20, 184, 166, 0.18)';
-            dcaEl.parentElement.style.borderLeftColor = '#2dd4bf';
+      if (data.dcaRegularGuide && data.dcaRegularGuide !== 'N/A') {
+        const regEl = document.getElementById('dcaRegularGuide');
+        if (regEl) {
+          regEl.textContent = data.dcaRegularGuide;
+          if (data.dcaRegularGuide.includes('暫停')) {
+            regEl.style.color = '#f87171';
           } else {
-            dcaEl.style.color = '#f87171';
-            dcaEl.style.background = 'rgba(248, 113, 113, 0.12)';
-            dcaEl.parentElement.style.borderLeftColor = '#f87171';
+            regEl.style.color = '#fbbf24';
           }
+        }
+      }
+
+      if (data.dcaPowderGuide && data.dcaPowderGuide !== 'N/A') {
+        const pwdEl = document.getElementById('dcaPowderGuide');
+        if (pwdEl) {
+          pwdEl.textContent = data.dcaPowderGuide;
+          if (pwdEl.textContent.includes('冷卻中')) {
+            pwdEl.style.color = '#38bdf8';
+          } else if (pwdEl.textContent.includes('加碼')) {
+            pwdEl.style.color = '#34d399';
+          } else if (pwdEl.textContent.includes('強彈') || pwdEl.textContent.includes('觀望')) {
+            pwdEl.style.color = '#fbbf24';
+          } else {
+            pwdEl.style.color = '#a8a29e';
+          }
+        }
+      }
+
+      const cardDca = document.getElementById('dcaCard');
+      if (cardDca) {
+        if (data.phase === '極度恐慌' || data.phase === '恐慌') {
+          cardDca.style.borderLeftColor = '#34d399';
+        } else if (data.phase === '順風/中性') {
+          cardDca.style.borderLeftColor = '#fbbf24';
+        } else {
+          cardDca.style.borderLeftColor = '#f87171';
         }
       }
 
