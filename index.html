@@ -408,59 +408,20 @@
     <!-- TAB 1: 市場戰情 (View Today) -->
     <div id="view-today" class="tab-content active">
 
-    <!-- Hero Cards -->
-    <div class="hero-grid">
-      <div class="glass-card phase-card">
-        <div class="phase-title" id="marketTempTitle">☕ 今日市場溫度</div>
-        <div class="phase-badge" id="phaseBadge">連線中...</div>
-        <div id="phaseDurationText" style="font-size: 13px; font-weight: 700; color: #fde047; margin-top: 6px;">🛒 打折天數計算中...</div>
-        <div id="phaseReliefGuide" style="font-size: 12px; color: #d6d3d1; margin-top: 4px; line-height: 1.5;">基於 18 年動態分位數連動校正</div>
+    <!-- 🧭 第一區塊：開盤/今日作戰卡 (決策導向) -->
+    <div class="glass-card action-guide-card" style="margin-bottom: 28px; border-left: 5px solid #fbbf24; padding: 24px;">
+      <div class="action-header" style="margin-bottom: 14px;">
+        <span id="actionGuideTitle" style="font-size: 1.45rem; font-weight: 800; color: #fbbf24;">🧭 今日開盤作戰卡</span>
       </div>
-      <div class="glass-card action-guide-card">
-        <div class="action-header">
-          <span id="actionGuideTitle">🧭 今日大師給你的操作錦囊</span>
-        </div>
-        <div class="action-body" id="actionGuide">
-          大師正在看盤，請稍候...
-        </div>
+      <div class="action-body" id="actionGuide" style="margin-bottom: 20px;">
+        大師正在看盤，請稍候...
       </div>
-    </div>
 
-    <!-- Phase Analysis Card (v2.5.1 Pure Data Analysis) -->
-    <div class="glass-card" style="margin-bottom: 28px; border-top: 4px solid #38bdf8; padding: 22px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
-        <h3 style="font-size: 1.3rem; font-weight: 700; color: #38bdf8; margin: 0; display: flex; align-items: center; gap: 8px;">
-          🔍 位階分析 <span style="font-size: 12px; background: rgba(56, 189, 248, 0.18); color: #38bdf8; padding: 2px 10px; border-radius: 9999px; font-weight: 600;">18年歷史數據即時算式</span>
-        </h3>
-      </div>
-      <div class="phase-analysis-grid">
-        <div class="phase-analysis-full" style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25);">
-          <div style="color: #94a3b8; font-size: 13px; font-weight: 600; margin-bottom: 6px;">📊 歷史位階百分比</div>
-          <div id="analysisPercentile" style="color: #f1f5f9; font-weight: 700; line-height: 1.6;">分析中...</div>
-        </div>
-        <div style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25);">
-          <div style="color: #94a3b8; font-size: 13px; font-weight: 600; margin-bottom: 6px;">📉 向下邊界安全距離</div>
-          <div id="analysisLowerBound" style="color: #34d399; font-weight: 700; line-height: 1.6;">計算中...</div>
-        </div>
-        <div style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25);">
-          <div style="color: #94a3b8; font-size: 13px; font-weight: 600; margin-bottom: 6px;">📈 向上邊界復甦距離</div>
-          <div id="analysisUpperBound" style="color: #fbbf24; font-weight: 700; line-height: 1.6;">計算中...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- DCA & Powder Double-Track Decision Card -->
-    <div class="glass-card" id="dcaCard" style="margin-bottom: 28px; border-left: 5px solid #9ca3af; padding: 22px;">
-      <div style="margin-bottom: 16px;">
-        <h3 style="font-size: 1.4rem; font-weight: 700; color: #fbbf24; margin: 0; display: flex; align-items: center; gap: 8px;">
-          🛒 定期定額與資金池雙軌決策卡
-        </h3>
-      </div>
-      
-      <div style="display: flex; flex-direction: column; gap: 16px;">
+      <!-- 雙軌決策卡 (卡片下半層) -->
+      <div id="dcaCard" style="display: flex; flex-direction: column; gap: 14px;">
         <!-- Upper Layer: Regular Investment -->
-        <div style="background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.25); border-left: 4px solid #fbbf24;">
-          <div style="font-size: 1rem; font-weight: 700; color: #fbbf24; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;" id="dcaRegularHeader">
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.25); border-left: 4px solid #fbbf24;">
+          <div style="font-size: 0.98rem; font-weight: 700; color: #fbbf24; margin-bottom: 6px;" id="dcaRegularHeader">
             📅 常態定期定額（對照收盤位階）
           </div>
           <div id="dcaRegularGuide" style="font-size: 1.15rem; font-weight: 700; color: #fffbeb;">
@@ -469,8 +430,8 @@
         </div>
 
         <!-- Lower Layer: Powder Manual Allocation -->
-        <div style="background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 12px; border: 1px solid rgba(192, 132, 252, 0.25); border-left: 4px solid #c084fc;">
-          <div style="font-size: 1rem; font-weight: 700; color: #c084fc; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;" id="dcaPowderHeader">
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(192, 132, 252, 0.25); border-left: 4px solid #c084fc;">
+          <div style="font-size: 0.98rem; font-weight: 700; color: #c084fc; margin-bottom: 6px;" id="dcaPowderHeader">
             💣 資金池手動加碼（對照收盤位階 ＋ 昨夜 EWT 動能）
           </div>
           <div id="dcaPowderGuide" style="font-size: 1.15rem; font-weight: 700; color: #fffbeb;">
@@ -480,8 +441,41 @@
       </div>
     </div>
 
+    <!-- 📊 第二區塊：最新收盤結算與位階分析 (數據導向) -->
+    <h2 class="section-title" id="settlementSectionTitle">📊 收盤結算與位階</h2>
+    <div class="hero-grid" style="margin-bottom: 28px;">
+      <div class="glass-card phase-card" style="padding: 24px;">
+        <div class="phase-title" id="marketTempTitle">☕ 收盤位階</div>
+        <div class="phase-badge" id="phaseBadge">連線中...</div>
+        <div id="phaseDurationText" style="font-size: 14px; font-weight: 700; color: #fde047; margin-top: 8px;">🛒 打折天數計算中...</div>
+        <div id="phaseReliefGuide" style="font-size: 13px; color: #d6d3d1; margin-top: 6px; line-height: 1.6;">💡 明日/未來心理預期指南：18 年動態分位數校正</div>
+      </div>
+
+      <!-- Phase Analysis Card (v2.5.1 Pure Data Analysis) -->
+      <div class="glass-card" style="border-top: 4px solid #38bdf8; padding: 22px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 1.25rem; font-weight: 700; color: #38bdf8; margin: 0; display: flex; align-items: center; gap: 8px;">
+            🔍 18年歷史數據位階分析
+          </h3>
+        </div>
+        <div class="phase-analysis-grid">
+          <div class="phase-analysis-full" style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25);">
+            <div style="color: #94a3b8; font-size: 12px; font-weight: 600; margin-bottom: 4px;">📊 歷史位階百分比</div>
+            <div id="analysisPercentile" style="color: #f1f5f9; font-weight: 700; line-height: 1.5; font-size: 0.95rem;">分析中...</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25);">
+            <div style="color: #94a3b8; font-size: 12px; font-weight: 600; margin-bottom: 4px;">📉 向下邊界安全距離</div>
+            <div id="analysisLowerBound" style="color: #34d399; font-weight: 700; line-height: 1.5; font-size: 0.95rem;">計算中...</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25);">
+            <div style="color: #94a3b8; font-size: 12px; font-weight: 600; margin-bottom: 4px;">📈 向上邊界復甦距離</div>
+            <div id="analysisUpperBound" style="color: #fbbf24; font-weight: 700; line-height: 1.5; font-size: 0.95rem;">計算中...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Market Indicators Grid -->
-    <h2 class="section-title">📊 盤面關鍵數據一覽</h2>
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-name">台股加權指數 (TWII)</div>
@@ -972,7 +966,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.7
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.8
       </div>
     </footer>
   </div>
@@ -1047,13 +1041,17 @@
 
       if (lastDate) {
         document.getElementById('dataDate').textContent = `收盤: ${lastDate} | 今日: ${todayDate}`;
+        const guideTitleEl = document.getElementById('actionGuideTitle');
+        if (guideTitleEl) {
+          guideTitleEl.textContent = `🧭 ${todayDate} 今日開盤作戰卡`;
+        }
+        const settlementTitleEl = document.getElementById('settlementSectionTitle');
+        if (settlementTitleEl) {
+          settlementTitleEl.textContent = `📊 ${lastDate} 收盤結算與位階`;
+        }
         const tempTitleEl = document.getElementById('marketTempTitle');
         if (tempTitleEl) {
           tempTitleEl.textContent = `☕ ${lastDate} 收盤位階`;
-        }
-        const guideTitleEl = document.getElementById('actionGuideTitle');
-        if (guideTitleEl) {
-          guideTitleEl.textContent = `🧭 ${todayDate} 開盤指引`;
         }
         const ewtTitleEl = document.getElementById('ewtCardTitle');
         if (ewtTitleEl) {

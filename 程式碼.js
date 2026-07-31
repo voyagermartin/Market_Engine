@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.7 (三段式時間解耦版)
+ * Version: v2.5.8 (早盤作戰 vs 盤後結算敘事重構版)
  */
 
 /**
@@ -195,7 +195,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.7) 更新完成！\n已成功導入三段式時間解耦標籤！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.8) 更新完成！\n已成功導入「早盤作戰 vs 盤後結算」情境化敘事重構！');
 }
 
 /**
