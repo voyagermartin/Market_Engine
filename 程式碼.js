@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.4 (🌱 投資入門到進階 7 大心態 QA 重構升級版)
+ * Version: v2.5.6 (UI 標題與內文時間形容詞客觀化替換版)
  */
 
 /**
@@ -195,7 +195,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.4) 更新完成！\n已成功導入🌱 投資入門到進階 7 大心態 QA 重構升級版！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.6) 更新完成！\n已成功導入 UI 標題與內文時間形容詞客觀化替換！');
 }
 
 /**
@@ -1624,14 +1624,14 @@ function calculateEwtReadiness(ewtValStr) {
   if (!ewtValStr || ewtValStr === 'N/A' || ewtValStr === '') {
     return {
       status: '➡️ 夜盤平穩',
-      guide: '☕ 開盤心理準備：海外市場平靜，今晨台股預計平穩開出，享受平靜的一天。'
+      guide: '☕ 開盤心理準備：海外市場平靜，開盤預計平穩，請按既定策略執行。'
     };
   }
   let val = parseFloat(String(ewtValStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
   if (isNaN(val)) {
     return {
       status: '➡️ 夜盤平穩',
-      guide: '☕ 開盤心理準備：海外市場平靜，今晨台股預計平穩開出，享受平靜的一天。'
+      guide: '☕ 開盤心理準備：海外市場平靜，開盤預計平穩，請按既定策略執行。'
     };
   }
   if (Math.abs(val) > 0.15) val = val / 100;
@@ -1639,27 +1639,27 @@ function calculateEwtReadiness(ewtValStr) {
   if (val <= -0.015) {
     return {
       status: '🚨 夜盤急殺',
-      guide: '⚡ 開盤心理準備：美股夜盤出現重挫，今晨開盤預計面臨較大壓回，請保持冷靜，切勿急於開盤追高殺低！'
+      guide: '⚡ 開盤心理準備：夜盤出現重挫，開盤預計面臨較大拉回，請依照紀律執行，切勿盲目追高殺低。'
     };
   } else if (val <= -0.005) {
     return {
       status: '⚠️ 夜盤回檔',
-      guide: '🌊 開盤心理準備：美股夜盤小幅回檔，今晨開盤可能震盪整理，按既定策略觀察即可。'
+      guide: '🌊 開盤心理準備：夜盤小幅回檔，開盤預計震盪整理，按既定策略觀察即可。'
     };
   } else if (val >= 0.015) {
     return {
       status: '🚀 夜盤大漲',
-      guide: '🔥 開盤心理準備：海外夜盤大幅強彈，今晨開盤多頭氣勢旺盛，耐心守候打折機會。'
+      guide: '🔥 開盤心理準備：夜盤大幅強彈，開盤多頭氣勢旺盛，請耐心守候符合門檻的交易機會。'
     };
   } else if (val >= 0.005) {
     return {
       status: '📈 夜盤偏強',
-      guide: '🌤️ 開盤心理準備：美股夜盤偏強，今晨開盤氛圍偏多，追高宜克制。'
+      guide: '🌤️ 開盤心理準備：夜盤偏強，開盤氛圍偏多，追高宜克制。'
     };
   }
   return {
     status: '➡️ 夜盤平穩',
-    guide: '☕ 開盤心理準備：海外市場平靜，今晨台股預計平穩開出，享受平靜的一天。'
+    guide: '☕ 開盤心理準備：海外市場平靜，開盤預計平穩，請按既定策略執行。'
   };
 }
 
@@ -1854,7 +1854,7 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ewtChange, s
 /**
  * 🔍 v2.5.1 純數據位階分析 (Phase Analysis - 無須 AI API)
  */
-function calculatePhaseAnalysis(d60Val, pValues, phase) {
+function calculatePhaseAnalysis(d60Val, pValues, phase, dataDate) {
   const p10 = (pValues && pValues.dist60) ? pValues.dist60.p10 : -0.082;
   const p25 = (pValues && pValues.dist60) ? pValues.dist60.p25 : -0.032;
   const p75 = (pValues && pValues.dist60) ? pValues.dist60.p75 : 0.065;
@@ -1874,17 +1874,19 @@ function calculatePhaseAnalysis(d60Val, pValues, phase) {
   const p75PctStr = (p75 * 100).toFixed(1) + '%';
   const p90PctStr = (p90 * 100).toFixed(1) + '%';
 
-  let percentileText = `當前季線偏離度為 ${d60PctStr}，位於 P25~P75 常態區間，屬 18 年歷史合理評價範圍。`;
+  const mmDd = (dataDate && dataDate.includes('-')) ? dataDate.split('-').slice(1).join('-') : '收盤';
+
+  let percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，位於 P25~P75 常態區間，屬 18 年歷史合理評價範圍。`;
   if (d60Val < p10) {
-    percentileText = `當前季線偏離度為 ${d60PctStr}，已跌破 P10 極端折價門檻 (${p10PctStr})！這代表當前價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 90% 的交易日都還要深（進入歷史級深層打折區）！`;
+    percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已跌破 P10 極端折價門檻 (${p10PctStr})！這代表價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 90% 的交易日都還要深（進入歷史級深層打折區）！`;
   } else if (d60Val < p25) {
-    percentileText = `當前季線偏離度為 ${d60PctStr}，已跌破 P25 恐慌打折門檻 (${p25PctStr})！這代表當前價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 75% 的交易日都還要深（進入甜甜打折區）！`;
+    percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已跌破 P25 恐慌打折門檻 (${p25PctStr})！這代表價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 75% 的交易日都還要深（進入甜甜打折區）！`;
   } else if (d60Val > p90) {
-    percentileText = `當前季線偏離度為 ${d60PctStr}，已突破 P90 極端過熱門檻 (${p90PctStr})！這代表當前價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 90% 的交易日都還要高（進入歷史級極致高估區）！`;
+    percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已突破 P90 極端過熱門檻 (${p90PctStr})！這代表價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 90% 的交易日都還要高（進入歷史級極致高估區）！`;
   } else if (d60Val > p75) {
-    percentileText = `當前季線偏離度為 ${d60PctStr}，已突破 P75 警戒過熱門檻 (${p75PctStr})！這代表當前價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 75% 的交易日都還要高（進入溢價過熱區）！`;
+    percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已突破 P75 警戒過熱門檻 (${p75PctStr})！這代表價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 75% 的交易日都還要高（進入溢價過熱區）！`;
   } else {
-    percentileText = `當前季線偏離度為 ${d60PctStr}，位於 P25 (${p25PctStr}) ~ P75 (${p75PctStr}) 常態區間！代表價格相對於『近 3 個月平均成本』處於 18 年歷史常態合理評價範圍。`;
+    percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，位於 P25 (${p25PctStr}) ~ P75 (${p75PctStr}) 常態區間！代表價格相對於『近 3 個月平均成本』處於 18 年歷史常態合理評價範圍。`;
   }
 
   let lowerBoundText = '';
@@ -1958,6 +1960,12 @@ function getMarketEngineData() {
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
+  // 0. 讀取最新交易日資料日期，做為客觀時間主語
+  let dateStr = '2026-07-27';
+  if (rawSheet && rawSheet.getLastRow() >= 3) {
+    dateStr = rawSheet.getRange(3, 1).getDisplayValue() || '2026-07-27';
+  }
+
   // 1. 使用 Asia/Taipei 台北時區精準判定時分與休市日狀態 (07:30 老巴早餐 / 16:30 小羅午茶)
   const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
   const currentMinStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'mm');
@@ -1972,12 +1980,12 @@ function getMarketEngineData() {
   const marketStatusPayload = {
     isOpen: status.isOpen,
     reason: status.reason,
-    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ 今日休市 (${status.reason})`,
+    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${dateStr} 休市 (${status.reason})`,
     healthStatus: liveHealth.healthStatus
   };
 
   const data = {
-    date: '2026-07-27',
+    date: dateStr,
     twii: '43,634.19',
     dist60: '-0.87%',
     dist240: '+32.29%',
@@ -2182,7 +2190,7 @@ function getMarketEngineData() {
       data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
     } catch (e) {
       Logger.log('Relief calc error: ' + e.message);
-      data.phaseDurationText = `🛒 當前位階：${data.phase}`;
+      data.phaseDurationText = `🛒 ${data.date} 位階：${data.phase}`;
       data.phaseReliefGuide = `💡 心理指南：按既定策略穩定執行即可。`;
     }
 
@@ -2215,7 +2223,7 @@ function getMarketEngineData() {
           }
         };
       }
-      data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, pValuesRef, data.phase);
+      data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, pValuesRef, data.phase, data.date);
     } catch (e) {
       Logger.log('Phase analysis calc error: ' + e.message);
     }

@@ -395,7 +395,7 @@
     <!-- Main Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="nav-tab active" data-tab="today" onclick="switchTab('today')">
-        <span>☕ 今日戰情</span>
+        <span>☕ 市場戰情</span>
       </button>
       <button class="nav-tab" data-tab="concepts" onclick="switchTab('concepts')">
         <span>💡 觀念導航</span>
@@ -405,20 +405,20 @@
       </button>
     </nav>
 
-    <!-- TAB 1: 今日戰情 (View Today) -->
+    <!-- TAB 1: 市場戰情 (View Today) -->
     <div id="view-today" class="tab-content active">
 
     <!-- Hero Cards -->
     <div class="hero-grid">
       <div class="glass-card phase-card">
-        <div class="phase-title">☕ 今日市場溫度</div>
+        <div class="phase-title" id="marketTempTitle">☕ 今日市場溫度</div>
         <div class="phase-badge" id="phaseBadge">連線中...</div>
         <div id="phaseDurationText" style="font-size: 13px; font-weight: 700; color: #fde047; margin-top: 6px;">🛒 打折天數計算中...</div>
         <div id="phaseReliefGuide" style="font-size: 12px; color: #d6d3d1; margin-top: 4px; line-height: 1.5;">基於 18 年動態分位數連動校正</div>
       </div>
       <div class="glass-card action-guide-card">
         <div class="action-header">
-          <span>🧭 今日大師給你的操作錦囊</span>
+          <span id="actionGuideTitle">🧭 今日大師給你的操作錦囊</span>
         </div>
         <div class="action-body" id="actionGuide">
           大師正在看盤，請稍候...
@@ -896,7 +896,7 @@
       <h2 class="section-title" style="flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;">
         <span>📈 MARKET LAB 18年歷史回測與勝率統計</span>
         <span style="font-size: 13px; color: var(--accent-gold); font-weight: 600; background: rgba(245, 158, 11, 0.12); padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.3); font-family: sans-serif;">
-          📅 最新計算日期：<span id="labCalcDateText">2026-07-29</span>
+          📅 計算日期：<span id="labCalcDateText">2026-07-29</span>
         </span>
       </h2>
       <div class="table-container">
@@ -972,7 +972,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.4
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.6
       </div>
     </footer>
   </div>
@@ -1033,7 +1033,17 @@
 
     function updateDOM(data) {
       if (!data) return;
-      if (data.date && data.date !== 'N/A') document.getElementById('dataDate').textContent = data.date;
+      if (data.date && data.date !== 'N/A') {
+        document.getElementById('dataDate').textContent = data.date;
+        const tempTitleEl = document.getElementById('marketTempTitle');
+        if (tempTitleEl) {
+          tempTitleEl.textContent = `☕ ${data.date} 市場溫度`;
+        }
+        const guideTitleEl = document.getElementById('actionGuideTitle');
+        if (guideTitleEl) {
+          guideTitleEl.textContent = `🧭 ${data.date} 戰術指引`;
+        }
+      }
       
       // 清理舊有控制符號與標籤
       if (data.navMode && data.navMode !== 'N/A') {
@@ -1157,7 +1167,7 @@
       let badge = isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)';
       let story = isMorning 
         ? (data.aiMorningStory || '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！')
-        : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 蓋章收盤！今日加權指數收在 43,634.19 點，季線乖離 -0.92% 屬於便宜區，長線勝率非常高！');
+        : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 蓋章收盤！加權指數收在 43,634.19 點，季線乖離 -0.92% 屬於便宜區，長線勝率非常高！');
       let border = isMorning ? '#818cf8' : '#c084fc';
       let titleColor = isMorning ? '#a5b4fc' : '#e9d5ff';
 
