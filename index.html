@@ -460,8 +460,8 @@
       <div style="display: flex; flex-direction: column; gap: 16px;">
         <!-- Upper Layer: Regular Investment -->
         <div style="background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.25); border-left: 4px solid #fbbf24;">
-          <div style="font-size: 1rem; font-weight: 700; color: #fbbf24; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-            📅 常態定期定額（純位階紀律）
+          <div style="font-size: 1rem; font-weight: 700; color: #fbbf24; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;" id="dcaRegularHeader">
+            📅 常態定期定額（對照收盤位階）
           </div>
           <div id="dcaRegularGuide" style="font-size: 1.15rem; font-weight: 700; color: #fffbeb;">
             決策卡讀取中...
@@ -470,8 +470,8 @@
 
         <!-- Lower Layer: Powder Manual Allocation -->
         <div style="background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 12px; border: 1px solid rgba(192, 132, 252, 0.25); border-left: 4px solid #c084fc;">
-          <div style="font-size: 1rem; font-weight: 700; color: #c084fc; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-            💣 資金池手動加碼（位階 ＋ 夜盤 EWT 雙重動能對照）
+          <div style="font-size: 1rem; font-weight: 700; color: #c084fc; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;" id="dcaPowderHeader">
+            💣 資金池手動加碼（對照收盤位階 ＋ 昨夜 EWT 動能）
           </div>
           <div id="dcaPowderGuide" style="font-size: 1.15rem; font-weight: 700; color: #fffbeb;">
             決策卡讀取中...
@@ -539,7 +539,7 @@
       </div>
 
       <div class="metric-card" style="grid-column: 1 / -1; border: 1px solid rgba(156, 163, 175, 0.2);">
-        <div class="metric-name">夜盤/EWT漲跌幅 (EWT Change)</div>
+        <div class="metric-name" id="ewtCardTitle">🌙 夜盤/EWT動能 (EWT Change)</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valEwtChange">連線中...</span>
           <span class="metric-tag" id="tagEwtChange" style="color: #9ca3af; background: rgba(156, 163, 175, 0.08);">連線中...</span>
@@ -972,7 +972,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.6
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.5.7
       </div>
     </footer>
   </div>
@@ -1033,15 +1033,39 @@
 
     function updateDOM(data) {
       if (!data) return;
-      if (data.date && data.date !== 'N/A') {
-        document.getElementById('dataDate').textContent = data.date;
+
+      const lastDate = data.lastDataDate || data.date || '';
+      let todayDate = data.todayDate;
+      if (!todayDate) {
+        try {
+          todayDate = new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).replace(/\//g, '-');
+        } catch (e) {
+          todayDate = lastDate;
+        }
+      }
+      const ewtDate = data.ewtDate || todayDate;
+
+      if (lastDate) {
+        document.getElementById('dataDate').textContent = `收盤: ${lastDate} | 今日: ${todayDate}`;
         const tempTitleEl = document.getElementById('marketTempTitle');
         if (tempTitleEl) {
-          tempTitleEl.textContent = `☕ ${data.date} 市場溫度`;
+          tempTitleEl.textContent = `☕ ${lastDate} 收盤位階`;
         }
         const guideTitleEl = document.getElementById('actionGuideTitle');
         if (guideTitleEl) {
-          guideTitleEl.textContent = `🧭 ${data.date} 戰術指引`;
+          guideTitleEl.textContent = `🧭 ${todayDate} 開盤指引`;
+        }
+        const ewtTitleEl = document.getElementById('ewtCardTitle');
+        if (ewtTitleEl) {
+          ewtTitleEl.textContent = `🌙 ${ewtDate} 夜盤動能 (EWT Change)`;
+        }
+        const regHeaderEl = document.getElementById('dcaRegularHeader');
+        if (regHeaderEl) {
+          regHeaderEl.textContent = `📅 常態定期定額（對照 ${lastDate} 收盤位階）`;
+        }
+        const pwdHeaderEl = document.getElementById('dcaPowderHeader');
+        if (pwdHeaderEl) {
+          pwdHeaderEl.textContent = `💣 資金池手動加碼（對照 ${lastDate} 收盤位階 ＋ 昨夜 EWT 動能）`;
         }
       }
       

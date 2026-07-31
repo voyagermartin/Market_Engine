@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.6 (UI 標題與內文時間形容詞客觀化替換版)
+ * Version: v2.5.7 (三段式時間解耦版)
  */
 
 /**
@@ -195,7 +195,7 @@ function setupMarketEngineV3() {
   ss.setActiveSheet(dashboardSheet);
   ss.moveActiveSheet(1);
 
-  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.6) 更新完成！\n已成功導入 UI 標題與內文時間形容詞客觀化替換！');
+  SpreadsheetApp.getUi().alert('🎉 Market Engine V3 (v2.5.7) 更新完成！\n已成功導入三段式時間解耦標籤！');
 }
 
 /**
@@ -1961,10 +1961,12 @@ function getMarketEngineData() {
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
   // 0. 讀取最新交易日資料日期，做為客觀時間主語
-  let dateStr = '2026-07-27';
+  let lastDataDate = '2026-07-27';
   if (rawSheet && rawSheet.getLastRow() >= 3) {
-    dateStr = rawSheet.getRange(3, 1).getDisplayValue() || '2026-07-27';
+    lastDataDate = rawSheet.getRange(3, 1).getDisplayValue() || '2026-07-27';
   }
+  const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  const ewtDateStr = todayDateStr;
 
   // 1. 使用 Asia/Taipei 台北時區精準判定時分與休市日狀態 (07:30 老巴早餐 / 16:30 小羅午茶)
   const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
@@ -1980,12 +1982,15 @@ function getMarketEngineData() {
   const marketStatusPayload = {
     isOpen: status.isOpen,
     reason: status.reason,
-    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${dateStr} 休市 (${status.reason})`,
+    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${lastDataDate} 休市 (${status.reason})`,
     healthStatus: liveHealth.healthStatus
   };
 
   const data = {
-    date: dateStr,
+    date: lastDataDate,
+    lastDataDate: lastDataDate,
+    todayDate: todayDateStr,
+    ewtDate: ewtDateStr,
     twii: '43,634.19',
     dist60: '-0.87%',
     dist240: '+32.29%',
