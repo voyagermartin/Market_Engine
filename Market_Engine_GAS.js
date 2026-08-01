@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
+ * Version: v2.7.1 (FIN-NEWS 事件卡片文字精簡與標頭完全清理)
  */
 
 /**
@@ -2758,7 +2758,7 @@ function fetchUpcomingMarketEvents() {
     "eventName": "事件名稱 (例如：Fed FOMC 利率決策會議)",
     "eventDate": "事件日期 (格式：yyyy-MM-dd，必須大於等於 ${todayStr})",
     "importance": "【為什麼重要】1~2 句話說明對台股/AI鏈/全球資金之實質含意",
-    "impactAndStrategy": "【盤面影響與資金池戰術指南】1~2 句話給予資金池與操作調度建議"
+    "impactAndStrategy": "1~2 句話給予資金池與操作調度建議"
   }
 ]
 `;
@@ -2795,8 +2795,8 @@ function fetchUpcomingMarketEvents() {
       eventName: evt.eventName || '未知重大事件',
       eventDate: evt.eventDate || todayStr,
       countdownDays: countdownDays,
-      importance: evt.importance || '關注全球資金流動性與產業趨勢。',
-      impactAndStrategy: evt.impactAndStrategy || '保持冷靜，貫徹紀律扣款。'
+      importance: (evt.importance || '關注全球資金流動性與產業趨勢。').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, ''),
+      impactAndStrategy: (evt.impactAndStrategy || '保持冷靜，貫徹紀律扣款。').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '')
     };
   });
 
@@ -2857,6 +2857,12 @@ function getFinNewsCombinedPayload() {
           const diffMs = evtD.getTime() - now.getTime();
           evt.countdownDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
         } catch (e) {}
+      }
+      if (evt.importance) {
+        evt.importance = evt.importance.replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, '');
+      }
+      if (evt.impactAndStrategy) {
+        evt.impactAndStrategy = evt.impactAndStrategy.replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '');
       }
       return evt;
     });

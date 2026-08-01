@@ -1108,7 +1108,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.6.0
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.7.1
       </div>
     </footer>
   </div>
@@ -1561,6 +1561,9 @@
             const badgeBorder = days <= 14 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.3)';
             const badgeText = days === 0 ? '🔥 今日登場' : `⏱️ 距今 ${days} 天`;
 
+            const cleanImportance = (evt.importance || '').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, '');
+            const cleanImpact = (evt.impactAndStrategy || '').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '');
+
             return `
               <div style="background: rgba(15, 23, 42, 0.65); border-left: 4px solid ${badgeColor}; border-radius: 14px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.08);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
@@ -1571,10 +1574,10 @@
                   </div>
                 </div>
                 <div style="font-size: 0.98rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 8px;">
-                  <strong style="color: #38bdf8;">💡 為什麼重要：</strong>${evt.importance}
+                  ${cleanImportance}
                 </div>
                 <div style="font-size: 0.98rem; color: #fef08a; line-height: 1.6; background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 10px; border-left: 3px solid #fde047;">
-                  <strong style="color: #fde047;">🛡️ 盤面影響與資金池戰術指南：</strong>${evt.impactAndStrategy}
+                  ${cleanImpact}
                 </div>
               </div>
             `;
