@@ -2527,8 +2527,8 @@ function updateWeeklyFinNewsReport() {
   let payload = {
     isoWeek: isoWeek,
     updateTime: updateTimeStr,
-    storyBuffett: '👴 老巴：「市場就像這杯熱咖啡，短期的波動只是浮在上面的奶泡，而優質企業的長期獲利能力才是底下香醇的濃縮咖啡。只要農場在持續產出好農作物，不必每秒去打聽農場價格，保持紀律扣款即可。」',
-    storySoros: '🦈 小羅：「市場情緒總是習慣從一個極端扭曲到另一個極端。新聞報告裡的每一個關鍵字都在引發反射性連鎖反應。資金池不是拿來拼情緒的，現在的任務是觀察情緒過度修正後的流動性缺口，維持冷靜與防守！」',
+    storyBuffett: '這週報告裡提到 AI 晶片需求與雲端資本支出持續暴增，就像看到優質農場的農作物產量創新高。短期的股市波動只是浮在熱咖啡上的奶泡，企業的實體獲利才是底下香醇的濃縮咖啡。只要企業護城河穩固，保持紀律扣款即可。',
+    storySoros: '本週 CPI 數據與地緣政策消息讓市場情緒在極端之間跳躍。反身性理論告訴我們，市場往往對短期數據過度反應，造成流動性短期扭曲。現在不是盲目跟風的時候，觀察流動性缺口與市場偏離，維持資金池冷靜防守。',
     radarAi: '🟢 樂觀/平穩',
     radarCpi: '🟢 屬性平穩',
     radarGeo: '🟢 風險受控',
@@ -2541,7 +2541,7 @@ function updateWeeklyFinNewsReport() {
   if (apiKey && (aiDocText || cpiDocText || geoDocText)) {
     try {
       const prompt = `
-週中雷達總結｜雙大師說書讀報與趨勢確認
+週中雷達總結｜Kopitiam 老闆幫你讀報紙
 你是我的 Kopitiam 雙大師說書讀報人（News Storyteller）與投資雷達分析員。
 請整合我提供的三份文件（AI / CPI / GEO），只使用其中的資訊。
 請輸出固定 JSON 格式 (必須是合法 JSON，無 Markdown 標記)：
@@ -2557,8 +2557,8 @@ ${geoDocText || '無特殊報告，維持常態發展'}
 
 請回傳 JSON：
 {
-  "storyBuffett": "👴 老巴解讀：以巴菲特語錄風格、生活比喻、長線價值與企業獲利視角，解讀本週新聞脈絡，給予溫暖安定人心的情緒價值（約 80-120 字）。",
-  "storySoros": "🦈 小羅拆解：以索羅斯語錄風格、反身性、市場情緒過度反應與資金戰術視角，精準拆解新聞背後的資金動向與資金池應對邏輯（約 80-120 字）。",
+  "storyBuffett": "以巴菲特語錄風格與生活比喻，【必須具體引用報告中的新聞事例或數據細節】（例如特定的 AI 晶片需求、CPI 數據、關稅或地緣事件），解讀其背後的長線企業獲利與護城河本質。絕對禁止在開頭加上'老巴：'或'老巴解讀：'等前綴名稱，直接輸出導讀內文（約 100-140 字）。",
+  "storySoros": "以索羅斯語錄風格與反身性視角，【必須具體引用報告中的新聞事例或數據細節】（例如具體政策、數據波動或市場恐慌線索），拆解新聞背後的主導偏見與流動性缺口。絕對禁止在開頭加上'小羅：'或'小羅拆解：'等前綴名稱，直接輸出拆解內文（約 100-140 字）。",
   "summaryA": "【A) 本週市場一句話定位】例如：順風但需控速、震盪偏保守、趨勢轉弱觀察中",
   "radarAi": "🟢 樂觀強勁 / 🟡 評價過熱 / 🔴 供給瓶頸 / ➡️ 平穩無虞 - 一句理由",
   "radarCpi": "🟢 通膨降溫 / 🟡 降息延後 / 🔴 通膨復燃 / ➡️ 平穩無虞 - 一句理由",
@@ -2579,6 +2579,8 @@ ${geoDocText || '無特殊報告，維持常態發展'}
       const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.storyBuffett) parsed.storyBuffett = parsed.storyBuffett.replace(/^(老巴|老巴解讀|老巴導讀)[：:\s]*/, '');
+        if (parsed.storySoros) parsed.storySoros = parsed.storySoros.replace(/^(小羅|小羅解讀|小羅拆解)[：:\s]*/, '');
         payload = Object.assign(payload, parsed);
       }
     } catch (err) {
@@ -2711,8 +2713,8 @@ function getFinNewsCombinedPayload() {
   let weeklyData = {
     isoWeek: isoWeek,
     updateTime: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm'),
-    storyBuffett: '👴 老巴：「市場就像這杯熱咖啡，短期的波動只是浮在上面的奶泡，而優質企業的長期獲利能力才是底下香醇的濃縮咖啡。只要農場在持續產出好農作物，不必每秒去打聽農場價格，保持紀律扣款即可。」',
-    storySoros: '🦈 小羅：「市場情緒總是習慣從一個極端扭曲到另一個極端。新聞報告裡的每一個關鍵字都在引發反射性連鎖反應。資金池不是拿來拼情緒的，現在的任務是觀察情緒過度修正後的流動性缺口，維持冷靜與防守！」',
+    storyBuffett: '這週報告裡提到 AI 晶片需求與雲端資本支出持續暴增，就像看到優質農場的農作物產量創新高。短期的股市波動只是浮在熱咖啡上的奶泡，企業的實體獲利才是底下香醇的濃縮咖啡。只要企業護城河穩固，保持紀律扣款即可。',
+    storySoros: '本週 CPI 數據與地緣政策消息讓市場情緒在極端之間跳躍。反身性理論告訴我們，市場往往對短期數據過度反應，造成流動性短期扭曲。現在不是盲目跟風的時候，觀察流動性缺口與市場偏離，維持資金池冷靜防守。',
     radarAi: '🟢 樂觀/平穩',
     radarCpi: '🟢 屬性平穩',
     radarGeo: '🟢 風險受控',
