@@ -613,7 +613,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=RAW_HISTORY!F${rawRow}`,
       `=RAW_HISTORY!G${rawRow}`,
       `=RAW_HISTORY!C${rawRow}`,
-      `=IF(ISBLANK(A${i}), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, OR(C${i}>THRESHOLD_CONFIG!$C$8, D${i}>THRESHOLD_CONFIG!$E$8), THRESHOLD_CONFIG!$B$8, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))`,
+      `=IF(OR(ISBLANK(A${i}), WEEKDAY(A${i}, 2)>5), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, OR(C${i}>THRESHOLD_CONFIG!$C$8, D${i}>THRESHOLD_CONFIG!$E$8), THRESHOLD_CONFIG!$B$8, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (INDIRECT("B"&(ROW()-252)) - B${i}) / B${i}, "")`
@@ -741,13 +741,31 @@ function verifyLabBacktest(sheet) {
     return { success: false, message: '找不到分頁 LAB_BACKTEST 或 RAW_HISTORY' };
   }
 
+  // 僅統計台股實體交易日 (過濾 WEEKDAY > 5 之週末休市列)
+  let validRowCount = 0;
+  if (rawSheet && rawSheet.getLastRow() >= 3) {
+    const totalRaw = rawSheet.getLastRow() - 2;
+    const dates = rawSheet.getRange(3, 1, totalRaw, 1).getValues();
+    for (let i = 0; i < dates.length; i++) {
+      if (dates[i][0]) {
+        let dObj = null;
+        if (dates[i][0] instanceof Date) {
+          dObj = dates[i][0];
+        } else {
+          dObj = new Date(String(dates[i][0]).replace(/-/g, '/') + ' 00:00:00');
+        }
+        const dayOfWeek = dObj.getDay(); // 0 = Sun, 6 = Sat
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          validRowCount++;
+        }
+      }
+    }
+  }
+
   const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
   const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
   if (historyLogSheet) {
-    const historyRowCount = Math.max(0, historyLogSheet.getLastRow() - 2);
-    if (historyRowCount < rawRowCount) {
-      applyHistoryLogFormulas(historyLogSheet, 3, 2 + rawRowCount);
-    }
+    applyHistoryLogFormulas(historyLogSheet, 3, 2 + rawRowCount);
   }
 
   SpreadsheetApp.flush();
@@ -770,12 +788,12 @@ function verifyLabBacktest(sheet) {
 
   const checks = [];
 
-  // Audit 1: 總天數一致性
-  const isTotalMatch = (totalCount === rawRowCount);
+  // Audit 1: 總天數一致性 (純實體交易日)
+  const isTotalMatch = (totalCount === validRowCount);
   checks.push({
-    name: '1. 總天數一致性稽核',
+    name: '1. 總天數一致性稽核 (純實體交易日)',
     pass: isTotalMatch,
-    detail: `位階天數和: ${totalCount} 天, RAW_HISTORY 資料列: ${rawRowCount} 天`
+    detail: `位階天數和: ${totalCount} 天, RAW_HISTORY 實體台股交易列: ${validRowCount} 天 (已自動扣除休市列)`
   });
 
   // Audit 2: 佔比百分之百
@@ -796,11 +814,11 @@ function verifyLabBacktest(sheet) {
   });
 
   // Audit 4: 歷史涵蓋度
-  const isSufficientHistory = (rawRowCount >= 4000);
+  const isSufficientHistory = (validRowCount >= 4000);
   checks.push({
     name: '4. 18年歷史涵蓋度稽核',
     pass: isSufficientHistory,
-    detail: `累積交易日數: ${rawRowCount} 筆 (>= 4,000 筆)`
+    detail: `累積實體交易日數: ${validRowCount} 筆 (>= 4,000 筆)`
   });
 
   const allPassed = checks.every(c => c.pass);
