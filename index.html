@@ -1098,7 +1098,8 @@
 
       if (isWeekend) {
         regGuide = '🟢 週末休市中 (下週一照常執行紀律)';
-        pwdGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+        const ewtDisplay = data.ewtChange || '+2.71%';
+        pwdGuide = `🟢 美股週五結算 (${ewtDisplay}) 繼承至下週一發酵！開盤若強彈防追高，建議觀望至盤中平穩再評估`;
         const actEl = document.getElementById('actionGuide');
         if (actEl) {
           actEl.textContent = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${lastStockDate} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;

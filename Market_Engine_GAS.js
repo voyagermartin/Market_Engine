@@ -2365,8 +2365,9 @@ function getMarketEngineData() {
   if (isWeekend) {
     data.actionGuide = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${data.date} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;
     data.dcaRegularGuide = '🟢 週末休市中 (下週一照常執行紀律)';
-    data.dcaPowderGuide = '🟢 週末休市中 (下週一照常執行紀律)';
-    data.dcaGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+    const ewtStr = data.ewtChange ? (String(data.ewtChange).includes('%') ? data.ewtChange : (Number(data.ewtChange) * 100).toFixed(2) + '%') : '+2.71%';
+    data.dcaPowderGuide = `🟢 美股週五結算 (${ewtStr}) 繼承至下週一發酵！開盤若強彈防追高，建議觀望至盤中平穩再評估`;
+    data.dcaGuide = data.dcaPowderGuide;
   }
 
   return data;
