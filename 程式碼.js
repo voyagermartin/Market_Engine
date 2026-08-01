@@ -1426,7 +1426,18 @@ function updateMorningMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，執行休市 AI 導航。`);
+    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，更新最新交易日夜盤 EWT 與 VIX 後執行休市 AI 導航。`);
+    try {
+      const realData = fetchRealMarketData();
+      if (realData.ewtChange !== null) {
+        rawSheet.getRange(3, 10).setValue(realData.ewtChange);
+      }
+      if (realData.vix !== null) {
+        rawSheet.getRange(3, 3).setValue(realData.vix);
+      }
+    } catch (e) {
+      Logger.log('[Morning Update] 休市日擷取美股夜盤失敗: ' + e.message);
+    }
     generateMorningNavigation();
     return;
   }
