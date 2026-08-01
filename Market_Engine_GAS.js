@@ -2539,7 +2539,10 @@ function updateWeeklyFinNewsReport() {
   if (apiKey && (aiDocText || cpiDocText || geoDocText)) {
     try {
       const prompt = `
-你是一位精準、權威且注重資本安全的投資總監。請閱讀以下本週 (${isoWeek}) 的三份研究報告 (AI產業、CPI通膨、地緣政治)：
+週中雷達總結｜確認趨勢，不抓低點
+你是我的投資雷達分析員。
+請整合我提供的三份文件（AI / CPI / GEO），只使用其中的資訊。
+請輸出固定 JSON 格式 (必須是合法 JSON，無 Markdown 標記)，協助我更新長期存股情勢，而不是做短線判斷：
 
 【AI產業報告 (${isoWeek}_AI)】:
 ${aiDocText || '無特殊報告，維持常態發展'}
@@ -2550,15 +2553,15 @@ ${cpiDocText || '無特殊報告，維持常態發展'}
 【地緣政治報告 (${isoWeek}_GEO)】:
 ${geoDocText || '無特殊報告，維持常態發展'}
 
-請根據上述報告內文，輸出以下 JSON 格式 (必須是合法 JSON，無任何 Markdown 標記)：
+請回傳 JSON：
 {
-  "radarAi": "燈號 (限選：🟢 樂觀強勁 / 🟡 評價過熱 / 🔴 供給瓶頸 / ➡️ 平穩無虞)",
-  "radarCpi": "燈號 (限選：🟢 通膨降溫 / 🟡 降息延後 / 🔴 通膨復燃 / ➡️ 平穩無虞)",
-  "radarGeo": "燈號 (限選：🟢 風險可控 / 🟡 局部升溫 / 🔴 系統性升級 / ➡️ 平穩無虞)",
-  "summaryA": "【本週定位與核心敘事】簡短兩句說明本週主導市場的核心題材",
-  "summaryC": "【波動性質判讀】說明當前波動屬於評價修正、景氣疑慮或系統風險",
-  "summaryD": "【資金池態度建議】給予資金池與手動加碼的冷靜調度建議",
-  "summaryE": "【一句話操作備忘】25 字內極致精準的紀律備忘"
+  "summaryA": "【A) 本週市場一句話定位】例如：順風但需控速、震盪偏保守、趨勢轉弱觀察中",
+  "radarAi": "🟢 樂觀強勁 / 🟡 評價過熱 / 🔴 供給瓶頸 / ➡️ 平穩無虞 - 一句理由",
+  "radarCpi": "🟢 通膨降溫 / 🟡 降息延後 / 🔴 通膨復燃 / ➡️ 平穩無虞 - 一句理由",
+  "radarGeo": "🟢 風險可控 / 🟡 局部升溫 / 🔴 系統性升級 / ➡️ 平穩無虞 - 一句理由",
+  "summaryC": "【C) 市場波動性質判定】判定屬於 ①情緒型下跌 ②估值修正型下跌 ③景氣轉折型下跌 ④系統性風險型下跌 (可一主一次)，並列出 3–5 個判定依據（引用雷達內容）",
+  "summaryD": "【D) 對資金池的態度建議】限選：允許分批動用 / 緩慢觀察 / 暫停動用 / 禁止動用",
+  "summaryE": "【E) 給我長期存股的一句話週備忘】≤25字"
 }
 `;
       const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
@@ -2592,19 +2595,22 @@ function checkCrashEmergencyDefense() {
   const ss = getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   const updateTimeStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  const isoWeek = getIsoWeekString(new Date());
   
   let crashPayload = {
     isTriggered: false,
     triggerReason: '',
     dropPoints: 0,
-    classification: '無急煞/大盤平穩',
-    analysisText: '近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。請按既定紀律穩定執行即可。',
+    classification: '① 情緒型下跌',
+    reasons: [],
+    powderAdvice: '暫緩',
+    warningTip: '保持冷靜，不跟風盲目砍單，依照紀律執行。',
+    analysisText: '近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。',
     dateStr: updateTimeStr
   };
 
   if (rawSheet && rawSheet.getLastRow() >= 5) {
     const rawData = rawSheet.getRange(3, 1, 5, 10).getValues();
-    // 找出近 2 個實體交易日 TWII
     let validTwii = [];
     for (let i = 0; i < rawData.length; i++) {
       const twiiVal = Number(rawData[i][1]);
@@ -2623,24 +2629,43 @@ function checkCrashEmergencyDefense() {
         crashPayload.dropPoints = dropPoints;
         crashPayload.triggerReason = `近 2 日大盤重挫 ${dropPoints} 點 (觸發千點緊急防禦門檻)`;
 
+        // 讀取 Docs 作為 context
+        let aiText = '', cpiText = '', geoText = '';
+        try {
+          const folder = DriveApp.getFolderById('1njhACTKWfbtwKdYoPmKDDJshLjf3N6op');
+          const files = folder.getFiles();
+          while (files.hasNext()) {
+            const file = files.next();
+            const fName = file.getName();
+            if (fName.includes(isoWeek + '_AI')) aiText = DocumentApp.openById(file.getId()).getBody().getText();
+            if (fName.includes(isoWeek + '_CPI')) cpiText = DocumentApp.openById(file.getId()).getBody().getText();
+            if (fName.includes(isoWeek + '_GEO')) geoText = DocumentApp.openById(file.getId()).getBody().getText();
+          }
+        } catch (e) {}
+
         const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
         if (apiKey) {
           try {
             const prompt = `
-台股近 2 個交易日出現大跌重挫：
-今日收盤：${todayTwii}，前天收盤：${prevTwii}，累積下殺：${dropPoints} 點！
+事件檢查｜這次跌是錯殺，還是真的變了？
+你是我的市場風險鑑別助理。請只使用我提供的文件資訊，不補外部資訊，協助我判斷近期市場下跌或劇烈波動重挫 ${dropPoints} 點的性質。
+原則：只用「最相關的那一份」或兩份（關稅/政策→GEO+AI，通膨數據→CPI，科技暴跌→AI+CPI），避免噪音。
 
-請身為投資總監進行緊急洗盤鑑別：
-這波下殺屬於以下 4 種分類中的哪一種？
-1. 情緒性洗盤 (Market Sentiment Cleansing)
-2. 估值過熱修正 (Valuation Contraction)
-3. 景氣衰退疑慮 (Recession Risk)
-4. 系統性黑天鵝 (Systemic Black Swan)
+【AI報告 (${isoWeek}_AI)】:
+${aiText || '無'}
 
-請輸出 JSON (無 Markdown 標記)：
+【CPI報告 (${isoWeek}_CPI)】:
+${cpiText || '無'}
+
+【GEO報告 (${isoWeek}_GEO)】:
+${geoText || '無'}
+
+請輸出 JSON 格式 (必須是合法 JSON，無 Markdown 標記)：
 {
-  "classification": "鑑別分類名稱 (限選上述 4 選 1)",
-  "analysisText": "約 120 字說明下殺本質、市場恐慌情緒來源與資金池應對建議"
+  "classification": "波動性質主判定 (限選：① 情緒型下跌 / ② 估值修正型下跌 / ③ 景氣轉折型下跌 / ④ 系統性風險型下跌)",
+  "reasons": ["判定依據 1 (必須引用文件中的具體線索如訂單、CPI、油價、航運)", "判定依據 2", "判定依據 3"],
+  "powderAdvice": "對資金池的態度建議 (限選：可分批動用 / 暫緩 / 不可動用)",
+  "warningTip": "一句話提醒 (≤25字，用來避免我情緒化行動)"
 }
 `;
             const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
@@ -2653,8 +2678,10 @@ function checkCrashEmergencyDefense() {
             const jsonMatch = resp.getContentText().match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = JSON.parse(jsonMatch[0]);
-              crashPayload.classification = parsed.classification || '情緒性洗盤';
-              crashPayload.analysisText = parsed.analysisText || '大盤出現劇烈震盪，建議保持冷靜，資金池切勿急於早盤一次性耗盡。';
+              crashPayload.classification = parsed.classification || '① 情緒型下跌';
+              crashPayload.reasons = parsed.reasons || [];
+              crashPayload.powderAdvice = parsed.powderAdvice || '暫緩';
+              crashPayload.warningTip = parsed.warningTip || '保持冷靜，不跟風砍單。';
             }
           } catch (e) {
             Logger.log('[Crash Defense Prompt Error] ' + e.message);

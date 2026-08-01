@@ -958,19 +958,19 @@
     <!-- TAB 4: FIN-NEWS 戰情室 (View Fin-News) -->
     <div id="view-finnews" class="tab-content">
       
-      <!-- 🚨 卡片二：突發大跌事件鑑別卡 (2日千點大跌緊急觸發 / 平穩展示) -->
-      <div id="crashDefenseCard" class="glass-card" style="margin-bottom: 28px; border: 1px solid rgba(52, 211, 153, 0.3); background: rgba(20, 40, 30, 0.65); padding: 24px; border-radius: 18px;">
+      <!-- 🚨 卡片二：突發大跌事件鑑別 (2日千點大跌緊急觸發，平時隱藏) -->
+      <div id="crashDefenseCard" class="glass-card" style="display: none; margin-bottom: 28px; border: 1px solid rgba(239, 68, 68, 0.6); background: rgba(60, 20, 20, 0.85); padding: 24px; border-radius: 18px; box-shadow: 0 0 25px rgba(239, 68, 68, 0.3);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 24px;">🚨</span>
-            <h3 style="font-size: 1.3rem; font-weight: 800; color: #fde047; margin: 0;">突發大跌事件鑑別卡</h3>
+            <h3 style="font-size: 1.3rem; font-weight: 800; color: #fde047; margin: 0;">突發大跌事件鑑別</h3>
           </div>
-          <span id="crashDefenseBadge" class="metric-tag" style="background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); font-size: 13px; font-weight: 700;">
-            🟢 近期未觸發急煞大跌機制 (大盤運作平穩)
+          <span id="crashDefenseBadge" class="metric-tag" style="background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 13px; font-weight: 700;">
+            🚨 事件觸發中
           </span>
         </div>
         <div id="crashDefenseBody" style="font-size: 1.05rem; color: #fef3c7; line-height: 1.8;">
-          近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。請按既定紀律穩定執行即可。
+          加載中...
         </div>
         <div id="crashDefenseTime" style="margin-top: 14px; font-size: 13px; color: var(--text-muted); text-align: right;">
           檢查時間: --
@@ -1483,7 +1483,7 @@
         if (sE && w.summaryE) sE.textContent = w.summaryE;
         if (uTime && w.updateTime) uTime.textContent = `上次解析更新時間: ${w.updateTime}`;
 
-        // 🚨 突發大跌事件鑑別卡渲染
+        // 🚨 突發大跌事件鑑別 (平時隱藏，觸發時顯示)
         const crashCard = document.getElementById('crashDefenseCard');
         const crashBadge = document.getElementById('crashDefenseBadge');
         const crashBody = document.getElementById('crashDefenseBody');
@@ -1491,23 +1491,27 @@
 
         if (crashCard && crashBadge && crashBody) {
           if (c.isTriggered) {
-            crashCard.style.border = '1px solid rgba(239, 68, 68, 0.6)';
-            crashCard.style.background = 'rgba(60, 20, 20, 0.85)';
-            crashCard.style.boxShadow = '0 0 25px rgba(239, 68, 68, 0.3)';
-            crashBadge.style.background = 'rgba(239, 68, 68, 0.25)';
-            crashBadge.style.color = '#f87171';
-            crashBadge.style.borderColor = 'rgba(239, 68, 68, 0.5)';
-            crashBadge.textContent = `🚨 ${c.classification || '大跌洗盤'} (${c.triggerReason || '大跌觸發'})`;
-            crashBody.textContent = c.analysisText || '大盤出現急煞，請保持冷靜與資金池防守紀律。';
+            crashCard.style.display = 'block';
+            crashBadge.textContent = `🚨 ${c.classification || '情緒型下跌'} (${c.triggerReason || '大跌觸發'})`;
+            
+            let reasonsHtml = '';
+            if (Array.isArray(c.reasons) && c.reasons.length > 0) {
+              reasonsHtml = '<ul style="margin: 8px 0 12px 20px; padding: 0;">' + c.reasons.map(r => `<li>${r}</li>`).join('') + '</ul>';
+            } else if (c.analysisText) {
+              reasonsHtml = `<p>${c.analysisText}</p>`;
+            }
+
+            crashBody.innerHTML = `
+              <div style="font-weight: 700; color: #fde047; margin-bottom: 6px;">【波動性質主判定】${c.classification || '① 情緒型下跌'}</div>
+              <div style="font-weight: 700; color: #cbd5e1; margin-top: 10px;">【判定依據】</div>
+              ${reasonsHtml}
+              <div style="margin-top: 12px; background: rgba(0,0,0,0.3); padding: 12px 16px; border-radius: 10px; border-left: 4px solid #f87171;">
+                <div style="font-weight: 700; color: #f87171;">【對資金池的態度建議】: ${c.powderAdvice || '暫緩'}</div>
+                <div style="font-weight: 700; color: #fef08a; margin-top: 4px;">【一句話提醒】: ${c.warningTip || '保持冷靜，避免情緒化行動。'}</div>
+              </div>
+            `;
           } else {
-            crashCard.style.border = '1px solid rgba(52, 211, 153, 0.3)';
-            crashCard.style.background = 'rgba(20, 40, 30, 0.65)';
-            crashCard.style.boxShadow = 'none';
-            crashBadge.style.background = 'rgba(52, 211, 153, 0.15)';
-            crashBadge.style.color = '#34d399';
-            crashBadge.style.borderColor = 'rgba(52, 211, 153, 0.3)';
-            crashBadge.textContent = '🟢 近期未觸發急煞大跌機制 (大盤運作平穩)';
-            crashBody.textContent = '近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。請按既定紀律穩定執行即可。';
+            crashCard.style.display = 'none';
           }
           if (crashTime) crashTime.textContent = `檢查時間: ${c.dateStr || c.updateTime || '--'}`;
         }
