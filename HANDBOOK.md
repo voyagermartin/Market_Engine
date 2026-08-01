@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.6.0)
+# HANDBOOK.md (v2.7.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -86,7 +86,7 @@
 v2.5.5 「定期定額 vs. 資金池加碼雙軌決策機制」升級，將常態定期定額扣款（純位階判定）與手動靈活動用資金池（位階＋EWT Change 夜盤強彈防追高）決策解耦，並重構 UI 雙軌決策卡！
 
 ## ⑩ Current Version
-v2.6.0 (FIN-NEWS 獨立分頁與大跌緊急觸發機制版)
+v2.7.0 (未來重大事件倒數雷達與 FIN-NEWS 升級版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -94,7 +94,7 @@ v2.6.0 (FIN-NEWS 獨立分頁與大跌緊急觸發機制版)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.6.0 FIN-NEWS 4th SPA 分頁、Google Docs 報告解析、週二 18:00 雷達觸發器與近 2 日千點大跌緊急防禦鑑別卡完工！
+- **目前停止位置**: v2.7.0 未來重大事件倒數雷達 (Event Calendar)、Google Docs 報告解析與雙大師讀報完工！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -249,6 +249,16 @@ v2.6.0 (FIN-NEWS 獨立分頁與大跌緊急觸發機制版)
 - **Glassmorphic 對話卡片標題調整 (`index.html`)**：
   - 於 `📰 FIN-NEWS` 頁面頂部將標題精準命名為「☕ **Kopitiam 老闆幫你讀報紙**」，並自動清理前綴重複文字。
 - **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+
+### 📅 2026-08-01 未來重大事件倒數雷達 (Event Calendar) 發布 (v2.7.0)
+- **未來重大事件倒數雷達引擎 (`fetchUpcomingMarketEvents`)**：
+  - 自動呼叫 Gemini API 掃描並篩選未來 30~60 天權重最高的前 3~5 個重大事件（台積電法說會、Fed FOMC 利率決策、CPI 發布、NVIDIA 財報、美國大選政策等）。
+  - 自動產出事件名稱、事件日期、倒數天數、重要性說明（含對台股/AI鏈實質含意）與資金池戰術指南。
+  - 動態每日倒數天數計算，確保倒數天數 100% 精準。
+- **Web App 頁面卡片渲染 (`index.html`)**：
+  - 於 `📰 FIN-NEWS` 頁面新增 Glassmorphic 「🗓️ **未來重大事件倒數雷達**」時間軸卡片，附帶動態倒數 Badge（如 `⏱️ 距今 13 天`）、重要性與大師戰術指引。
+- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 v2.7.0，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+
 
 
 

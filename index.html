@@ -995,6 +995,26 @@
               小羅正在掃描市場情緒與流動性缺口...
             </div>
           </div>
+      </div>
+
+      <!-- 🗓️ 卡片：未來重大事件倒數雷達 (Event Calendar Countdown Radar) -->
+      <div id="upcomingEventsCard" class="glass-card" style="margin-bottom: 28px; border: 1px solid rgba(56, 189, 248, 0.35); background: rgba(15, 25, 40, 0.7); padding: 26px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 28px;">🗓️</span>
+            <div>
+              <h2 style="font-size: 1.4rem; font-weight: 800; color: #38bdf8; margin: 0;">未來重大事件倒數雷達</h2>
+              <div style="font-size: 13px; color: #cbd5e1;">自動追蹤未來 30~60 天全球總經與半導體法說會重大事件</div>
+            </div>
+          </div>
+          <span style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 10px;">
+            ⏱️ 動態倒數中
+          </span>
+        </div>
+
+        <!-- 事件列表容器 -->
+        <div id="upcomingEventsList" style="display: flex; flex-direction: column; gap: 16px;">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">載入未來重大事件倒數中...</div>
         </div>
       </div>
       
@@ -1532,6 +1552,36 @@
         if (sD && w.summaryD) sD.textContent = w.summaryD;
         if (sE && w.summaryE) sE.textContent = w.summaryE;
         if (uTime && w.updateTime) uTime.textContent = `上次解析更新時間: ${w.updateTime}`;
+
+        // 🗓️ 未來重大事件倒數雷達動態渲染
+        const eventsContainer = document.getElementById('upcomingEventsList');
+        if (eventsContainer && Array.isArray(fn.upcomingEvents) && fn.upcomingEvents.length > 0) {
+          eventsContainer.innerHTML = fn.upcomingEvents.map(evt => {
+            const days = evt.countdownDays !== undefined ? evt.countdownDays : 0;
+            const badgeBg = days <= 14 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)';
+            const badgeColor = days <= 14 ? '#f87171' : '#38bdf8';
+            const badgeBorder = days <= 14 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.3)';
+            const badgeText = days === 0 ? '🔥 今日登場' : `⏱️ 距今 ${days} 天`;
+
+            return `
+              <div style="background: rgba(15, 23, 42, 0.65); border-left: 4px solid ${badgeColor}; border-radius: 14px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.08);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                  <div style="font-size: 1.1rem; font-weight: 800; color: #f1f5f9;">${evt.eventName}</div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">📅 ${evt.eventDate}</span>
+                    <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px;">${badgeText}</span>
+                  </div>
+                </div>
+                <div style="font-size: 0.98rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 8px;">
+                  <strong style="color: #38bdf8;">💡 為什麼重要：</strong>${evt.importance}
+                </div>
+                <div style="font-size: 0.98rem; color: #fef08a; line-height: 1.6; background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 10px; border-left: 3px solid #fde047;">
+                  <strong style="color: #fde047;">🛡️ 盤面影響與資金池戰術指南：</strong>${evt.impactAndStrategy}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
 
         // 🚨 突發大跌事件鑑別 (平時隱藏，觸發時顯示)
         const crashCard = document.getElementById('crashDefenseCard');

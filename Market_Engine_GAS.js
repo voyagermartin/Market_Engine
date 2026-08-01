@@ -19,6 +19,7 @@ function onOpen() {
     .addSeparator()
     .addItem('📰 執行週中 Fin-News 解析 (updateWeeklyFinNewsReport)', 'updateWeeklyFinNewsReport')
     .addItem('🚨 執行大跌緊急觸發測試 (checkCrashEmergencyDefense)', 'checkCrashEmergencyDefense')
+    .addItem('🗓️ 執行未來重大事件倒數雷達 (fetchUpcomingMarketEvents)', 'fetchUpcomingMarketEvents')
     .addSeparator()
     .addItem('📡 測試即時行情 API 連線 (testRealMarketApiFetch)', 'testRealMarketApiFetch')
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
@@ -2590,6 +2591,14 @@ ${geoDocText || '無特殊報告，維持常態發展'}
 
   // 寫入 ScriptProperties 進行持久化
   PropertiesService.getScriptProperties().setProperty('FIN_NEWS_WEEKLY_PAYLOAD', JSON.stringify(payload));
+  
+  // 自動觸發未來重大事件倒數雷達更新
+  try {
+    fetchUpcomingMarketEvents();
+  } catch (e) {
+    Logger.log('[Weekly Events Update Warning] ' + e.message);
+  }
+
   Logger.log('[Fin-News Weekly Update Completed] ' + isoWeek);
   return payload;
 }
@@ -2702,12 +2711,111 @@ ${geoText || '無'}
 }
 
 /**
+ * 🗓️ 未來重大事件倒數雷達自動化擷取與解析 (v2.7.0)
+ * 自動搜尋/推理未來 30~60 天內權重最高的前 3~5 個重大事件 (TSMC Earnings, Fed FOMC, CPI, NVDA, Elections)
+ */
+function fetchUpcomingMarketEvents() {
+  const now = new Date();
+  const todayStr = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd');
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
+  
+  let defaultEvents = [
+    {
+      eventName: "美國 7 月 CPI 通膨數據公布",
+      eventDate: "2026-08-14",
+      importance: "通膨降溫速度直接影響美聯儲 9 月降息空間與美債殖利率走向。",
+      impactAndStrategy: "若數據高於預期短期可能打壓科技股評價，此時打折區位階將具備極佳安全邊際。"
+    },
+    {
+      eventName: "NVIDIA (NVDA) 季度財報與 AI 展望",
+      eventDate: "2026-08-27",
+      importance: "全球 AI 產業供應鏈（含台股 CoWoS 封裝與伺服器概念股）之核心關鍵動能指標。",
+      impactAndStrategy: "財報前後股價易現巨幅洗盤。資金池維持平穩防守，待洗盤沉澱後再評估進場。"
+    },
+    {
+      eventName: "Fed FOMC 利率決策會議",
+      eventDate: "2026-09-17",
+      importance: "攸關全球資金流動性轉折與美債殖利率曲線，主導全球科技股評價定位。",
+      impactAndStrategy: "決策公布前大盤易觀望震盪。常態定期定額照常執行，資金池暫緩大手筆加碼。"
+    },
+    {
+      eventName: "台積電 (2330) 法人說明會",
+      eventDate: "2026-10-15",
+      importance: "決定全球先進製程與 CoWoS 封裝產能利用率，台股權值股命脈靈魂指標。",
+      impactAndStrategy: "法說前若出現偏離度下殺，屬優質企業打折契機，可分批動用資金池佈局。"
+    }
+  ];
+
+  if (apiKey) {
+    try {
+      const prompt = `
+你是我的全球總體經濟與半導體產業風險雷達分析員。
+今天是 ${todayStr}。請為我搜尋或推理出未來 30~60 天內，對台股、美股與 AI 供應鏈【權重最高的前 3~5 個未來重大事件】（例如：台積電法說會、Fed FOMC 利率決策、美國 CPI 數據發布、NVIDIA 財報、地緣政治/關稅重大政策等）。
+
+請輸出 JSON 陣列格式 (必須是合法 JSON 陣列，無任何 Markdown 標記)：
+[
+  {
+    "eventName": "事件名稱 (例如：Fed FOMC 利率決策會議)",
+    "eventDate": "事件日期 (格式：yyyy-MM-dd，必須大於等於 ${todayStr})",
+    "importance": "【為什麼重要】1~2 句話說明對台股/AI鏈/全球資金之實質含意",
+    "impactAndStrategy": "【盤面影響與資金池戰術指南】1~2 句話給予資金池與操作調度建議"
+  }
+]
+`;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
+      const resp = UrlFetchApp.fetch(url, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        muteHttpExceptions: true
+      });
+      const jsonMatch = resp.getContentText().match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          defaultEvents = parsed;
+        }
+      }
+    } catch (e) {
+      Logger.log('[Fetch Upcoming Events Error] ' + e.message);
+    }
+  }
+
+  // 為每個事件計算精準倒數天數
+  const processedEvents = defaultEvents.map(evt => {
+    let countdownDays = 0;
+    if (evt.eventDate) {
+      try {
+        const evtD = new Date(evt.eventDate + 'T00:00:00+08:00');
+        const diffMs = evtD.getTime() - now.getTime();
+        countdownDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      } catch (e) {}
+    }
+    return {
+      eventName: evt.eventName || '未知重大事件',
+      eventDate: evt.eventDate || todayStr,
+      countdownDays: countdownDays,
+      importance: evt.importance || '關注全球資金流動性與產業趨勢。',
+      impactAndStrategy: evt.impactAndStrategy || '保持冷靜，貫徹紀律扣款。'
+    };
+  });
+
+  // 按倒數天數升冪排序 (近的在前面)
+  processedEvents.sort((a, b) => a.countdownDays - b.countdownDays);
+
+  PropertiesService.getScriptProperties().setProperty('FIN_NEWS_EVENTS_PAYLOAD', JSON.stringify(processedEvents));
+  Logger.log('[Upcoming Events Updated] ' + processedEvents.length + ' events saved.');
+  return processedEvents;
+}
+
+/**
  * 讀取 Fin-News 全套資料
  */
 function getFinNewsCombinedPayload() {
   const props = PropertiesService.getScriptProperties();
   const weeklyStr = props.getProperty('FIN_NEWS_WEEKLY_PAYLOAD');
   const crashStr = props.getProperty('FIN_NEWS_CRASH_PAYLOAD');
+  const eventsStr = props.getProperty('FIN_NEWS_EVENTS_PAYLOAD');
 
   const isoWeek = getIsoWeekString(new Date());
   let weeklyData = {
@@ -2733,6 +2841,27 @@ function getFinNewsCombinedPayload() {
     dateStr: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm')
   };
 
+  let eventsData = [];
+  if (eventsStr) {
+    try { eventsData = JSON.parse(eventsStr); } catch (e) {}
+  }
+  if (!eventsData || eventsData.length === 0) {
+    eventsData = fetchUpcomingMarketEvents();
+  } else {
+    // 動態校正倒數天數
+    const now = new Date();
+    eventsData = eventsData.map(evt => {
+      if (evt.eventDate) {
+        try {
+          const evtD = new Date(evt.eventDate + 'T00:00:00+08:00');
+          const diffMs = evtD.getTime() - now.getTime();
+          evt.countdownDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        } catch (e) {}
+      }
+      return evt;
+    });
+  }
+
   if (weeklyStr) {
     try { weeklyData = JSON.parse(weeklyStr); } catch (e) {}
   }
@@ -2742,6 +2871,7 @@ function getFinNewsCombinedPayload() {
 
   return {
     weekly: weeklyData,
-    crashAlert: crashData
+    crashAlert: crashData,
+    upcomingEvents: eventsData
   };
 }
