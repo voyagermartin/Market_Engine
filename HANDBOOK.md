@@ -210,16 +210,23 @@ v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
 - **部署發布**：全數更新 `程式碼.js` 與 `index.html` 版本號至 v2.5.8，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
 
 ### 📅 2026-08-01 週末休市情境 (Weekend Mode) 與 RAW_HISTORY 解耦升級發布 (v2.5.9)
-- **自動化資料庫還原 (Data Auto-Healing)**：實作 `healRawHistoryEwtData()`，自動校正與還原 `RAW_HISTORY` 中 2026-07-31 交易日的 EWT_Change 歷史原貌（嚴禁被週末夜盤數據覆蓋）。
-- **休市日獨立資料列規範 (`writeWeekendEwtRow`)**：休市日盤後更新時於 `RAW_HISTORY` 獨立寫入休市日 row (如 `2026-08-01`)，台股 TWII 欄位留空 `""`，Col 3 (VIX) 與 Col 10 (EWT_Change) 寫入美股清晨結算點位。
-- **後端 API 數據解耦 (`getMarketEngineData`)**：
-  - `lastStockDataDate`：掃描 `RAW_HISTORY` 讀取最後一筆有台股成交價 (TWII > 0) 的列 (2026-07-31)。
-  - `lastEwtDataDate`：掃描 `RAW_HISTORY` 讀取最後一筆有 EWT_Change 數據的列 (2026-08-01)。
-  - `isWeekend`：自動判定週六/週日並啟用 Weekend Mode 回傳。
-- **Web App 前端 UI 週末情境 (Weekend Mode) 渲染**：
-  - 第一區塊：`☕ {todayDate} 週末戰術總結與下週預備`，戰術指引與扣款卡動態呈現週末安心休息提示。
-  - 第二區塊：`🌙 {lastEwtDataDate} 夜盤最終收盤 (美股週五結算)`。
-- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 v2.5.9，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+- **自動化休市維護與資料庫數據維護 (`seedAndFixWeekendMode`)**：
+  - 第 3 列 (`2026-08-01` 休市列)：`TWII` 繼承上一交易日 (7/31) 之 `43,119.75` 避免算式跳空崩潰；`VIX` 寫入 `18.58`；`EWT_Change` 寫入美股週五結算真實值 `+2.71%` (0.0271)。
+  - 第 4 列 (`2026-07-31` 實體交易日列)：保留 `TWII 43,119.75` 與 7/31 週四夜盤 `+5.42%` (0.0542) 真實數據。
+- **後端 API 數據解耦與交易日過濾 (`getMarketEngineData`)**：
+  - `lastStockDataDate`：使用 `isMarketOpen(dStr).isOpen` 精準過濾台股實體交易日，自動跳過週末休市列（精準鎖定 `2026-07-31`）。
+  - `lastEwtDataDate`：鎖定 `2026-08-01` (美股週五收盤夜盤日)。
+  - `isWeekend` 強制防護覆寫：
+    - `actionGuide`：`今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (2026-07-31 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`
+    - `dcaRegularGuide`：`🟢 週末休市中 (下週一照常執行紀律)`
+    - `dcaPowderGuide`：`🟢 美股週五結算 (+2.71%) 繼承至下週一發酵！開盤若強彈防追高，建議觀望至盤中平穩再評估`
+- **Web App 前端 UI 週末雙區塊渲染 (`index.html`)**：
+  - 頂部連線狀態 Badge：`☕ 2026-08-01 休市 (週休二日)`
+  - 第一區塊：`☕ 2026-08-01 週末戰術總結與下週預備`
+  - 第二區塊：`🌙 2026-08-01 夜盤最終收盤 (美股週五結算)`
+  - 收盤位階卡：`☕ 2026-07-31 收盤位階`
+- **Apps Script 線上發布規範 (Deployment Version @66)**：
+  - 每次推播程式碼後，同步執行 `npx clasp deploy -i <DeploymentID>`，確保線上 `/exec` URL 立即指向最新 `@66` 部署版本。
 
 
 
