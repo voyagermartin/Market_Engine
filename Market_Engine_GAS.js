@@ -2527,6 +2527,8 @@ function updateWeeklyFinNewsReport() {
   let payload = {
     isoWeek: isoWeek,
     updateTime: updateTimeStr,
+    storyBuffett: '👴 老巴：「市場就像這杯熱咖啡，短期的波動只是浮在上面的奶泡，而優質企業的長期獲利能力才是底下香醇的濃縮咖啡。只要農場在持續產出好農作物，不必每秒去打聽農場價格，保持紀律扣款即可。」',
+    storySoros: '🦈 小羅：「市場情緒總是習慣從一個極端扭曲到另一個極端。新聞報告裡的每一個關鍵字都在引發反射性連鎖反應。資金池不是拿來拼情緒的，現在的任務是觀察情緒過度修正後的流動性缺口，維持冷靜與防守！」',
     radarAi: '🟢 樂觀/平穩',
     radarCpi: '🟢 屬性平穩',
     radarGeo: '🟢 風險受控',
@@ -2539,10 +2541,10 @@ function updateWeeklyFinNewsReport() {
   if (apiKey && (aiDocText || cpiDocText || geoDocText)) {
     try {
       const prompt = `
-週中雷達總結｜確認趨勢，不抓低點
-你是我的投資雷達分析員。
+週中雷達總結｜雙大師說書讀報與趨勢確認
+你是我的 Kopitiam 雙大師說書讀報人（News Storyteller）與投資雷達分析員。
 請整合我提供的三份文件（AI / CPI / GEO），只使用其中的資訊。
-請輸出固定 JSON 格式 (必須是合法 JSON，無 Markdown 標記)，協助我更新長期存股情勢，而不是做短線判斷：
+請輸出固定 JSON 格式 (必須是合法 JSON，無 Markdown 標記)：
 
 【AI產業報告 (${isoWeek}_AI)】:
 ${aiDocText || '無特殊報告，維持常態發展'}
@@ -2555,6 +2557,8 @@ ${geoDocText || '無特殊報告，維持常態發展'}
 
 請回傳 JSON：
 {
+  "storyBuffett": "👴 老巴解讀：以巴菲特語錄風格、生活比喻、長線價值與企業獲利視角，解讀本週新聞脈絡，給予溫暖安定人心的情緒價值（約 80-120 字）。",
+  "storySoros": "🦈 小羅拆解：以索羅斯語錄風格、反身性、市場情緒過度反應與資金戰術視角，精準拆解新聞背後的資金動向與資金池應對邏輯（約 80-120 字）。",
   "summaryA": "【A) 本週市場一句話定位】例如：順風但需控速、震盪偏保守、趨勢轉弱觀察中",
   "radarAi": "🟢 樂觀強勁 / 🟡 評價過熱 / 🔴 供給瓶頸 / ➡️ 平穩無虞 - 一句理由",
   "radarCpi": "🟢 通膨降溫 / 🟡 降息延後 / 🔴 通膨復燃 / ➡️ 平穩無虞 - 一句理由",
@@ -2707,6 +2711,8 @@ function getFinNewsCombinedPayload() {
   let weeklyData = {
     isoWeek: isoWeek,
     updateTime: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm'),
+    storyBuffett: '👴 老巴：「市場就像這杯熱咖啡，短期的波動只是浮在上面的奶泡，而優質企業的長期獲利能力才是底下香醇的濃縮咖啡。只要農場在持續產出好農作物，不必每秒去打聽農場價格，保持紀律扣款即可。」',
+    storySoros: '🦈 小羅：「市場情緒總是習慣從一個極端扭曲到另一個極端。新聞報告裡的每一個關鍵字都在引發反射性連鎖反應。資金池不是拿來拼情緒的，現在的任務是觀察情緒過度修正後的流動性缺口，維持冷靜與防守！」',
     radarAi: '🟢 樂觀/平穩',
     radarCpi: '🟢 屬性平穩',
     radarGeo: '🟢 風險受控',

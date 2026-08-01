@@ -957,6 +957,46 @@
 
     <!-- TAB 4: FIN-NEWS 戰情室 (View Fin-News) -->
     <div id="view-finnews" class="tab-content">
+
+      <!-- ☕ 雙大師說書讀報卡 (Kopitiam Dual-Master News Storyteller) -->
+      <div class="glass-card" style="margin-bottom: 28px; border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(38, 28, 20, 0.75); padding: 26px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 28px;">☕</span>
+            <div>
+              <h2 style="font-size: 1.4rem; font-weight: 800; color: #fbbf24; margin: 0;">Kopitiam 雙大師說書讀報戰情室</h2>
+              <div style="font-size: 13px; color: #d6d3d1;">拒絕枯燥數據！老巴與小羅精準為您導讀當週新聞報告</div>
+            </div>
+          </div>
+          <span style="background: rgba(245, 158, 11, 0.15); color: #fde047; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 10px;">
+            🎙️ 雙大師說書人
+          </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px;">
+          <!-- 👴 老巴導讀 -->
+          <div style="background: rgba(45, 30, 20, 0.65); border-left: 5px solid #fbbf24; border-radius: 14px; padding: 20px; border: 1px solid rgba(251, 191, 36, 0.2);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="font-size: 24px;">👴</span>
+              <h3 style="font-size: 1.15rem; font-weight: 800; color: #fbbf24; margin: 0;">老巴導讀 (價值與企業獲利視角)</h3>
+            </div>
+            <div id="finNewsStoryBuffett" style="font-size: 1.05rem; color: #fef3c7; line-height: 1.8;">
+              老巴正在為您調配咖啡並閱讀本週研報...
+            </div>
+          </div>
+
+          <!-- 🦈 小羅拆解 -->
+          <div style="background: rgba(20, 30, 45, 0.65); border-left: 5px solid #38bdf8; border-radius: 14px; padding: 20px; border: 1px solid rgba(56, 189, 248, 0.2);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="font-size: 24px;">🦈</span>
+              <h3 style="font-size: 1.15rem; font-weight: 800; color: #38bdf8; margin: 0;">小羅拆解 (反身性與資金戰術視角)</h3>
+            </div>
+            <div id="finNewsStorySoros" style="font-size: 1.05rem; color: #e0f2fe; line-height: 1.8;">
+              小羅正在掃描市場情緒與流動性缺口...
+            </div>
+          </div>
+        </div>
+      </div>
       
       <!-- 🚨 卡片二：突發大跌事件鑑別 (2日千點大跌緊急觸發，平時隱藏) -->
       <div id="crashDefenseCard" class="glass-card" style="display: none; margin-bottom: 28px; border: 1px solid rgba(239, 68, 68, 0.6); background: rgba(60, 20, 20, 0.85); padding: 24px; border-radius: 18px; box-shadow: 0 0 25px rgba(239, 68, 68, 0.3);">
@@ -1459,6 +1499,12 @@
         const fn = data.finNews;
         const w = fn.weekly || {};
         const c = fn.crashAlert || {};
+
+        // ☕ 雙大師說書讀報卡渲染
+        const sBuffett = document.getElementById('finNewsStoryBuffett');
+        const sSoros = document.getElementById('finNewsStorySoros');
+        if (sBuffett && w.storyBuffett) sBuffett.textContent = w.storyBuffett;
+        if (sSoros && w.storySoros) sSoros.textContent = w.storySoros;
 
         const weekTagEl = document.getElementById('finNewsWeekTag');
         if (weekTagEl && w.isoWeek) weekTagEl.textContent = `${w.isoWeek} 報告`;

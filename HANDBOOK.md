@@ -241,7 +241,15 @@ v2.6.0 (FIN-NEWS 獨立分頁與大跌緊急觸發機制版)
 - **近 2 日千點大跌緊急鑑別防禦 (`checkCrashEmergencyDefense`)**：
   - 每日 16:30 盤後自動檢測近 2 日台股累積大跌 (>= 1,000 點)。
   - 觸發時呼叫 Gemini 緊急分類下殺性質（情緒性洗盤 / 估值過熱 / 景氣衰退 / 系統性黑天鵝），並於 `finnews` 頁面置頂呈現 🚨 緊急鑑別卡！
-- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 v2.6.0，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+### 📅 2026-08-01 Kopitiam 雙大師說書讀報人 (News Storyteller) 風格升級 (v2.6.1)
+- **Prompt 敘事風格重構 (`updateWeeklyFinNewsReport`)**：
+  - 呼叫 Gemini 解析 Docs 時，自動生成雙大師讀報對話：
+    * 👴 **老巴導讀 (`storyBuffett`)**：巴菲特語錄風格、生活比喻、長線價值與企業獲利視角，給予溫暖安定人心的情緒價值。
+    * 🦈 **小羅拆解 (`storySoros`)**：索羅斯語錄風格、反身性、市場情緒過度反應與資金戰術視角，精準拆解新聞背後的資金動向與資金池應對邏輯。
+- **Glassmorphic 雙大師對話卡片 (`index.html`)**：
+  - 於 `📰 FIN-NEWS` 頁面頂部建立 Glassmorphic 「☕ Kopitiam 雙大師說書讀報戰情室」卡片，呈現雙大師咖啡香導讀體裁。
+- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+
 
 
 
