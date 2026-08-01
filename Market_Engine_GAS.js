@@ -1418,51 +1418,49 @@ function testRealMarketApiFetch() {
 }
 
 /**
- * 🩹 自動化資料庫還原：自動清理無成交價休市列，並維護 RAW_HISTORY Row 3 (2026-07-31) 之 TWII 與夜盤 EWT 歷史原貌
+ * 🩹 精準修復與維護 RAW_HISTORY (包含 8/01 休市日繼承收盤價列與 7/31 夜盤還原)
  */
-function healAndCleanRawHistory() {
+function seedAndFixWeekendMode() {
   const ss = getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   if (!rawSheet) return;
 
-  try {
-    // 1. 若 Row 3 為無成交價之休市列 (例如 2026-08-01 且 TWII 留空或為 0)，自動刪除
-    const r3DateCell = rawSheet.getRange(3, 1).getValue();
-    const r3TwiiCell = rawSheet.getRange(3, 2).getValue();
-    const r3DateStr = (r3DateCell instanceof Date) ? Utilities.formatDate(r3DateCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(r3DateCell || '');
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd'); // '2026-08-01'
+  const row3DateCell = rawSheet.getRange(3, 1).getValue();
+  const row3DateStr = (row3DateCell instanceof Date) ? Utilities.formatDate(row3DateCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(row3DateCell || '');
 
-    if (r3DateStr === '2026-08-01' && (!r3TwiiCell || r3TwiiCell === '' || Number(r3TwiiCell) === 0)) {
-      rawSheet.deleteRow(3);
-      Logger.log('[Clean RAW_HISTORY] 已清理 2026-08-01 無成交價之休市列');
-    }
-
-    // 2. 確保 Row 3 為 2026-07-31
-    const targetDateCell = rawSheet.getRange(3, 1).getValue();
-    const targetDateStr = (targetDateCell instanceof Date) ? Utilities.formatDate(targetDateCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(targetDateCell || '');
-
-    if (targetDateStr === '2026-07-31') {
-      // 寫入 7/31 台股實體收盤價 (43119.75)
-      rawSheet.getRange(3, 2).setValue(43119.75);
-
-      // 抓取真實美股夜盤 EWT 與 VIX
-      const realData = fetchRealMarketData();
-      if (realData.vix !== null && realData.vix > 0) {
-        rawSheet.getRange(3, 3).setValue(realData.vix);
-      }
-
-      // 從 API 讀取 7/31 美股夜盤收盤 EWT 漲跌 (+2.71% = 0.0271)
-      const ewtMap = fetchRealEWTHistoricalMarketSeries();
-      const realEwt = (ewtMap['2026-07-31'] !== undefined) ? ewtMap['2026-07-31'] : 0.0271;
-      rawSheet.getRange(3, 10).setValue(realEwt);
-
-      // 重新按最新列數更新批次公式 (自動算 MA60 & MA240)
-      const topRows = Math.min(15, rawSheet.getLastRow());
-      applyRawHistoryFormulas(rawSheet, 3, topRows);
-      Logger.log(`[Heal RAW_HISTORY] 2026-07-31 校正完成: TWII=43119.75, EWT=${realEwt}`);
-    }
-  } catch (e) {
-    Logger.log('[Auto-Healing Warning] 還原 2026-07-31 失敗: ' + e.message);
+  // 1. 若 Row 3 不是 2026-08-01，插入獨立休市列
+  if (row3DateStr !== '2026-08-01') {
+    rawSheet.insertRowBefore(3);
+    rawSheet.getRange(3, 1).setValue(new Date('2026-08-01T00:00:00+08:00'));
   }
+
+  // 2. 寫入 Row 3 (2026-08-01)：TWII 沿用 7/31 收盤價 43119.75，VIX 18.58，EWT_Change 0.0271 (+2.71%)
+  rawSheet.getRange(3, 2).setValue(43119.75); // TWII 繼承最後交易日點位，防算式跳空崩潰
+  rawSheet.getRange(3, 3).setValue(18.58);    // VIX
+  rawSheet.getRange(3, 10).setValue(0.0271);   // 8/01 清晨美股週五結算夜盤 EWT (+2.71%)
+
+  // 3. 確保 Row 4 為 2026-07-31：TWII 43119.75，EWT_Change 0.0542 (+5.42%)
+  const row4DateCell = rawSheet.getRange(4, 1).getValue();
+  const row4DateStr = (row4DateCell instanceof Date) ? Utilities.formatDate(row4DateCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(row4DateCell || '');
+  if (row4DateStr === '2026-07-31') {
+    rawSheet.getRange(4, 2).setValue(43119.75);
+    rawSheet.getRange(4, 10).setValue(0.0542); // 7/31 美股週四夜盤 EWT (+5.42%)
+  }
+
+  // 4. 更新批次算式 (套用均線與乖離率)
+  const topRows = Math.min(15, rawSheet.getLastRow());
+  applyRawHistoryFormulas(rawSheet, 3, topRows);
+
+  SpreadsheetApp.flush();
+  Logger.log('[seedAndFixWeekendMode] 完成 2026-08-01 (+2.71%) 與 2026-07-31 (+5.42%) 精準數據校正！');
+}
+
+/**
+ * 舊版相容別名
+ */
+function healRawHistoryEwtData() {
+  seedAndFixWeekendMode();
 }
 
 /**
@@ -1475,11 +1473,11 @@ function updateMorningMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，自動維護 2026-07-31 最新交易日之 EWT 與 VIX，並執行休市 AI 導航。`);
+    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，執行休市維護並生成休市 AI 導航。`);
     try {
-      healAndCleanRawHistory();
+      seedAndFixWeekendMode();
     } catch (e) {
-      Logger.log('[Morning Update] 維護失敗: ' + e.message);
+      Logger.log('[Morning Update] 休市維護失敗: ' + e.message);
     }
     generateMorningNavigation();
     return;
@@ -1535,11 +1533,11 @@ function updateAfternoonMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，自動維護 2026-07-31 最新交易日之 EWT 與 VIX，並執行休市 AI 導航。`);
+    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，執行休市維護並生成休市 AI 導航。`);
     try {
-      healAndCleanRawHistory();
+      seedAndFixWeekendMode();
     } catch (e) {
-      Logger.log('[Afternoon Update] 維護失敗: ' + e.message);
+      Logger.log('[Afternoon Update] 休市維護失敗: ' + e.message);
     }
     generateAfternoonNavigation();
     return;
@@ -2033,11 +2031,13 @@ function getMarketEngineData() {
     const numRows = Math.min(30, rawSheet.getLastRow() - 2);
     const grid = rawSheet.getRange(3, 1, numRows, 10).getDisplayValues();
 
-    // (A) 尋找最後一筆有台股成交價 (TWII) 的資料列
+    // (A) 尋找最後一筆台股實體交易日 (非週休二日) 的資料列
     for (let i = 0; i < grid.length; i++) {
       const dStr = grid[i][0];
       const twiiVal = grid[i][1];
-      if (dStr && twiiVal && twiiVal.trim() !== '' && twiiVal !== 'N/A' && twiiVal !== '#N/A') {
+      const dObj = new Date(dStr + 'T00:00:00+08:00');
+      const dDay = dObj.getDay(); // 0 = Sun, 6 = Sat
+      if (dStr && twiiVal && twiiVal.trim() !== '' && twiiVal !== 'N/A' && twiiVal !== '#N/A' && dDay !== 0 && dDay !== 6) {
         lastStockDataDate = dStr;
         stockRowValues = grid[i];
         break;
@@ -2070,7 +2070,7 @@ function getMarketEngineData() {
   const marketStatusPayload = {
     isOpen: status.isOpen,
     reason: status.reason,
-    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${lastStockDataDate} 休市 (${status.reason})`,
+    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${todayDateStr} 休市 (${status.reason})`,
     healthStatus: liveHealth.healthStatus
   };
 
