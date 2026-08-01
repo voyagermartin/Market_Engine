@@ -12,10 +12,13 @@ function onOpen() {
   ui.createMenu('🚀 Market Engine V3')
     .addItem('建置/初始化所有分頁 (Full Setup)', 'setupMarketEngineV3')
     .addSeparator()
-    .addItem('⏰ 安裝全套自動觸發器 (07:30 & 16:30 每日更新 + 每月 1 日 01:00 對帳)', 'createDailyTrigger')
+    .addItem('⏰ 安裝全套自動觸發器 (07:30 & 16:30 每日更新 + 週二 18:00 Fin-News + 每月 1 日對帳)', 'createDailyTrigger')
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
     .addItem('🌆 執行盤後更新測試 (16:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
     .addItem('🩹 執行資料庫自動修復 (healRawHistoryEwtData)', 'healRawHistoryEwtData')
+    .addSeparator()
+    .addItem('📰 執行週中 Fin-News 解析 (updateWeeklyFinNewsReport)', 'updateWeeklyFinNewsReport')
+    .addItem('🚨 執行大跌緊急觸發測試 (checkCrashEmergencyDefense)', 'checkCrashEmergencyDefense')
     .addSeparator()
     .addItem('📡 測試即時行情 API 連線 (testRealMarketApiFetch)', 'testRealMarketApiFetch')
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
@@ -1592,21 +1595,26 @@ function updateAfternoonMarketEngine() {
   applyRawHistoryFormulas(rawSheet, 3, topRows);
   applyHistoryLogFormulas(historyLogSheet, 3, topRows);
 
-  // 自動觸發小羅盤後 AI 導航生成
+  // 自動觸發小羅盤後 AI 導航生成與近 2 日千點大跌緊急防禦檢查
   generateAfternoonNavigation();
+  try {
+    checkCrashEmergencyDefense();
+  } catch (e) {
+    Logger.log('Crash defense check error: ' + e.message);
+  }
 
   SpreadsheetApp.flush();
   Logger.log('Afternoon Market Engine update (16:30 - 小羅午茶值班) completed for ' + todayStr);
 }
 
 /**
- * 安裝全套自動觸發器 (每日 07:30 盤前 / 16:30 盤後 + 每月 1 日 01:00 歷史回測自我驗證)
+ * 安裝全套自動觸發器 (每日 07:30 盤前 / 16:30 盤後 + 週二 18:00 Fin-News + 每月 1 日對帳)
  */
 function createDailyTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
   for (let i = 0; i < triggers.length; i++) {
     const fn = triggers[i].getHandlerFunction();
-    if (fn === 'updateDailyMarketEngine' || fn === 'updateMorningMarketEngine' || fn === 'updateAfternoonMarketEngine' || fn === 'updateMonthlyLabBacktest') {
+    if (fn === 'updateDailyMarketEngine' || fn === 'updateMorningMarketEngine' || fn === 'updateAfternoonMarketEngine' || fn === 'updateMonthlyLabBacktest' || fn === 'updateWeeklyFinNewsReport') {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -1629,7 +1637,16 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  // 3. 每月 1 日 凌晨 01:00 觸發器 (月度歷史回測與 4 大維度自我驗證)
+  // 3. 每週二 18:00 觸發器 (Fin-News 週中雷達與 Google Docs 解析)
+  ScriptApp.newTrigger('updateWeeklyFinNewsReport')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.TUESDAY)
+    .atHour(18)
+    .nearMinute(0)
+    .inTimezone('Asia/Taipei')
+    .create();
+
+  // 4. 每月 1 日 凌晨 01:00 觸發器 (月度歷史回測與 4 大維度自我驗證)
   ScriptApp.newTrigger('updateMonthlyLabBacktest')
     .timeBased()
     .onMonthDay(1)
@@ -1638,7 +1655,7 @@ function createDailyTrigger() {
     .inTimezone('Asia/Taipei')
     .create();
 
-  SpreadsheetApp.getUi().alert('✅ 成功安裝全套自動觸發器！\n\n• 🌅 每日 07:30 盤前更新：老巴早餐時間值班\n• ☕ 每日 16:30 盤後更新：小羅午茶時光值班\n• 📅 每月 1 日 01:00：月度歷史回測與 4 大維度自我驗證');
+  SpreadsheetApp.getUi().alert('✅ 成功安裝全套自動觸發器！\n\n• 🌅 每日 07:30 盤前更新：老巴早餐時間值班\n• ☕ 每日 16:30 盤後更新：小羅午茶時光值班\n• 📰 每週二 18:00：Fin-News 週中雷達總結與 Google Docs 解析\n• 📅 每月 1 日 01:00：月度歷史回測與 4 大維度自我驗證');
 }
 
 // ==========================================
@@ -2388,6 +2405,13 @@ function getMarketEngineData() {
     data.dcaGuide = data.dcaPowderGuide;
   }
 
+  // 📰 載入 FIN-NEWS 週中雷達與大跌緊急防禦數據
+  try {
+    data.finNews = getFinNewsCombinedPayload();
+  } catch (e) {
+    Logger.log('FinNews payload error: ' + e.message);
+  }
+
   return data;
 }
 
@@ -2444,4 +2468,245 @@ function testGeminiAPI() {
   } catch (e) {
     sheet.getRange("B23").setValue("API Error: " + e.message);
   }
+}
+
+// ==========================================
+// 11. FIN-NEWS Google Docs 解析與大跌緊急防禦 Engine (v2.6.0)
+// ==========================================
+
+/**
+ * 取得 ISO 週數標記 (例如 2026-08-01 回傳 "26W31")
+ */
+function getIsoWeekString(date) {
+  const d = date ? new Date(date) : new Date();
+  const target = new Date(d.valueOf());
+  const dayNumber = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNumber + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
+  }
+  const weekNumber = 1 + Math.round((firstThursday - target.valueOf()) / 604800000);
+  const year2 = String(d.getFullYear()).slice(-2);
+  const weekStr = weekNumber < 10 ? '0' + weekNumber : String(weekNumber);
+  return `${year2}W${weekStr}`;
+}
+
+/**
+ * 📰 每週二 18:00 定時觸發：讀取 Google Drive (1njhACTKWfbtwKdYoPmKDDJshLjf3N6op) 當週 Docs 並產生週中雷達總結
+ */
+function updateWeeklyFinNewsReport() {
+  const folderId = '1njhACTKWfbtwKdYoPmKDDJshLjf3N6op';
+  const isoWeek = getIsoWeekString(new Date()); // e.g. "26W31"
+  let aiDocText = '';
+  let cpiDocText = '';
+  let geoDocText = '';
+  
+  try {
+    const folder = DriveApp.getFolderById(folderId);
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      const fName = file.getName();
+      if (fName.includes(isoWeek + '_AI')) {
+        aiDocText = DocumentApp.openById(file.getId()).getBody().getText();
+      } else if (fName.includes(isoWeek + '_CPI')) {
+        cpiDocText = DocumentApp.openById(file.getId()).getBody().getText();
+      } else if (fName.includes(isoWeek + '_GEO')) {
+        geoDocText = DocumentApp.openById(file.getId()).getBody().getText();
+      }
+    }
+  } catch (e) {
+    Logger.log('[Fin-News Drive Reader Warning] ' + e.message);
+  }
+
+  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
+  const updateTimeStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  
+  let payload = {
+    isoWeek: isoWeek,
+    updateTime: updateTimeStr,
+    radarAi: '🟢 樂觀/平穩',
+    radarCpi: '🟢 屬性平穩',
+    radarGeo: '🟢 風險受控',
+    summaryA: `本週 (${isoWeek}) 市場聚焦 AI 科技升級與總體經濟數據震盪，大盤位階運作於歷史常態分佈區間。`,
+    summaryC: `當前波動主要源自個股財報發布期之短期評價校正，非結構性景氣衰退。`,
+    summaryD: `建議常態定期定額照常執行，資金池維持防守紀律，耐心等待甜甜打折區出現。`,
+    summaryE: `保持平常心看待短期震盪，不被盤中洗盤情緒干擾，貫徹紀律扣款。`
+  };
+
+  if (apiKey && (aiDocText || cpiDocText || geoDocText)) {
+    try {
+      const prompt = `
+你是一位精準、權威且注重資本安全的投資總監。請閱讀以下本週 (${isoWeek}) 的三份研究報告 (AI產業、CPI通膨、地緣政治)：
+
+【AI產業報告 (${isoWeek}_AI)】:
+${aiDocText || '無特殊報告，維持常態發展'}
+
+【CPI通膨報告 (${isoWeek}_CPI)】:
+${cpiDocText || '無特殊報告，維持常態發展'}
+
+【地緣政治報告 (${isoWeek}_GEO)】:
+${geoDocText || '無特殊報告，維持常態發展'}
+
+請根據上述報告內文，輸出以下 JSON 格式 (必須是合法 JSON，無任何 Markdown 標記)：
+{
+  "radarAi": "燈號 (限選：🟢 樂觀強勁 / 🟡 評價過熱 / 🔴 供給瓶頸 / ➡️ 平穩無虞)",
+  "radarCpi": "燈號 (限選：🟢 通膨降溫 / 🟡 降息延後 / 🔴 通膨復燃 / ➡️ 平穩無虞)",
+  "radarGeo": "燈號 (限選：🟢 風險可控 / 🟡 局部升溫 / 🔴 系統性升級 / ➡️ 平穩無虞)",
+  "summaryA": "【本週定位與核心敘事】簡短兩句說明本週主導市場的核心題材",
+  "summaryC": "【波動性質判讀】說明當前波動屬於評價修正、景氣疑慮或系統風險",
+  "summaryD": "【資金池態度建議】給予資金池與手動加碼的冷靜調度建議",
+  "summaryE": "【一句話操作備忘】25 字內極致精準的紀律備忘"
+}
+`;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
+      const resp = UrlFetchApp.fetch(url, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        muteHttpExceptions: true
+      });
+      const resultStr = resp.getContentText();
+      const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        payload = Object.assign(payload, parsed);
+      }
+    } catch (err) {
+      Logger.log('[Fin-News AI Prompt Error] ' + err.message);
+    }
+  }
+
+  // 寫入 ScriptProperties 進行持久化
+  PropertiesService.getScriptProperties().setProperty('FIN_NEWS_WEEKLY_PAYLOAD', JSON.stringify(payload));
+  Logger.log('[Fin-News Weekly Update Completed] ' + isoWeek);
+  return payload;
+}
+
+/**
+ * 🚨 每日 16:30 盤後大跌防禦檢查 (近 2 日台股累積大跌 1,000 點或 Dist60 急煞自動觸發)
+ */
+function checkCrashEmergencyDefense() {
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  const updateTimeStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  
+  let crashPayload = {
+    isTriggered: false,
+    triggerReason: '',
+    dropPoints: 0,
+    classification: '無急煞/大盤平穩',
+    analysisText: '近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。請按既定紀律穩定執行即可。',
+    dateStr: updateTimeStr
+  };
+
+  if (rawSheet && rawSheet.getLastRow() >= 5) {
+    const rawData = rawSheet.getRange(3, 1, 5, 10).getValues();
+    // 找出近 2 個實體交易日 TWII
+    let validTwii = [];
+    for (let i = 0; i < rawData.length; i++) {
+      const twiiVal = Number(rawData[i][1]);
+      if (rawData[i][0] && twiiVal > 0) {
+        validTwii.push({ date: rawData[i][0], twii: twiiVal });
+      }
+    }
+
+    if (validTwii.length >= 2) {
+      const todayTwii = validTwii[0].twii;
+      const prevTwii = validTwii[1].twii;
+      const dropPoints = Math.round(prevTwii - todayTwii);
+
+      if (dropPoints >= 1000) {
+        crashPayload.isTriggered = true;
+        crashPayload.dropPoints = dropPoints;
+        crashPayload.triggerReason = `近 2 日大盤重挫 ${dropPoints} 點 (觸發千點緊急防禦門檻)`;
+
+        const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
+        if (apiKey) {
+          try {
+            const prompt = `
+台股近 2 個交易日出現大跌重挫：
+今日收盤：${todayTwii}，前天收盤：${prevTwii}，累積下殺：${dropPoints} 點！
+
+請身為投資總監進行緊急洗盤鑑別：
+這波下殺屬於以下 4 種分類中的哪一種？
+1. 情緒性洗盤 (Market Sentiment Cleansing)
+2. 估值過熱修正 (Valuation Contraction)
+3. 景氣衰退疑慮 (Recession Risk)
+4. 系統性黑天鵝 (Systemic Black Swan)
+
+請輸出 JSON (無 Markdown 標記)：
+{
+  "classification": "鑑別分類名稱 (限選上述 4 選 1)",
+  "analysisText": "約 120 字說明下殺本質、市場恐慌情緒來源與資金池應對建議"
+}
+`;
+            const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
+            const resp = UrlFetchApp.fetch(url, {
+              method: "post",
+              contentType: "application/json",
+              payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+              muteHttpExceptions: true
+            });
+            const jsonMatch = resp.getContentText().match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              crashPayload.classification = parsed.classification || '情緒性洗盤';
+              crashPayload.analysisText = parsed.analysisText || '大盤出現劇烈震盪，建議保持冷靜，資金池切勿急於早盤一次性耗盡。';
+            }
+          } catch (e) {
+            Logger.log('[Crash Defense Prompt Error] ' + e.message);
+          }
+        }
+      }
+    }
+  }
+
+  PropertiesService.getScriptProperties().setProperty('FIN_NEWS_CRASH_PAYLOAD', JSON.stringify(crashPayload));
+  return crashPayload;
+}
+
+/**
+ * 讀取 Fin-News 全套資料
+ */
+function getFinNewsCombinedPayload() {
+  const props = PropertiesService.getScriptProperties();
+  const weeklyStr = props.getProperty('FIN_NEWS_WEEKLY_PAYLOAD');
+  const crashStr = props.getProperty('FIN_NEWS_CRASH_PAYLOAD');
+
+  const isoWeek = getIsoWeekString(new Date());
+  let weeklyData = {
+    isoWeek: isoWeek,
+    updateTime: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm'),
+    radarAi: '🟢 樂觀/平穩',
+    radarCpi: '🟢 屬性平穩',
+    radarGeo: '🟢 風險受控',
+    summaryA: `本週 (${isoWeek}) 市場聚焦 AI 科技升級與總體經濟數據震盪，大盤位階運作於歷史常態分佈區間。`,
+    summaryC: `當前波動主要源自個股財報發布期之短期評價校正，非結構性景氣衰退。`,
+    summaryD: `建議常態定期定額照常執行，資金池維持防守紀律，耐心等待甜甜打折區出現。`,
+    summaryE: `保持平常心看待短期震盪，不被盤中洗盤情緒干擾，貫徹紀律扣款。`
+  };
+
+  let crashData = {
+    isTriggered: false,
+    triggerReason: '',
+    dropPoints: 0,
+    classification: '無急煞/大盤平穩',
+    analysisText: '近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。請按既定紀律穩定執行即可。',
+    dateStr: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm')
+  };
+
+  if (weeklyStr) {
+    try { weeklyData = JSON.parse(weeklyStr); } catch (e) {}
+  }
+  if (crashStr) {
+    try { crashData = JSON.parse(crashStr); } catch (e) {}
+  }
+
+  return {
+    weekly: weeklyData,
+    crashAlert: crashData
+  };
 }

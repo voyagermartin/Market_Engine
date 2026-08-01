@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.5.9)
+# HANDBOOK.md (v2.6.0)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -86,7 +86,7 @@
 v2.5.5 「定期定額 vs. 資金池加碼雙軌決策機制」升級，將常態定期定額扣款（純位階判定）與手動靈活動用資金池（位階＋EWT Change 夜盤強彈防追高）決策解耦，並重構 UI 雙軌決策卡！
 
 ## ⑩ Current Version
-v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
+v2.6.0 (FIN-NEWS 獨立分頁與大跌緊急觸發機制版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -94,7 +94,7 @@ v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.5.9 週末休市情境 (Weekend Mode) 與 RAW_HISTORY 資料庫結構解耦升級完工！
+- **目前停止位置**: v2.6.0 FIN-NEWS 4th SPA 分頁、Google Docs 報告解析、週二 18:00 雷達觸發器與近 2 日千點大跌緊急防禦鑑別卡完工！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -231,6 +231,18 @@ v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
   - `verifyLabBacktest` 自我驗證引擎 4 大稽核全數以「純實體台股交易日」進行比對，對帳日期標籤 (2026-08-01) 正常寫入，計算底冊 100% 純淨。
 - **Apps Script 線上發布規範 (Deployment Version @67)**：
   - 每次推播程式碼後，同步執行 `npx clasp deploy -i <DeploymentID>`，確保線上 `/exec` URL 立即指向最新 `@67` 部署版本。
+
+### 📅 2026-08-01 FIN-NEWS 獨立分頁、Google Docs 解析器與大跌緊急觸發機制發布 (v2.6.0)
+- **SPA 第 4 個獨立分頁 (`📰 FIN-NEWS`)**：頂部導覽列新增第 4 個分頁 `📰 FIN-NEWS` (`tab-id: finnews`)，獨立呈現週中研報分析與急煞大跌鑑別。
+- **Google Docs 自動化解析引擎 (`updateWeeklyFinNewsReport`)**：
+  - 自動計算 ISO 週數 (`26W31`) 並對接 Google Drive 資料夾 `1njhACTKWfbtwKdYoPmKDDJshLjf3N6op`。
+  - 自動搜尋與讀取當週 `{yyWww}_AI`、`{yyWww}_CPI`、`{yyWww}_GEO` 之 Google Docs 報告內文。
+  - 自動化排程觸發器：每週二 18:00 定時呼叫 Gemini API 產生 3 大雷達燈號與 A~E 結構化結論。
+- **近 2 日千點大跌緊急鑑別防禦 (`checkCrashEmergencyDefense`)**：
+  - 每日 16:30 盤後自動檢測近 2 日台股累積大跌 (>= 1,000 點)。
+  - 觸發時呼叫 Gemini 緊急分類下殺性質（情緒性洗盤 / 估值過熱 / 景氣衰退 / 系統性黑天鵝），並於 `finnews` 頁面置頂呈現 🚨 緊急鑑別卡！
+- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 v2.6.0，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+
 
 
 
