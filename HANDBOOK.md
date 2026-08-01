@@ -5,7 +5,7 @@
 
 ## ② System Architecture
 - **Data Layer**: Google Sheet 6 大結構化分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`)
-- **Engine Layer**: Google Apps Script (GAS) 核心算式與自動化維護腳本 ([程式碼.js](file:///f:/Projects/Market_Engine/%E7%A8%8B%E5%BC%8F%E7%A2%BC.js))
+- **Engine Layer**: Google Apps Script (GAS) 核心算式與自動化維護腳本 ([Market_Engine_GAS.js](file:///f:/Projects/Market_Engine/Market_Engine_GAS.js))
 - **Presentation Layer**: GitHub Pages 靜態網頁 / GAS Web App ([Index.html](file:///f:/Projects/Market_Engine/Index.html)) / Google Sheet Dashboard
 
 ## ③ Database Schema
