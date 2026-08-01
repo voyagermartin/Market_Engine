@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.5.8)
+# HANDBOOK.md (v2.5.9)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -86,7 +86,7 @@
 v2.5.5 「定期定額 vs. 資金池加碼雙軌決策機制」升級，將常態定期定額扣款（純位階判定）與手動靈活動用資金池（位階＋EWT Change 夜盤強彈防追高）決策解耦，並重構 UI 雙軌決策卡！
 
 ## ⑩ Current Version
-v2.5.8 (早盤作戰 vs 盤後結算敘事重構版)
+v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -94,7 +94,7 @@ v2.5.8 (早盤作戰 vs 盤後結算敘事重構版)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.5.8 Web App UI 敘事重構升級，完成第一區塊今日開盤作戰卡與第二區塊收盤結算分析完工！
+- **目前停止位置**: v2.5.9 週末休市情境 (Weekend Mode) 與 RAW_HISTORY 資料庫結構解耦升級完工！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -208,5 +208,18 @@ v2.5.8 (早盤作戰 vs 盤後結算敘事重構版)
   - 第一區塊（決策導向）：`🧭 {todayDate} 今日開盤作戰卡`，置頂呈現開盤操作錦囊與雙軌決策卡（對照昨日收盤位階 ＋ 昨夜 EWT 動能）。
   - 第二區塊（數據導向）：`📊 {lastDataDate} 收盤結算與位階`，呈現收盤位階 Badge、打折天數撫平器、18 年歷史位階數據分析與盤面關鍵指標一覽。
 - **部署發布**：全數更新 `程式碼.js` 與 `index.html` 版本號至 v2.5.8，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+
+### 📅 2026-08-01 週末休市情境 (Weekend Mode) 與 RAW_HISTORY 解耦升級發布 (v2.5.9)
+- **自動化資料庫還原 (Data Auto-Healing)**：實作 `healRawHistoryEwtData()`，自動校正與還原 `RAW_HISTORY` 中 2026-07-31 交易日的 EWT_Change 歷史原貌（嚴禁被週末夜盤數據覆蓋）。
+- **休市日獨立資料列規範 (`writeWeekendEwtRow`)**：休市日盤後更新時於 `RAW_HISTORY` 獨立寫入休市日 row (如 `2026-08-01`)，台股 TWII 欄位留空 `""`，Col 3 (VIX) 與 Col 10 (EWT_Change) 寫入美股清晨結算點位。
+- **後端 API 數據解耦 (`getMarketEngineData`)**：
+  - `lastStockDataDate`：掃描 `RAW_HISTORY` 讀取最後一筆有台股成交價 (TWII > 0) 的列 (2026-07-31)。
+  - `lastEwtDataDate`：掃描 `RAW_HISTORY` 讀取最後一筆有 EWT_Change 數據的列 (2026-08-01)。
+  - `isWeekend`：自動判定週六/週日並啟用 Weekend Mode 回傳。
+- **Web App 前端 UI 週末情境 (Weekend Mode) 渲染**：
+  - 第一區塊：`☕ {todayDate} 週末戰術總結與下週預備`，戰術指引與扣款卡動態呈現週末安心休息提示。
+  - 第二區塊：`🌙 {lastEwtDataDate} 夜盤最終收盤 (美股週五結算)`。
+- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 v2.5.9，完成 GAS CLI 重新部署與 GitHub `main` 分支推播發布。
+
 
 

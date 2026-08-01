@@ -1028,42 +1028,51 @@
     function updateDOM(data) {
       if (!data) return;
 
-      const lastDate = data.lastDataDate || data.date || '';
+      const isWeekend = !!data.isWeekend;
+      const lastStockDate = data.lastStockDataDate || data.lastDataDate || data.date || '';
       let todayDate = data.todayDate;
       if (!todayDate) {
         try {
           todayDate = new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).replace(/\//g, '-');
         } catch (e) {
-          todayDate = lastDate;
+          todayDate = lastStockDate;
         }
       }
-      const ewtDate = data.ewtDate || todayDate;
+      const lastEwtDate = data.lastEwtDataDate || data.ewtDate || todayDate;
 
-      if (lastDate) {
-        document.getElementById('dataDate').textContent = `收盤: ${lastDate} | 今日: ${todayDate}`;
+      if (lastStockDate) {
+        document.getElementById('dataDate').textContent = `收盤: ${lastStockDate} | 今日: ${todayDate}`;
         const guideTitleEl = document.getElementById('actionGuideTitle');
         if (guideTitleEl) {
-          guideTitleEl.textContent = `🧭 ${todayDate} 今日開盤作戰卡`;
+          if (isWeekend) {
+            guideTitleEl.textContent = `☕ ${todayDate} 週末戰術總結與下週預備`;
+          } else {
+            guideTitleEl.textContent = `🧭 ${todayDate} 今日開盤作戰卡`;
+          }
         }
         const settlementTitleEl = document.getElementById('settlementSectionTitle');
         if (settlementTitleEl) {
-          settlementTitleEl.textContent = `📊 ${lastDate} 收盤結算與位階`;
+          settlementTitleEl.textContent = `📊 ${lastStockDate} 收盤結算與位階`;
         }
         const tempTitleEl = document.getElementById('marketTempTitle');
         if (tempTitleEl) {
-          tempTitleEl.textContent = `☕ ${lastDate} 收盤位階`;
+          tempTitleEl.textContent = `☕ ${lastStockDate} 收盤位階`;
         }
         const ewtTitleEl = document.getElementById('ewtCardTitle');
         if (ewtTitleEl) {
-          ewtTitleEl.textContent = `🌙 ${ewtDate} 夜盤動能 (EWT Change)`;
+          if (isWeekend) {
+            ewtTitleEl.textContent = `🌙 ${lastEwtDate} 夜盤最終收盤 (美股週五結算)`;
+          } else {
+            ewtTitleEl.textContent = `🌙 ${lastEwtDate} 夜盤動能 (EWT Change)`;
+          }
         }
         const regHeaderEl = document.getElementById('dcaRegularHeader');
         if (regHeaderEl) {
-          regHeaderEl.textContent = `📅 常態定期定額（對照 ${lastDate} 收盤位階）`;
+          regHeaderEl.textContent = `📅 常態定期定額（對照 ${lastStockDate} 收盤位階）`;
         }
         const pwdHeaderEl = document.getElementById('dcaPowderHeader');
         if (pwdHeaderEl) {
-          pwdHeaderEl.textContent = `💣 資金池手動加碼（對照 ${lastDate} 收盤位階 ＋ 昨夜 EWT 動能）`;
+          pwdHeaderEl.textContent = `💣 資金池手動加碼（對照 ${lastStockDate} 收盤位階 ＋ 昨夜 EWT 動能）`;
         }
       }
       
@@ -1087,36 +1096,41 @@
       let regGuide = data.dcaRegularGuide;
       let pwdGuide = data.dcaPowderGuide;
 
-      if (!regGuide || regGuide === 'N/A' || regGuide === '資料加載中...') {
-        if (data.phase === '過熱' || data.phase === '狂熱') {
-          regGuide = '🛑 暫停定期定額';
-        } else {
-          regGuide = '🚀 明天照常自動扣款';
-        }
-      }
-
-      if (!pwdGuide || pwdGuide === 'N/A' || pwdGuide === '資料加載中...') {
-        if (data.dcaGuide && data.dcaGuide.includes('冷卻中')) {
-          const match = data.dcaGuide.match(/CD 剩餘 (\d+) 天/);
-          const days = match ? match[1] : 'X';
-          pwdGuide = `🧊 資金池加碼冷卻中 (建議 CD 剩餘 ${days} 天)`;
-        } else if (data.phase === '極度恐慌' || data.phase === '恐慌') {
-          let isExcited = false;
-          if (data.ewtChange && data.ewtChange !== 'N/A') {
-            const ewtVal = parseFloat(String(data.ewtChange).replace('%', '').replace('+', '').trim());
-            if (!isNaN(ewtVal) && ewtVal >= 2.5) {
-              isExcited = true;
-            }
-          }
-          const prefix = (data.dcaGuide && data.dcaGuide.includes('提前解鎖')) ? '⚡ CD 提前解鎖 (大盤深跌觸發) | ' : '';
-          if (isExcited) {
-            pwdGuide = `${prefix}⚠️ 開盤激情強彈 (${data.ewtChange || '大漲'})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
+      if (isWeekend) {
+        regGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+        pwdGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+      } else {
+        if (!regGuide || regGuide === 'N/A' || regGuide === '資料加載中...') {
+          if (data.phase === '過熱' || data.phase === '狂熱') {
+            regGuide = '🛑 暫停定期定額';
           } else {
-            const alloc = (data.phase === '極度恐慌' ? '20%' : '10%');
-            pwdGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
+            regGuide = '🚀 明天照常自動扣款';
           }
-        } else {
-          pwdGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
+        }
+
+        if (!pwdGuide || pwdGuide === 'N/A' || pwdGuide === '資料加載中...') {
+          if (data.dcaGuide && data.dcaGuide.includes('冷卻中')) {
+            const match = data.dcaGuide.match(/CD 剩餘 (\d+) 天/);
+            const days = match ? match[1] : 'X';
+            pwdGuide = `🧊 資金池加碼冷卻中 (建議 CD 剩餘 ${days} 天)`;
+          } else if (data.phase === '極度恐慌' || data.phase === '恐慌') {
+            let isExcited = false;
+            if (data.ewtChange && data.ewtChange !== 'N/A') {
+              const ewtVal = parseFloat(String(data.ewtChange).replace('%', '').replace('+', '').trim());
+              if (!isNaN(ewtVal) && ewtVal >= 2.5) {
+                isExcited = true;
+              }
+            }
+            const prefix = (data.dcaGuide && data.dcaGuide.includes('提前解鎖')) ? '⚡ CD 提前解鎖 (大盤深跌觸發) | ' : '';
+            if (isExcited) {
+              pwdGuide = `${prefix}⚠️ 開盤激情強彈 (${data.ewtChange || '大漲'})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
+            } else {
+              const alloc = (data.phase === '極度恐慌' ? '20%' : '10%');
+              pwdGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
+            }
+          } else {
+            pwdGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
+          }
         }
       }
 

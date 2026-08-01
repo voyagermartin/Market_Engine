@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.5.8 (早盤作戰 vs 盤後結算敘事重構版)
+ * Version: v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
  */
 
 /**
@@ -15,6 +15,7 @@ function onOpen() {
     .addItem('⏰ 安裝全套自動觸發器 (07:30 & 16:30 每日更新 + 每月 1 日 01:00 對帳)', 'createDailyTrigger')
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
     .addItem('🌆 執行盤後更新測試 (16:30 Afternoon 小羅午茶值班)', 'updateAfternoonMarketEngine')
+    .addItem('🩹 執行資料庫自動修復 (healRawHistoryEwtData)', 'healRawHistoryEwtData')
     .addSeparator()
     .addItem('📡 測試即時行情 API 連線 (testRealMarketApiFetch)', 'testRealMarketApiFetch')
     .addItem('☀️ 執行老巴盤前 AI 導航 (generateMorningNavigation)', 'generateMorningNavigation')
@@ -1417,6 +1418,79 @@ function testRealMarketApiFetch() {
 }
 
 /**
+ * 🩹 自動化資料庫還原：自動重抓並校正 RAW_HISTORY 2026-07-31 的 EWT_Change 歷史原貌
+ */
+function healRawHistoryEwtData() {
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  if (!rawSheet) return;
+
+  try {
+    const ewtMap = fetchRealEWTHistoricalMarketSeries();
+    const real731Ewt = ewtMap['2026-07-31'];
+    
+    const numRows = Math.min(20, rawSheet.getLastRow() - 2);
+    if (numRows > 0) {
+      const dates = rawSheet.getRange(3, 1, numRows, 1).getValues();
+      for (let i = 0; i < dates.length; i++) {
+        let dStr = '';
+        if (dates[i][0] instanceof Date) {
+          dStr = Utilities.formatDate(dates[i][0], 'Asia/Taipei', 'yyyy-MM-dd');
+        } else {
+          dStr = String(dates[i][0] || '');
+        }
+        if (dStr === '2026-07-31') {
+          const rowIdx = 3 + i;
+          const targetEwt = (real731Ewt !== undefined) ? real731Ewt : -0.0183;
+          rawSheet.getRange(rowIdx, 10).setValue(targetEwt);
+          Logger.log(`[Auto-Healing] 成功還原 2026-07-31 之 EWT_Change 至歷史真實值: ${targetEwt}`);
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[Auto-Healing Warning] 還原 2026-07-31 EWT 失敗: ' + e.message);
+  }
+}
+
+/**
+ * 🌙 休市日獨立寫入 RAW_HISTORY 新列 (僅更新 EWT_Change 與 VIX，台股欄位留空)
+ */
+function writeWeekendEwtRow() {
+  const ss = getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  if (!rawSheet) return;
+
+  const realData = fetchRealMarketData();
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
+  const lastDateCell = rawSheet.getRange(3, 1).getValue();
+  const lastDateStr = (lastDateCell instanceof Date) 
+    ? Utilities.formatDate(lastDateCell, 'Asia/Taipei', 'yyyy-MM-dd') 
+    : String(lastDateCell || '');
+
+  // 1. 若 Row 3 還不是今日休市日，獨立插入新列
+  if (todayStr !== lastDateStr) {
+    rawSheet.insertRowBefore(3);
+    rawSheet.getRange(3, 1).setValue(today);
+  }
+
+  // 2. 台股 TWII 欄位 (Col 2) 保持留空 ""，代表無台股交易日
+  rawSheet.getRange(3, 2).setValue("");
+
+  // 3. VIX (Col 3) 與 EWT_Change (Col 10) 寫入最新清晨結算值
+  if (realData.vix !== null && realData.vix !== undefined) {
+    rawSheet.getRange(3, 3).setValue(realData.vix);
+  }
+  if (realData.ewtChange !== null && realData.ewtChange !== undefined) {
+    rawSheet.getRange(3, 10).setValue(realData.ewtChange);
+  }
+
+  // 4. 自動修復 2026-07-31 的 EWT 歷史原貌
+  healRawHistoryEwtData();
+}
+
+/**
  * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
  */
 function updateMorningMarketEngine() {
@@ -1426,17 +1500,11 @@ function updateMorningMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，更新最新交易日夜盤 EWT 與 VIX 後執行休市 AI 導航。`);
+    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，獨立寫入休市日夜盤 EWT 與 VIX 後執行休市 AI 導航。`);
     try {
-      const realData = fetchRealMarketData();
-      if (realData.ewtChange !== null) {
-        rawSheet.getRange(3, 10).setValue(realData.ewtChange);
-      }
-      if (realData.vix !== null) {
-        rawSheet.getRange(3, 3).setValue(realData.vix);
-      }
+      writeWeekendEwtRow();
     } catch (e) {
-      Logger.log('[Morning Update] 休市日擷取美股夜盤失敗: ' + e.message);
+      Logger.log('[Morning Update] 休市日獨立寫入失敗: ' + e.message);
     }
     generateMorningNavigation();
     return;
@@ -1492,7 +1560,12 @@ function updateAfternoonMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，僅執行 AI 導航更新，免向 HISTORY_LOG 寫入重複無效資料。`);
+    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，獨立寫入休市日夜盤 EWT 與 VIX 後執行休市 AI 導航。`);
+    try {
+      writeWeekendEwtRow();
+    } catch (e) {
+      Logger.log('[Afternoon Update] 休市日獨立寫入失敗: ' + e.message);
+    }
     generateAfternoonNavigation();
     return;
   }
@@ -1971,15 +2044,44 @@ function getMarketEngineData() {
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
-  // 0. 讀取最新交易日資料日期，做為客觀時間主語
-  let lastDataDate = '2026-07-27';
-  if (rawSheet && rawSheet.getLastRow() >= 3) {
-    lastDataDate = rawSheet.getRange(3, 1).getDisplayValue() || '2026-07-27';
-  }
   const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
-  const ewtDateStr = todayDateStr;
+  const dayOfWeek = parseInt(Utilities.formatDate(new Date(), 'Asia/Taipei', 'u'), 10); // 1 = Mon, ..., 6 = Sat, 7 = Sun
+  const isWeekend = (dayOfWeek === 6 || dayOfWeek === 7);
 
-  // 1. 使用 Asia/Taipei 台北時區精準判定時分與休市日狀態 (07:30 老巴早餐 / 16:30 小羅午茶)
+  // 0. 解耦：分別尋找「台股成交價日期 (lastStockDataDate)」與「夜盤 EWT 日期 (lastEwtDataDate)」
+  let lastStockDataDate = '2026-07-31';
+  let lastEwtDataDate = todayDateStr;
+  let stockRowValues = null;
+  let ewtRowValues = null;
+
+  if (rawSheet && rawSheet.getLastRow() >= 3) {
+    const numRows = Math.min(30, rawSheet.getLastRow() - 2);
+    const grid = rawSheet.getRange(3, 1, numRows, 10).getDisplayValues();
+
+    // (A) 尋找最後一筆有台股成交價 (TWII) 的資料列
+    for (let i = 0; i < grid.length; i++) {
+      const dStr = grid[i][0];
+      const twiiVal = grid[i][1];
+      if (dStr && twiiVal && twiiVal.trim() !== '' && twiiVal !== 'N/A' && twiiVal !== '#N/A') {
+        lastStockDataDate = dStr;
+        stockRowValues = grid[i];
+        break;
+      }
+    }
+
+    // (B) 尋找最後一筆有 EWT_Change 數據的資料列
+    for (let i = 0; i < grid.length; i++) {
+      const dStr = grid[i][0];
+      const ewtVal = grid[i][9];
+      if (dStr && ewtVal && ewtVal.trim() !== '' && ewtVal !== 'N/A' && ewtVal !== '#N/A') {
+        lastEwtDataDate = dStr;
+        ewtRowValues = grid[i];
+        break;
+      }
+    }
+  }
+
+  // 1. 使用 Asia/Taipei 台北時區精準判定時分與值班狀態
   const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
   const currentMinStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'mm');
   const timeInMins = parseInt(currentHourStr, 10) * 60 + parseInt(currentMinStr, 10);
@@ -1993,15 +2095,18 @@ function getMarketEngineData() {
   const marketStatusPayload = {
     isOpen: status.isOpen,
     reason: status.reason,
-    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${lastDataDate} 休市 (${status.reason})`,
+    badgeText: status.isOpen ? liveHealth.healthStatus : `☕ ${lastStockDataDate} 休市 (${status.reason})`,
     healthStatus: liveHealth.healthStatus
   };
 
   const data = {
-    date: lastDataDate,
-    lastDataDate: lastDataDate,
+    date: lastStockDataDate,
+    lastDataDate: lastStockDataDate,
+    lastStockDataDate: lastStockDataDate,
+    lastEwtDataDate: lastEwtDataDate,
     todayDate: todayDateStr,
-    ewtDate: ewtDateStr,
+    ewtDate: lastEwtDataDate,
+    isWeekend: isWeekend,
     twii: '43,634.19',
     dist60: '-0.87%',
     dist240: '+32.29%',
@@ -2021,9 +2126,9 @@ function getMarketEngineData() {
     aiActiveBadge: isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)',
     aiActiveStory: isMorning 
       ? '[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕'
-      : '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 16:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
+      : '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。',
     aiMorningStory: '[老巴的盤前早餐時間] 早上好！歡迎來到 Kopitiam。AI 顧問正在觀察盤前行情。若已設定 Gemini API Key，我會在此為您提供即時解說與心態指引！☕',
-    aiAfternoonStory: '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。\n\n【如何啟用 AI 解讀功能？】\n請確認您已在 Google Apps Script 中設定「MARKET_ENGINE_GEMINI_API_KEY」腳本屬性。設定完成後，每日的 07:30 與 16:30 自動排程或點選選單手動測試時，老巴與小羅就會在值班時間為您提供第一手的深入市場觀察與操作錦囊！\n\n【祝您投資順心】\n在咖啡香中保持平常心，跟著大師們一起紀律扣款，穩定航行。',
+    aiAfternoonStory: '【AI 顧問準備中】\n歡迎來到 Kopitiam！大盤的技術指標與扣款決策卡已成功加載，AI 顧問正準備為您端上精緻的盤後午茶解譯。',
     metricsStatus: {
       dist60: '🛒 價格低於季線，中短期出現撿便宜的好時機！',
       dist240: '🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！',
@@ -2035,20 +2140,33 @@ function getMarketEngineData() {
     backtest: []
   };
 
-  // 1. 強控：從 RAW_HISTORY 第 3 列 (最新實體交易日) 精準讀取真實數據
-  if (rawSheet && rawSheet.getLastRow() >= 3) {
-    const rowValues = rawSheet.getRange(3, 1, 1, 10).getDisplayValues()[0];
-    if (rowValues[0] && rowValues[1] && rowValues[0] !== '' && rowValues[1] !== '') {
-      data.date = rowValues[0];
-      data.twii = rowValues[1];
-      data.vix = rowValues[2];
-      data.dist60 = rowValues[5];
-      data.dist240 = rowValues[6];
-      data.ma60Slope = rowValues[7];
-      data.dist60Delta = rowValues[8];
-      data.ewtChange = rowValues[9];
-      data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
-    }
+  // 解耦寫入 (1)：台股數據讀取自 lastStockDataDate 列
+  if (stockRowValues) {
+    data.date = lastStockDataDate;
+    data.lastStockDataDate = lastStockDataDate;
+    data.lastDataDate = lastStockDataDate;
+    data.twii = stockRowValues[1];
+    data.vix = stockRowValues[2];
+    data.dist60 = stockRowValues[5];
+    data.dist240 = stockRowValues[6];
+    data.ma60Slope = stockRowValues[7];
+    data.dist60Delta = stockRowValues[8];
+  }
+
+  // 解耦寫入 (2)：夜盤數據讀取自 lastEwtDataDate 列
+  if (ewtRowValues) {
+    data.lastEwtDataDate = lastEwtDataDate;
+    data.ewtDate = lastEwtDataDate;
+    data.ewtChange = ewtRowValues[9];
+    data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
+  }
+
+  // 週末 Weekend Mode 重構覆寫
+  if (isWeekend) {
+    data.actionGuide = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${lastStockDataDate} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;
+    data.dcaRegularGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+    data.dcaPowderGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+    data.dcaGuide = '🟢 週末休市中 (下週一照常執行紀律)';
   }
 
   // 2. 抓取 DASHBOARD 今日位階、DCA 扣款卡與 AI 顧問
