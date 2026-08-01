@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.0)
+# HANDBOOK.md (v2.7.1)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -65,8 +65,9 @@
   - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 16:30 值班 (小羅午茶 - 時間校正修復)
   - 專用模型: `gemini-flash-latest`
 
-## ⑦ Dashboard / UI (v2.4.6 SPA 分頁化、防快取 JSONP 與颱風假判定優化)
-- **SPA 頁面分頁化重構 (Tab Navigation)**: 3 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`），極致流暢且兼顧響應式切換。
+## ⑦ Dashboard / UI (v2.7.1 FIN-NEWS 頁面事件卡片文字精簡與標號完全清理)
+- **SPA 4 大分頁 UI 精簡與 FIN-NEWS 卡片標號清理 (v2.7.1)**: 於 `📰 FIN-NEWS` 頁面之「未來重大事件倒數提醒」卡片中，全面移除「💡 為什麼重要：」與「🛡️ 盤面影響與資金池戰術指南：」前綴標題標籤與圖示，使事件說明與戰術建議呈現極簡視覺風格，並建置相容各種 AI Markdown 符號（粗體 `**`、括號、Emoji 與冒號）之強健過濾機制。
+- **SPA 頁面分頁化重構 (Tab Navigation)**: 4 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`, 📰 FIN-NEWS `finnews`），極致流暢且兼顧響應式切換。
 - **觀念導航 5 大指標圖卡大升級**: 包含 VIX (市場體溫計)、MA60/MA240 (趨勢守護地板)、Dist60 (小狗散步位階)、Slope/Delta (底氣與油門) 與 EWT 5 階門檻 (海外氣象球)，全面精簡去除「白話比喻：」前綴贅字。
 - **🌱 投資入門到進階 7 大心態 QA (v2.5.4)**: 於「💡 觀念導航」頁籤底部重構為 2 大階段 Glassmorphism 完全手冊：
   - **階段一：入門心態與避坑指南 (QA 1~4)**：包含 6 個月緊急生活預備金、槓桿/借錢追繳斷頭警告 (🛑 用力打槍)、當沖慘賠與讓頂尖企業打工 (🛑 用力打槍)、股票 2 大收益本質。
@@ -83,10 +84,10 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.5.5 「定期定額 vs. 資金池加碼雙軌決策機制」升級，將常態定期定額扣款（純位階判定）與手動靈活動用資金池（位階＋EWT Change 夜盤強彈防追高）決策解耦，並重構 UI 雙軌決策卡！
+v2.7.1 FIN-NEWS 頁面事件卡片雙重標頭（💡 為什麼重要：／🛡️ 盤面影響與資金池戰術指南：）完全清理與前端極簡視覺優化。
 
 ## ⑩ Current Version
-v2.7.0 (未來重大事件倒數雷達與 FIN-NEWS 升級版)
+v2.7.1 (FIN-NEWS 事件卡片文字精簡與雙重標頭全面清理)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -94,7 +95,7 @@ v2.7.0 (未來重大事件倒數雷達與 FIN-NEWS 升級版)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.7.0 未來重大事件倒數雷達 (Event Calendar)、Google Docs 報告解析與雙大師讀報完工！
+- **目前停止位置**: v2.7.1 FIN-NEWS 事件卡片文字精簡與雙重標頭全面清理完工發布！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
