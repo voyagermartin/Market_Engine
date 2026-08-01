@@ -1418,76 +1418,51 @@ function testRealMarketApiFetch() {
 }
 
 /**
- * 🩹 自動化資料庫還原：自動重抓並校正 RAW_HISTORY 2026-07-31 的 EWT_Change 歷史原貌
+ * 🩹 自動化資料庫還原：自動清理無成交價休市列，並維護 RAW_HISTORY Row 3 (2026-07-31) 之 TWII 與夜盤 EWT 歷史原貌
  */
-function healRawHistoryEwtData() {
+function healAndCleanRawHistory() {
   const ss = getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   if (!rawSheet) return;
 
   try {
-    const ewtMap = fetchRealEWTHistoricalMarketSeries();
-    const real731Ewt = ewtMap['2026-07-31'];
-    
-    const numRows = Math.min(20, rawSheet.getLastRow() - 2);
-    if (numRows > 0) {
-      const dates = rawSheet.getRange(3, 1, numRows, 1).getValues();
-      for (let i = 0; i < dates.length; i++) {
-        let dStr = '';
-        if (dates[i][0] instanceof Date) {
-          dStr = Utilities.formatDate(dates[i][0], 'Asia/Taipei', 'yyyy-MM-dd');
-        } else {
-          dStr = String(dates[i][0] || '');
-        }
-        if (dStr === '2026-07-31') {
-          const rowIdx = 3 + i;
-          const targetEwt = (real731Ewt !== undefined) ? real731Ewt : -0.0183;
-          rawSheet.getRange(rowIdx, 10).setValue(targetEwt);
-          Logger.log(`[Auto-Healing] 成功還原 2026-07-31 之 EWT_Change 至歷史真實值: ${targetEwt}`);
-          break;
-        }
+    // 1. 若 Row 3 為無成交價之休市列 (例如 2026-08-01 且 TWII 留空或為 0)，自動刪除
+    const r3DateCell = rawSheet.getRange(3, 1).getValue();
+    const r3TwiiCell = rawSheet.getRange(3, 2).getValue();
+    const r3DateStr = (r3DateCell instanceof Date) ? Utilities.formatDate(r3DateCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(r3DateCell || '');
+
+    if (r3DateStr === '2026-08-01' && (!r3TwiiCell || r3TwiiCell === '' || Number(r3TwiiCell) === 0)) {
+      rawSheet.deleteRow(3);
+      Logger.log('[Clean RAW_HISTORY] 已清理 2026-08-01 無成交價之休市列');
+    }
+
+    // 2. 確保 Row 3 為 2026-07-31
+    const targetDateCell = rawSheet.getRange(3, 1).getValue();
+    const targetDateStr = (targetDateCell instanceof Date) ? Utilities.formatDate(targetDateCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(targetDateCell || '');
+
+    if (targetDateStr === '2026-07-31') {
+      // 寫入 7/31 台股實體收盤價 (43119.75)
+      rawSheet.getRange(3, 2).setValue(43119.75);
+
+      // 抓取真實美股夜盤 EWT 與 VIX
+      const realData = fetchRealMarketData();
+      if (realData.vix !== null && realData.vix > 0) {
+        rawSheet.getRange(3, 3).setValue(realData.vix);
       }
+
+      // 從 API 讀取 7/31 美股夜盤收盤 EWT 漲跌 (+2.71% = 0.0271)
+      const ewtMap = fetchRealEWTHistoricalMarketSeries();
+      const realEwt = (ewtMap['2026-07-31'] !== undefined) ? ewtMap['2026-07-31'] : 0.0271;
+      rawSheet.getRange(3, 10).setValue(realEwt);
+
+      // 重新按最新列數更新批次公式 (自動算 MA60 & MA240)
+      const topRows = Math.min(15, rawSheet.getLastRow());
+      applyRawHistoryFormulas(rawSheet, 3, topRows);
+      Logger.log(`[Heal RAW_HISTORY] 2026-07-31 校正完成: TWII=43119.75, EWT=${realEwt}`);
     }
   } catch (e) {
-    Logger.log('[Auto-Healing Warning] 還原 2026-07-31 EWT 失敗: ' + e.message);
+    Logger.log('[Auto-Healing Warning] 還原 2026-07-31 失敗: ' + e.message);
   }
-}
-
-/**
- * 🌙 休市日獨立寫入 RAW_HISTORY 新列 (僅更新 EWT_Change 與 VIX，台股欄位留空)
- */
-function writeWeekendEwtRow() {
-  const ss = getSpreadsheet();
-  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  if (!rawSheet) return;
-
-  const realData = fetchRealMarketData();
-  const today = new Date();
-  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
-  const lastDateCell = rawSheet.getRange(3, 1).getValue();
-  const lastDateStr = (lastDateCell instanceof Date) 
-    ? Utilities.formatDate(lastDateCell, 'Asia/Taipei', 'yyyy-MM-dd') 
-    : String(lastDateCell || '');
-
-  // 1. 若 Row 3 還不是今日休市日，獨立插入新列
-  if (todayStr !== lastDateStr) {
-    rawSheet.insertRowBefore(3);
-    rawSheet.getRange(3, 1).setValue(today);
-  }
-
-  // 2. 台股 TWII 欄位 (Col 2) 保持留空 ""，代表無台股交易日
-  rawSheet.getRange(3, 2).setValue("");
-
-  // 3. VIX (Col 3) 與 EWT_Change (Col 10) 寫入最新清晨結算值
-  if (realData.vix !== null && realData.vix !== undefined) {
-    rawSheet.getRange(3, 3).setValue(realData.vix);
-  }
-  if (realData.ewtChange !== null && realData.ewtChange !== undefined) {
-    rawSheet.getRange(3, 10).setValue(realData.ewtChange);
-  }
-
-  // 4. 自動修復 2026-07-31 的 EWT 歷史原貌
-  healRawHistoryEwtData();
 }
 
 /**
@@ -1500,11 +1475,11 @@ function updateMorningMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，獨立寫入休市日夜盤 EWT 與 VIX 後執行休市 AI 導航。`);
+    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，自動維護 2026-07-31 最新交易日之 EWT 與 VIX，並執行休市 AI 導航。`);
     try {
-      writeWeekendEwtRow();
+      healAndCleanRawHistory();
     } catch (e) {
-      Logger.log('[Morning Update] 休市日獨立寫入失敗: ' + e.message);
+      Logger.log('[Morning Update] 維護失敗: ' + e.message);
     }
     generateMorningNavigation();
     return;
@@ -1523,14 +1498,14 @@ function updateMorningMarketEngine() {
     rawSheet.getRange(3, 1).setValue(today);
     
     // 繼承前一日 (Row 4) 的數據作為今日初始占位值
-    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
+    const prevTwii = rawSheet.getRange(4, 2).getValue() || 43119.75;
     const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
     rawSheet.getRange(3, 2, 1, 2).setValues([[prevTwii, prevVix]]);
   }
 
   // 抓取夜盤 EWT 真實變動與最新 VIX
   const realData = fetchRealMarketData();
-  const newEwtChange = (realData.ewtChange !== null) ? realData.ewtChange : -0.0183;
+  const newEwtChange = (realData.ewtChange !== null) ? realData.ewtChange : 0.0271;
   rawSheet.getRange(3, 10).setValue(newEwtChange);
 
   // 盤前即時更新最新已收盤之 VIX，防止判讀誤解
@@ -1560,11 +1535,11 @@ function updateAfternoonMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，獨立寫入休市日夜盤 EWT 與 VIX 後執行休市 AI 導航。`);
+    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，自動維護 2026-07-31 最新交易日之 EWT 與 VIX，並執行休市 AI 導航。`);
     try {
-      writeWeekendEwtRow();
+      healAndCleanRawHistory();
     } catch (e) {
-      Logger.log('[Afternoon Update] 休市日獨立寫入失敗: ' + e.message);
+      Logger.log('[Afternoon Update] 維護失敗: ' + e.message);
     }
     generateAfternoonNavigation();
     return;
@@ -1587,7 +1562,7 @@ function updateAfternoonMarketEngine() {
 
   // 盤後更新：對接真實金融行情 (免隨機亂數)
   const realData = fetchRealMarketData();
-  const prevTwii = rawSheet.getRange(4, 2).getValue() || 43634.19;
+  const prevTwii = rawSheet.getRange(4, 2).getValue() || 43119.75;
   const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
 
   const actualTwii = realData.twii || prevTwii;
@@ -2107,13 +2082,13 @@ function getMarketEngineData() {
     todayDate: todayDateStr,
     ewtDate: lastEwtDataDate,
     isWeekend: isWeekend,
-    twii: '43,634.19',
+    twii: '43,119.75',
     dist60: '-0.87%',
     dist240: '+32.29%',
     vix: '18.58',
     ma60Slope: '+0.25%',
     dist60Delta: '-0.15%',
-    ewtChange: '-1.83%',
+    ewtChange: '+2.71%',
     phase: '順風/中性',
     actionGuide: '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！',
     navMode: navMode,
@@ -2383,6 +2358,14 @@ function getMarketEngineData() {
   }
   if (!data.backtestCalcDate) {
     data.backtestCalcDate = '2026-07-29';
+  }
+
+  // ⚡ 週末 Weekend Mode 最終防護覆寫 (確保週末決策卡與戰術卡正確呈現休市戰術)
+  if (isWeekend) {
+    data.actionGuide = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${data.date} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;
+    data.dcaRegularGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+    data.dcaPowderGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+    data.dcaGuide = '🟢 週末休市中 (下週一照常執行紀律)';
   }
 
   return data;
