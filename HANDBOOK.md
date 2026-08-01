@@ -225,8 +225,12 @@ v2.5.9 (週末休市情境與 RAW_HISTORY 解耦升級版)
   - 第一區塊：`☕ 2026-08-01 週末戰術總結與下週預備`
   - 第二區塊：`🌙 2026-08-01 夜盤最終收盤 (美股週五結算)`
   - 收盤位階卡：`☕ 2026-07-31 收盤位階`
-- **Apps Script 線上發布規範 (Deployment Version @66)**：
-  - 每次推播程式碼後，同步執行 `npx clasp deploy -i <DeploymentID>`，確保線上 `/exec` URL 立即指向最新 `@66` 部署版本。
+- **MARKET LAB 回測數據防污染過濾 (`applyHistoryLogFormulas` & `verifyLabBacktest`)**：
+  - `HISTORY_LOG` 欄位 F (`今日位階`) 導入 `=IF(OR(ISBLANK(A), WEEKDAY(A, 2)>5), "", ...)`，自動將 2026-08-01 等週末休市列之位階傳回 `""`（空字串）。
+  - `LAB_BACKTEST` 的 `COUNTIF` / `AVERAGEIF` / `COUNTIFS` 自動跳過空字串，嚴禁將週末休市列計入 18 年總交易天數與勝率分母。
+  - `verifyLabBacktest` 自我驗證引擎 4 大稽核全數以「純實體台股交易日」進行比對，對帳日期標籤 (2026-08-01) 正常寫入，計算底冊 100% 純淨。
+- **Apps Script 線上發布規範 (Deployment Version @67)**：
+  - 每次推播程式碼後，同步執行 `npx clasp deploy -i <DeploymentID>`，確保線上 `/exec` URL 立即指向最新 `@67` 部署版本。
 
 
 
