@@ -2031,16 +2031,17 @@ function getMarketEngineData() {
     const numRows = Math.min(30, rawSheet.getLastRow() - 2);
     const grid = rawSheet.getRange(3, 1, numRows, 10).getDisplayValues();
 
-    // (A) 尋找最後一筆台股實體交易日 (非週休二日) 的資料列
+    // (A) 尋找最後一筆台股實體交易日 (非週休二日/休市) 的資料列
     for (let i = 0; i < grid.length; i++) {
       const dStr = grid[i][0];
       const twiiVal = grid[i][1];
-      const dObj = new Date(dStr + 'T00:00:00+08:00');
-      const dDay = dObj.getDay(); // 0 = Sun, 6 = Sat
-      if (dStr && twiiVal && twiiVal.trim() !== '' && twiiVal !== 'N/A' && twiiVal !== '#N/A' && dDay !== 0 && dDay !== 6) {
-        lastStockDataDate = dStr;
-        stockRowValues = grid[i];
-        break;
+      if (dStr && twiiVal && twiiVal.trim() !== '' && twiiVal !== 'N/A' && twiiVal !== '#N/A') {
+        const checkOpen = isMarketOpen(dStr);
+        if (checkOpen && checkOpen.isOpen) {
+          lastStockDataDate = dStr;
+          stockRowValues = grid[i];
+          break;
+        }
       }
     }
 

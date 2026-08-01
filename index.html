@@ -1099,6 +1099,10 @@
       if (isWeekend) {
         regGuide = '🟢 週末休市中 (下週一照常執行紀律)';
         pwdGuide = '🟢 週末休市中 (下週一照常執行紀律)';
+        const actEl = document.getElementById('actionGuide');
+        if (actEl) {
+          actEl.textContent = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${lastStockDate} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;
+        }
       } else {
         if (!regGuide || regGuide === 'N/A' || regGuide === '資料加載中...') {
           if (data.phase === '過熱' || data.phase === '狂熱') {
