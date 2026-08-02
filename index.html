@@ -506,7 +506,7 @@
         </div>
       </div>
       <div class="metric-card">
-        <div class="metric-name">VIX 恐慌指數</div>
+        <div class="metric-name" id="vixCardTitle">VIX 恐慌指數</div>
         <div class="metric-val-row">
           <span class="metric-val" id="valVix">連線中...</span>
           <span class="metric-tag" id="tagVix">連線中...</span>
@@ -575,7 +575,7 @@
             <!-- VIX -->
             <div style="background: rgba(44, 39, 36, 0.6); padding: 20px; border-radius: 14px; border: 1px solid rgba(251, 191, 36, 0.2); display: flex; flex-direction: column; gap: 10px;">
               <div style="font-size: 1.2rem; font-weight: 700; color: #fde047; display: flex; align-items: center; justify-content: space-between;">
-                <span>🌡️ VIX (恐慌指數)</span>
+                <span id="vixConceptTitle">🌡️ VIX (恐慌指數)</span>
                 <span style="font-size: 12px; background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 2px 8px; border-radius: 6px;">市場體溫計</span>
               </div>
               <div style="line-height: 1.75; color: #fef3c7;">
@@ -1108,7 +1108,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.7.1
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.7.2
       </div>
     </footer>
   </div>
@@ -1181,6 +1181,17 @@
         }
       }
       const lastEwtDate = data.lastEwtDataDate || data.ewtDate || todayDate;
+      const lastVixDate = data.lastVixDataDate || data.vixDate || lastEwtDate || todayDate;
+
+      const formatMmDd = (dStr) => {
+        if (!dStr) return '';
+        const parts = String(dStr).split('-');
+        if (parts.length === 3) {
+          return `${parseInt(parts[1], 10)}/${parts[2]}`;
+        }
+        return dStr;
+      };
+      const vixMmDd = formatMmDd(lastVixDate);
 
       if (lastStockDate) {
         document.getElementById('dataDate').textContent = `收盤: ${lastStockDate} | 今日: ${todayDate}`;
@@ -1199,6 +1210,22 @@
         const tempTitleEl = document.getElementById('marketTempTitle');
         if (tempTitleEl) {
           tempTitleEl.textContent = `☕ ${lastStockDate} 收盤位階`;
+        }
+        const vixTitleEl = document.getElementById('vixCardTitle');
+        if (vixTitleEl) {
+          if (isWeekend) {
+            vixTitleEl.textContent = `VIX 恐慌指數 (${vixMmDd} 清晨收盤 / 美股週五結算)`;
+          } else {
+            vixTitleEl.textContent = `VIX 恐慌指數`;
+          }
+        }
+        const vixConceptTitleEl = document.getElementById('vixConceptTitle');
+        if (vixConceptTitleEl) {
+          if (isWeekend) {
+            vixConceptTitleEl.textContent = `🌡️ VIX 市場體溫計 (${vixMmDd} 清晨收盤 / 美股週五結算)`;
+          } else {
+            vixConceptTitleEl.textContent = `🌡️ VIX (恐慌指數)`;
+          }
         }
         const ewtTitleEl = document.getElementById('ewtCardTitle');
         if (ewtTitleEl) {

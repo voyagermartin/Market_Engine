@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.1)
+# HANDBOOK.md (v2.7.2)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -84,10 +84,10 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.7.1 FIN-NEWS 頁面事件卡片雙重標頭（💡 為什麼重要：／🛡️ 盤面影響與資金池戰術指南：）完全清理與前端極簡視覺優化。
+v2.7.2 週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊發布。
 
 ## ⑩ Current Version
-v2.7.1 (FIN-NEWS 事件卡片文字精簡與雙重標頭全面清理)
+v2.7.2 (週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -95,7 +95,7 @@ v2.7.1 (FIN-NEWS 事件卡片文字精簡與雙重標頭全面清理)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.7.1 FIN-NEWS 事件卡片文字精簡與雙重標頭全面清理完工發布！
+- **目前停止位置**: v2.7.2 週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊完工發布！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -267,6 +267,13 @@ v2.7.1 (FIN-NEWS 事件卡片文字精簡與雙重標頭全面清理)
   - 於 `📰 FIN-NEWS` 頁面之「未來重大事件倒數提醒」卡片中，全面移除「💡 為什麼重要：」與「🛡️ 盤面影響與資金池戰術指南：」兩處前綴標題標籤與圖示。
   - 增強前後端動態相容過濾器，自動清理 Gemini AI 產出之各種標頭變體與 Markdown 符號（含粗體 `**`、括號、Emoji 與各式冒號）。
 - **部署發布**：更新 `index.html` 頁尾版本號至 `v2.7.1`，完成 GAS CLI (`clasp push` & `clasp deploy`) 重新部署發布。
+
+### 📅 2026-08-02 週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊發布 (v2.7.2)
+- **VIX 數據擷取與時間戳解耦 (`Market_Engine_GAS.js`)**：
+  - 在 `getMarketEngineData` 中將 VIX 數據讀取獨立為 `lastVixDataDate` 與 `vixRowValues` 解耦掃描邏輯，確保週末 (8/01~8/02) 取用 `RAW_HISTORY` 中最新一筆美股已收盤實體點位 (8/01 清晨結算美股週五之 18.58)。
+- **前端 UI 時間戳與標籤動態對齊 (`index.html`)**：
+  - 於戰情與觀念導航頁籤中，當 `isWeekend` 為 true 時，將 VIX 數據標題/時間戳對齊顯示為 `VIX 市場體溫計 (8/01 清晨收盤 / 美股週五結算)`，使 8/01 清晨收盤之 VIX 與 EWT 雙雙對齊至美股週五結算日。
+- **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 `v2.7.2`，並完成 GAS CLI 部署發布。
 
 
 

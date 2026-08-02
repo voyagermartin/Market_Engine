@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.1 (FIN-NEWS 事件卡片文字精簡與標頭完全清理)
+ * Version: v2.7.2 (週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊)
  */
 
 /**
@@ -2057,11 +2057,13 @@ function getMarketEngineData() {
   const dayOfWeek = parseInt(Utilities.formatDate(new Date(), 'Asia/Taipei', 'u'), 10); // 1 = Mon, ..., 6 = Sat, 7 = Sun
   const isWeekend = (dayOfWeek === 6 || dayOfWeek === 7);
 
-  // 0. 解耦：分別尋找「台股成交價日期 (lastStockDataDate)」與「夜盤 EWT 日期 (lastEwtDataDate)」
+  // 0. 解耦：分別尋找「台股成交價日期 (lastStockDataDate)」、「夜盤 EWT 日期 (lastEwtDataDate)」與「VIX 日期 (lastVixDataDate)」
   let lastStockDataDate = '2026-07-31';
   let lastEwtDataDate = todayDateStr;
+  let lastVixDataDate = todayDateStr;
   let stockRowValues = null;
   let ewtRowValues = null;
+  let vixRowValues = null;
 
   if (rawSheet && rawSheet.getLastRow() >= 3) {
     const numRows = Math.min(30, rawSheet.getLastRow() - 2);
@@ -2091,6 +2093,17 @@ function getMarketEngineData() {
         break;
       }
     }
+
+    // (C) 尋找最後一筆有 VIX 數據的資料列 (美股最新已收盤實體數據解耦)
+    for (let i = 0; i < grid.length; i++) {
+      const dStr = grid[i][0];
+      const vixVal = grid[i][2];
+      if (dStr && vixVal && vixVal.trim() !== '' && vixVal !== 'N/A' && vixVal !== '#N/A') {
+        lastVixDataDate = dStr;
+        vixRowValues = grid[i];
+        break;
+      }
+    }
   }
 
   // 1. 使用 Asia/Taipei 台北時區精準判定時分與值班狀態
@@ -2116,8 +2129,10 @@ function getMarketEngineData() {
     lastDataDate: lastStockDataDate,
     lastStockDataDate: lastStockDataDate,
     lastEwtDataDate: lastEwtDataDate,
+    lastVixDataDate: lastVixDataDate,
     todayDate: todayDateStr,
     ewtDate: lastEwtDataDate,
+    vixDate: lastVixDataDate,
     isWeekend: isWeekend,
     twii: '43,119.75',
     dist60: '-0.87%',
@@ -2158,7 +2173,6 @@ function getMarketEngineData() {
     data.lastStockDataDate = lastStockDataDate;
     data.lastDataDate = lastStockDataDate;
     data.twii = stockRowValues[1];
-    data.vix = stockRowValues[2];
     data.dist60 = stockRowValues[5];
     data.dist240 = stockRowValues[6];
     data.ma60Slope = stockRowValues[7];
@@ -2171,6 +2185,13 @@ function getMarketEngineData() {
     data.ewtDate = lastEwtDataDate;
     data.ewtChange = ewtRowValues[9];
     data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
+  }
+
+  // 解耦寫入 (3)：VIX 恐慌指數讀取自 lastVixDataDate 列 (美股最新已收盤實體數據)
+  if (vixRowValues) {
+    data.lastVixDataDate = lastVixDataDate;
+    data.vixDate = lastVixDataDate;
+    data.vix = vixRowValues[2];
   }
 
   // 週末 Weekend Mode 重構覆寫
