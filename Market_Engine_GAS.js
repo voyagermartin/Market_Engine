@@ -1995,46 +1995,45 @@ function calculatePhaseAnalysis(d60Val, pValues, phase, dataDate) {
 
   const mmDd = (dataDate && dataDate.includes('-')) ? dataDate.split('-').slice(1).join('-') : '收盤';
 
-  let percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，位於 P25~P75 常態區間，屬 18 年歷史合理評價範圍。`;
-  if (d60Val < p10) {
+  let d60Phase = '順風/中性';
+  if (d60Val < p10) d60Phase = '極度恐慌';
+  else if (d60Val < p25) d60Phase = '恐慌';
+  else if (d60Val > p90) d60Phase = '狂熱';
+  else if (d60Val > p75) d60Phase = '過熱';
+
+  let percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，位於 P25 (${p25PctStr}) ~ P75 (${p75PctStr}) 常態區間！代表價格相對於『近 3 個月平均成本』處於 18 年歷史常態合理評價範圍。`;
+  if (d60Phase === '極度恐慌') {
     percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已跌破 P10 極端折價門檻 (${p10PctStr})！這代表價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 90% 的交易日都還要深（進入歷史級深層打折區）！`;
-  } else if (d60Val < p25) {
+  } else if (d60Phase === '恐慌') {
     percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已跌破 P25 恐慌打折門檻 (${p25PctStr})！這代表價格相對於『近 3 個月平均成本』的拉回打折幅度，比過去 18 年歷史中 75% 的交易日都還要深（進入甜甜打折區）！`;
-  } else if (d60Val > p90) {
+  } else if (d60Phase === '狂熱') {
     percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已突破 P90 極端過熱門檻 (${p90PctStr})！這代表價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 90% 的交易日都還要高（進入歷史級極致高估區）！`;
-  } else if (d60Val > p75) {
+  } else if (d60Phase === '過熱') {
     percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，已突破 P75 警戒過熱門檻 (${p75PctStr})！這代表價格相對於『近 3 個月平均成本』的高估乖離幅度，比過去 18 年歷史中 75% 的交易日都還要高（進入溢價過熱區）！`;
-  } else {
-    percentileText = `${mmDd} 收盤季線偏離度為 ${d60PctStr}，位於 P25 (${p25PctStr}) ~ P75 (${p75PctStr}) 常態區間！代表價格相對於『近 3 個月平均成本』處於 18 年歷史常態合理評價範圍。`;
   }
 
   let lowerBoundText = '';
   let upperBoundText = '';
 
-  if (phase === '極度恐慌' || d60Val < p10) {
+  if (d60Phase === '極度恐慌') {
     lowerBoundText = `已居於歷史最便宜的 10% 極致打折區 (P10: ${p10PctStr})`;
     const distToUpper = Math.abs((p25 - d60Val) * 100).toFixed(2) + '%';
     upperBoundText = `再上漲 ${distToUpper} 即回升至 T2 恐慌區 (P25: ${p25PctStr})`;
-  } else if (phase === '恐慌' || d60Val < p25) {
+  } else if (d60Phase === '恐慌') {
     const distToLower = Math.abs((d60Val - p10) * 100).toFixed(2) + '%';
     const distToUpper = Math.abs((p25 - d60Val) * 100).toFixed(2) + '%';
     lowerBoundText = `再下跌 ${distToLower} 即進入 T1 極度恐慌區 (P10: ${p10PctStr})`;
     upperBoundText = `再上漲 ${distToUpper} 即回升至 T3 順風中性區 (P25: ${p25PctStr})`;
-  } else if (phase === '順風/中性') {
-    const distToLower = Math.abs((d60Val - p25) * 100).toFixed(2) + '%';
-    const distToUpper = Math.abs((p75 - d60Val) * 100).toFixed(2) + '%';
-    lowerBoundText = `再下跌 ${distToLower} 即進入 T2 恐慌打折區 (P25: ${p25PctStr})`;
-    upperBoundText = `再上漲 ${distToUpper} 即進入 T4 過熱警戒區 (P75: ${p75PctStr})`;
-  } else if (phase === '過熱' || d60Val > p75) {
+  } else if (d60Phase === '過熱') {
     const distToLower = Math.abs((d60Val - p75) * 100).toFixed(2) + '%';
     const distToUpper = Math.abs((p90 - d60Val) * 100).toFixed(2) + '%';
     lowerBoundText = `距離回落至 T3 順風中性區向下空間 ${distToLower} (P75: ${p75PctStr})`;
     upperBoundText = `再上漲 ${distToUpper} 即進入 T5 狂熱危險區 (P90: ${p90PctStr})`;
-  } else if (phase === '狂熱' || d60Val > p90) {
+  } else if (d60Phase === '狂熱') {
     const distToLower = Math.abs((d60Val - p90) * 100).toFixed(2) + '%';
     lowerBoundText = `距離回落至 T4 過熱區向下空間 ${distToLower} (P90: ${p90PctStr})`;
     upperBoundText = `已居於歷史最昂貴的 10% 狂熱極致高位 (P90: ${p90PctStr})`;
-  } else {
+  } else { // 順風/中性
     const distToLower = Math.abs((d60Val - p25) * 100).toFixed(2) + '%';
     const distToUpper = Math.abs((p75 - d60Val) * 100).toFixed(2) + '%';
     lowerBoundText = `再下跌 ${distToLower} 即進入 T2 恐慌打折區 (P25: ${p25PctStr})`;

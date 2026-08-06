@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.3)
+# HANDBOOK.md (v2.7.4)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -84,10 +84,10 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.7.3 修復微小正偏離度 (如 +0.31%) 被 parseDistValue 誤判為 31.00% 狂熱過熱之 Bug 發布。
+v2.7.4 重構 calculatePhaseAnalysis 上下邊界計算邏輯，徹底解耦整體位階與季線偏離度邊界敘述。
 
 ## ⑩ Current Version
-v2.7.3 (修復微小正偏離度解析器 Bug 與分位數門檻強健化)
+v2.7.4 (季線偏離度上下邊界邏輯解耦與全站一致性強健化)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -95,7 +95,7 @@ v2.7.3 (修復微小正偏離度解析器 Bug 與分位數門檻強健化)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.7.3 微小正偏離度解析器 Bug 修正完工發布！
+- **目前停止位置**: v2.7.4 季線偏離度上下邊界邏輯解耦與全站一致性強健化完工發布！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -282,6 +282,12 @@ v2.7.3 (修復微小正偏離度解析器 Bug 與分位數門檻強健化)
 - **門檻讀取強健化 (`getMarketEngineData`)**：
   - 將 `THRESHOLD_CONFIG` 讀取 `pValues` 門檻時之 `Number(v)` 改為 `parseDistValue(v)`，確保門檻帶有 `%` 符號或純數字時皆能 100% 穩定轉換為小數比率。
 - **部署發布**：全數更新 `Market_Engine_GAS.js` 與 `HANDBOOK.md` 版本號至 `v2.7.3`，完成 Google Apps Script CLI 重新推播部署 (`clasp push`) 與 GitHub `main` 分支同步。
+
+### 📅 2026-08-06 季線偏離度上下邊界邏輯解耦發布 (v2.7.4)
+- **`calculatePhaseAnalysis` 邊界敘述解耦 (`Market_Engine_GAS.js`)**：
+  - 根治歷史位階百分比卡片中「季線偏離度 (+0.31%) 顯示中性」但「向下/向上邊界誤採年線極端狂熱位階」之文字衝突 Bug。
+  - 將 `lowerBoundText` 與 `upperBoundText` 邊界計算由「整體雙重條件位階 (phase)」全面轉為純粹依據「季線偏離度實體點位 (d60Phase)」，確保偏離度內文與向上/向下安全距離點數 100% 理性嚴密對齊。
+- **部署發布**：全數更新 `Market_Engine_GAS.js` 與 `HANDBOOK.md` 版本號至 `v2.7.4`，完成 `clasp push`、`clasp deploy` 與 GitHub `main` 推播發布。
 
 
 
