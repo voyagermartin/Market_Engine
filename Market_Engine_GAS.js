@@ -617,7 +617,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=RAW_HISTORY!F${rawRow}`,
       `=RAW_HISTORY!G${rawRow}`,
       `=RAW_HISTORY!C${rawRow}`,
-      `=IF(OR(ISBLANK(A${i}), WEEKDAY(A${i}, 2)>5), "", IFERROR(IFS(OR(C${i}<THRESHOLD_CONFIG!$D$4, D${i}<THRESHOLD_CONFIG!$F$4), THRESHOLD_CONFIG!$B$4, OR(C${i}<THRESHOLD_CONFIG!$D$5, D${i}<THRESHOLD_CONFIG!$F$5), THRESHOLD_CONFIG!$B$5, OR(C${i}>THRESHOLD_CONFIG!$C$8, D${i}>THRESHOLD_CONFIG!$E$8), THRESHOLD_CONFIG!$B$8, OR(C${i}>THRESHOLD_CONFIG!$C$7, D${i}>THRESHOLD_CONFIG!$E$7), THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))`,
+      `=IF(OR(ISBLANK(A${i}), WEEKDAY(A${i}, 2)>5), "", IFERROR(IFS(C${i}<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C${i}<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C${i}>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C${i}>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
       `=IF(AND(ISNUMBER(B${i}), ISNUMBER(INDIRECT("B"&(ROW()-252))), B${i}>0), (INDIRECT("B"&(ROW()-252)) - B${i}) / B${i}, "")`
@@ -935,7 +935,7 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('A15').setValue('今日市場位階').setFontWeight('bold');
   sheet.getRange('15:15').breakApart();
   sheet.getRange('B15:E15').merge().setFormula(
-    '=IFERROR(IFS(OR(B7<THRESHOLD_CONFIG!D4, B8<THRESHOLD_CONFIG!F4), THRESHOLD_CONFIG!B4, OR(B7<THRESHOLD_CONFIG!D5, B8<THRESHOLD_CONFIG!F5), THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, OR(B7>THRESHOLD_CONFIG!C7, B8>THRESHOLD_CONFIG!E7), THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B8), "資料計算中")'
+    '=IFERROR(IFS(B7<THRESHOLD_CONFIG!D4, THRESHOLD_CONFIG!B4, B7<THRESHOLD_CONFIG!D5, THRESHOLD_CONFIG!B5, AND(B7>=THRESHOLD_CONFIG!C6, B7<=THRESHOLD_CONFIG!D6), THRESHOLD_CONFIG!B6, B7>THRESHOLD_CONFIG!C8, THRESHOLD_CONFIG!B8, B7>THRESHOLD_CONFIG!C7, THRESHOLD_CONFIG!B7, TRUE, THRESHOLD_CONFIG!B6), "資料計算中")'
   ).setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center').setBackground('#e0f2fe').setFontColor('#0369a1');
 
   sheet.getRange('A16').setValue('核心策略行動指引').setFontWeight('bold');
@@ -2295,20 +2295,24 @@ function getMarketEngineData() {
           let dcaRegularGuide = '🚀 明天照常自動扣款';
           let dcaPowderGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
           
-          if (d60 < pValues.dist60.p10 || d240 < pValues.dist240.p10) {
+          if (d60 < pValues.dist60.p10) {
             phase = '極度恐慌';
             actionGuide = '股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！';
-          } else if (d60 < pValues.dist60.p25 || d240 < pValues.dist240.p25) {
+          } else if (d60 < pValues.dist60.p25) {
             phase = '恐慌';
             actionGuide = '股市打折中！價格很划算，維持定期定額並可以逢低多買一點！';
-          } else if (d60 > pValues.dist60.p90 || d240 > pValues.dist240.p90) {
+          } else if (d60 > pValues.dist60.p90) {
             phase = '狂熱';
             actionGuide = '股市非常危險！行情熱到發燙，請務必保留大量現金防範回檔！';
             dcaRegularGuide = '🛑 暫停定期定額';
-          } else if (d60 > pValues.dist60.p75 || d240 > pValues.dist240.p75) {
+          } else if (d60 > pValues.dist60.p75) {
             phase = '過熱';
             actionGuide = '股市有點貴囉！不要衝動追高，可以陸續把賺到的部分落袋為安！';
             dcaRegularGuide = '🛑 暫停定期定額';
+          }
+          
+          if (d240 > pValues.dist240.p90 && phase === '順風/中性') {
+            actionGuide += ' (⚠️ 注意：長線年線乖離較高，請保持資產配置紀律，切勿槓桿追高)';
           }
           
           data.phase = phase;
