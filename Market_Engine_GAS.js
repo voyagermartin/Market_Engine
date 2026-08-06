@@ -1761,11 +1761,37 @@ function calculateEwtReadiness(ewtValStr) {
  */
 function parseDistValue(val) {
   if (val === null || val === undefined || val === '') return NaN;
-  if (typeof val === 'number') return val;
-  const str = String(val).replace('%', '').replace('+', '').trim();
-  const num = parseFloat(str);
+  if (typeof val === 'number') {
+    if (isNaN(val)) return NaN;
+    // 若數值絕對值 > 0.8（例如 5.3 代表 5.3%、32.29 代表 32.29%），除以 100 轉為小數比率
+    // 若絕對值 <= 0.8（例如 0.0031 代表 0.31%、0.053 代表 5.3%），代表本身已為小數比率
+    return Math.abs(val) > 0.8 ? val / 100 : val;
+  }
+  const str = String(val).trim();
+  if (str === '' || str === 'N/A' || str === '#N/A') return NaN;
+  const hasPercent = str.includes('%');
+  const cleanStr = str.replace('%', '').replace('+', '').replace('▲', '').replace('▼', '-').trim();
+  const num = parseFloat(cleanStr);
   if (isNaN(num)) return NaN;
-  return Math.abs(num) > 0.5 ? num / 100 : num;
+  
+  if (hasPercent) {
+    // 帶有 % 符號的字串（如 "+0.31%", "-0.87%", "5.3%"），cleanStr 為百分比數值，必須除以 100 轉為小數比率
+    return num / 100;
+  }
+  
+  // 未帶 % 符號的字串：
+  // 1. 若為原始小數比率字串（如 "0.0031"、"-0.082"），絕對值極小 (< 0.05)，直接回傳
+  if (Math.abs(num) < 0.05) {
+    return num;
+  }
+  
+  // 2. 若開頭帶有 '+' 或 '-' 符號且絕對值 < 1.0（如 "+0.31"、"-0.87"），代表 % 格式被吃掉的百分比點數，除以 100
+  if ((str.includes('+') || str.includes('-')) && Math.abs(num) < 1.0) {
+    return num / 100;
+  }
+  
+  // 3. 一般未帶 % 的百分比數字（如 "5.3"、"32.29"）：若 > 0.8 則除以 100
+  return Math.abs(num) > 0.8 ? num / 100 : num;
 }
 
 /**
@@ -1961,11 +1987,11 @@ function calculatePhaseAnalysis(d60Val, pValues, phase, dataDate) {
     };
   }
 
-  const d60PctStr = (d60Val * 100).toFixed(2) + '%';
-  const p10PctStr = (p10 * 100).toFixed(1) + '%';
-  const p25PctStr = (p25 * 100).toFixed(1) + '%';
-  const p75PctStr = (p75 * 100).toFixed(1) + '%';
-  const p90PctStr = (p90 * 100).toFixed(1) + '%';
+  const d60PctStr = (d60Val > 0 ? '+' : '') + (d60Val * 100).toFixed(2) + '%';
+  const p10PctStr = (p10 > 0 ? '+' : '') + (p10 * 100).toFixed(1) + '%';
+  const p25PctStr = (p25 > 0 ? '+' : '') + (p25 * 100).toFixed(1) + '%';
+  const p75PctStr = (p75 > 0 ? '+' : '') + (p75 * 100).toFixed(1) + '%';
+  const p90PctStr = (p90 > 0 ? '+' : '') + (p90 * 100).toFixed(1) + '%';
 
   const mmDd = (dataDate && dataDate.includes('-')) ? dataDate.split('-').slice(1).join('-') : '收盤';
 
@@ -2248,21 +2274,21 @@ function getMarketEngineData() {
         const v = configSheet.getRange('C12:D15').getValues();
         const pValues = {
           dist60: {
-            p10: Number(v[0][0]),
-            p25: Number(v[1][0]),
-            p75: Number(v[2][0]),
-            p90: Number(v[3][0])
+            p10: parseDistValue(v[0][0]),
+            p25: parseDistValue(v[1][0]),
+            p75: parseDistValue(v[2][0]),
+            p90: parseDistValue(v[3][0])
           },
           dist240: {
-            p10: Number(v[0][1]),
-            p25: Number(v[1][1]),
-            p75: Number(v[2][1]),
-            p90: Number(v[3][1])
+            p10: parseDistValue(v[0][1]),
+            p25: parseDistValue(v[1][1]),
+            p75: parseDistValue(v[2][1]),
+            p90: parseDistValue(v[3][1])
           }
         };
 
-        const d60 = parseFloat(String(data.dist60).replace('%', '').trim()) / 100;
-        const d240 = parseFloat(String(data.dist240).replace('%', '').trim()) / 100;
+        const d60 = parseDistValue(data.dist60);
+        const d240 = parseDistValue(data.dist240);
         
         if (!isNaN(d60) && !isNaN(d240)) {
           let phase = '順風/中性';
@@ -2383,10 +2409,10 @@ function getMarketEngineData() {
         const v = configSheet.getRange('C12:D15').getValues();
         pValuesRef = {
           dist60: {
-            p10: Number(v[0][0]),
-            p25: Number(v[1][0]),
-            p75: Number(v[2][0]),
-            p90: Number(v[3][0])
+            p10: parseDistValue(v[0][0]),
+            p25: parseDistValue(v[1][0]),
+            p75: parseDistValue(v[2][0]),
+            p90: parseDistValue(v[3][0])
           }
         };
       }

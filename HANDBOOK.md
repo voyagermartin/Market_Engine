@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.2)
+# HANDBOOK.md (v2.7.3)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -84,10 +84,10 @@
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
 
 ## ⑨ Current Sprint
-v2.7.2 週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊發布。
+v2.7.3 修復微小正偏離度 (如 +0.31%) 被 parseDistValue 誤判為 31.00% 狂熱過熱之 Bug 發布。
 
 ## ⑩ Current Version
-v2.7.2 (週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊)
+v2.7.3 (修復微小正偏離度解析器 Bug 與分位數門檻強健化)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -95,7 +95,7 @@ v2.7.2 (週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.7.2 週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊完工發布！
+- **目前停止位置**: v2.7.3 微小正偏離度解析器 Bug 修正完工發布！
 - **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
 
 ---
@@ -274,6 +274,14 @@ v2.7.2 (週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊)
 - **前端 UI 時間戳與標籤動態對齊 (`index.html`)**：
   - 於戰情與觀念導航頁籤中，當 `isWeekend` 為 true 時，將 VIX 數據標題/時間戳對齊顯示為 `VIX 市場體溫計 (8/01 清晨收盤 / 美股週五結算)`，使 8/01 清晨收盤之 VIX 與 EWT 雙雙對齊至美股週五結算日。
 - **部署發布**：全數更新 `Market_Engine_GAS.js`、`index.html` 與 `HANDBOOK.md` 版本號至 `v2.7.2`，並完成 GAS CLI 部署發布。
+
+### 📅 2026-08-06 微小正偏離度解析器 Bug 修正與分位數門檻強健化 (v2.7.3)
+- **`parseDistValue` 通配解析器重構 (`Market_Engine_GAS.js`)**：
+  - 根治 `Math.abs(num) > 0.5` 臨界判斷 Bug（過去因 0.31 <= 0.5，導致微小偏離度 `+0.31%` 未帶 `%` 符號時，未被除以 100，進而被放大 100 倍誤判為 `31.00%` 極端狂熱高估區）。
+  - 新增開頭 `+`/`-` 正負號判讀與 `< 0.8` 臨界值控制，精準區分小數比率 (0.0031)、帶符號點數 (+0.31) 與百分比數字 (32.29)。
+- **門檻讀取強健化 (`getMarketEngineData`)**：
+  - 將 `THRESHOLD_CONFIG` 讀取 `pValues` 門檻時之 `Number(v)` 改為 `parseDistValue(v)`，確保門檻帶有 `%` 符號或純數字時皆能 100% 穩定轉換為小數比率。
+- **部署發布**：全數更新 `Market_Engine_GAS.js` 與 `HANDBOOK.md` 版本號至 `v2.7.3`，完成 Google Apps Script CLI 重新推播部署 (`clasp push`) 與 GitHub `main` 分支同步。
 
 
 
