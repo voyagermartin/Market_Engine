@@ -80,6 +80,9 @@
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則。
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
+- **【金流與帳務零涉入鐵則】**：Market Engine 永遠保持為「純粹的公開市場量化決策大腦」，絕不紀錄、不處理任何個人實體金流、持股張數、交易帳務或敏感資產數據。未來實體對帳統一由獨立之「存股金流系統」單向讀取本 Engine 之 API 訊號進行對接。
+- **【個人扣款日與隱私解耦】**：扣款日測試與試算均以純參數、網頁端選擇器或純歷史模擬處理，嚴禁在後端資料庫或程式碼中硬編碼特定個人扣款日期與隱私資訊。
+- **【數據與 AI 階層鐵則】**：嚴格遵守 `DATA -> QUANT ENGINE -> SIGNAL -> RULE -> ACTION -> AI EXPLANATION` 運算架構。AI 僅作為「解釋層與心態導航」，絕對不可代為產出或覆寫量化投資結論。
 
 ## ⑨ Current Sprint
 v2.7.5 重構全站市場位階判定邏輯（回歸季線 Dist60 主導 + 年線 Dist240 警示），徹底消除 UI 位階矛盾 Bug。
@@ -94,7 +97,25 @@ v2.7.5 (全站位階主體邏輯統一與長線年線警示解耦發布)
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
 - **目前停止位置**: v2.7.5 全站位階主體邏輯統一與長線年線警示解耦發布！
-- **下一步施工位置**: 系統維護完成，安心運行日常與月度自動對帳更新。
+- **下一步施工位置**: 進入 Milestone 6 (v2.8.0) 策略對決模擬器與 Out-of-Sample 滾動驗證研發。
+
+### 🚀 未來進化藍圖 (Future Milestones)
+- **Milestone 6 (v2.8.0) - 第一戰役：策略實證與 Out-of-Sample 壓力測試**
+  1. **策略對決模擬器 (Strategy Backtest Engine)**：
+     - 開發純歷史數據之策略回測算式，比較 Baseline (無條件定期定額) vs. Market Engine 規則 (T3扣/T4停/T5停/T1~T2加碼/3天CD) 之 CAGR、MDD、Sharpe Ratio 與現金利用率。
+     - 融入「單日暴跌 >= 3.5% 閃崩 Override 強制解鎖條款」測試。
+  2. **Walk-Forward / Out-of-Sample (樣本外滾動驗證)**：
+     - 實作 2008~2026 滾動視窗測試（以歷史資料定義門檻，測試未看過的樣本外未來年份），確保門檻無過度擬合 (Overfitting) 與偷看未來資料之疑慮。
+
+- **Milestone 7 (v2.9.0) - 第二戰役：動態強韌與多視窗結構分歧雷達**
+  1. **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**：
+     - 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
+
+- **Milestone 8 (v3.0.0) - 第三戰役：極致透明度與純數據架構完全體**
+  1. **訊號信心度與 Why 理由卡 (Signal Confidence Score)**：
+     - 整合多維度指標 (Dist60, Dist240, Slope, Delta, VIX, EWT) 產出 0~100 共振信心分數與正反面原因拆解。
+  2. **數據血緣標籤 (Data Lineage & Timestamp Transparency)**：
+     - 於 API 與 UI 置頂明確標註 TWII/VIX/EWT 實體資料時間戳，杜絕 AI 故事與量化數據之時間軸錯亂。
 
 ---
 ## ⑫ 開發日誌 (Development Log)
