@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.8 (消除 CalendarApp 與 LLM 同步堵塞，全站毫秒級連線響應發布)
+ * Version: v2.7.9 (月度 Google 日曆自動同步與 0ms 靜態對照表發布)
  */
 
 /**
@@ -37,6 +37,72 @@ function onOpen() {
  * @param {Date} [targetDate] 可選指定日期，預設為台北時間當天
  * @return {{ isOpen: boolean, reason: string }}
  */
+/**
+ * 台灣國定假日常駐靜態對照表 (2025~2027 年預設對照，0 毫秒極速記憶體 Hash 查找)
+ */
+const TAIWAN_HOLIDAYS_PRESET = {
+  // 2026 年國定假日 (含補假)
+  "2026-01-01": "元旦",
+  "2026-02-16": "農曆春節",
+  "2026-02-17": "農曆春節",
+  "2026-02-18": "農曆春節",
+  "2026-02-19": "農曆春節",
+  "2026-02-20": "農曆春節",
+  "2026-02-27": "和平紀念日補假",
+  "2026-02-28": "和平紀念日",
+  "2026-04-03": "兒童節補假",
+  "2026-04-04": "兒童節/清明節",
+  "2026-04-05": "清明節",
+  "2026-06-19": "端午節",
+  "2026-09-25": "中秋節",
+  "2026-10-10": "國慶日",
+  // 2025 年國定假日
+  "2025-01-01": "元旦",
+  "2025-01-27": "農曆春節",
+  "2025-01-28": "農曆春節",
+  "2025-01-29": "農曆春節",
+  "2025-01-30": "農曆春節",
+  "2025-01-31": "農曆春節",
+  "2025-02-28": "和平紀念日",
+  "2025-04-03": "兒童節補假",
+  "2025-04-04": "清明節",
+  "2025-05-30": "端午節",
+  "2025-10-06": "中秋節",
+  "2025-10-10": "國慶日"
+};
+
+/**
+ * 🗓️ 月度自動同步台灣節日日曆至 ScriptProperties (每月 1 日對帳時背景執行一次即可)
+ */
+function updateTaiwanHolidaysCalendar() {
+  try {
+    const cal = CalendarApp.getCalendarById('zh-TW.taiwan#holiday@group.v.calendar.google.com');
+    if (!cal) return;
+
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+    const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+    
+    const events = cal.getEvents(startOfYear, endOfYear);
+    const holidayMap = {};
+
+    events.forEach(evt => {
+      const dStr = Utilities.formatDate(evt.getStartTime(), 'Asia/Taipei', 'yyyy-MM-dd');
+      holidayMap[dStr] = evt.getTitle();
+    });
+
+    PropertiesService.getScriptProperties().setProperty('TAIWAN_HOLIDAYS_JSON', JSON.stringify(holidayMap));
+    Logger.log(`[Holidays Calendar Updated] 月度同步完成，共 ${Object.keys(holidayMap).length} 天國定假日。`);
+  } catch (e) {
+    Logger.log('updateTaiwanHolidaysCalendar Warning: ' + e.message);
+  }
+}
+
+/**
+ * 判斷指定日期是否為台股交易日 (含週休二日與台灣國定假日) - 0 毫秒極速本地查表版
+ * @param {Date|string} [targetDate] 可選指定日期，預設為台北時間當天
+ * @return {{ isOpen: boolean, reason: string }}
+ */
 function isMarketOpen(targetDate) {
   const d = targetDate ? new Date(targetDate) : new Date();
   
@@ -52,40 +118,23 @@ function isMarketOpen(targetDate) {
     return { isOpen: false, reason: '週休二日' };
   }
 
-  // ⚡ 關鍵效能修復：使用 CacheService 快取交易日判定，避免迴圈中重複呼叫 CalendarApp 造成數十秒卡頓
-  const cache = CacheService.getScriptCache();
-  const cacheKey = "MARKET_OPEN_CACHE_" + dateKey;
-  const cachedVal = cache.get(cacheKey);
-  if (cachedVal) {
-    try {
-      return JSON.parse(cachedVal);
-    } catch (e) {}
+  // 1. 優先查閱常駐靜態預設對照表 (0 毫秒)
+  if (TAIWAN_HOLIDAYS_PRESET[dateKey]) {
+    return { isOpen: false, reason: `國定假日 (${TAIWAN_HOLIDAYS_PRESET[dateKey]})` };
   }
 
-  let result = { isOpen: true, reason: '正常交易日' };
-
-  // Google Calendar 台灣節日 ID 查詢
+  // 2. 查閱每月自動同步之 ScriptProperties 日曆 JSON (0 毫秒)
   try {
-    const cal = CalendarApp.getCalendarById('zh-TW.taiwan#holiday@group.v.calendar.google.com');
-    if (cal) {
-      const startOfDay = new Date(year, month, day, 0, 0, 0);
-      const endOfDay = new Date(year, month, day, 23, 59, 59);
-      
-      const events = cal.getEvents(startOfDay, endOfDay);
-      if (events && events.length > 0) {
-        const title = events[0].getTitle();
-        result = { isOpen: false, reason: `國定假日 (${title})` };
+    const propsJson = PropertiesService.getScriptProperties().getProperty('TAIWAN_HOLIDAYS_JSON');
+    if (propsJson) {
+      const holidayMap = JSON.parse(propsJson);
+      if (holidayMap[dateKey]) {
+        return { isOpen: false, reason: `國定假日 (${holidayMap[dateKey]})` };
       }
     }
-  } catch (err) {
-    Logger.log('Calendar API Warning: ' + err);
-  }
-
-  try {
-    cache.put(cacheKey, JSON.stringify(result), 86400); // 快取 24 小時
   } catch (e) {}
 
-  return result;
+  return { isOpen: true, reason: '正常交易日' };
 }
 
 /**
@@ -875,6 +924,11 @@ function updateMonthlyLabBacktest() {
   const sheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   if (!sheet || !rawSheet) return;
+
+  // 月度自動同步台灣節日日曆至 ScriptProperties (避免日常查詢 CalendarApp)
+  try {
+    updateTaiwanHolidaysCalendar();
+  } catch (e) {}
 
   // 僅建立與鎖定 LAB_BACKTEST 的 5 列輕量對帳公式 (免去對 4,000+ 列重複寫入 4 萬個 Excel 算式導致逾時)
   buildLabBacktestSheet(sheet);
