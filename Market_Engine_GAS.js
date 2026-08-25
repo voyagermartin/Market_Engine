@@ -2239,22 +2239,18 @@ function calculateStrategyBacktest(windowYears) {
     let monthDayCountA = 0;
     let lastMonthA = '';
     const returnsListA = [];
+    let equityMaxA = 0;
+    let mddA = 0;
 
     // 【組別 B - Market Engine 紀律調度】
     let investedB = 0;
     let sharesB = 0;
+    let cashB = 0; // 累積之現金池
     let monthDayCountB = 0;
     let lastMonthB = '';
     let cdCounterB = 0;
     const returnsListB = [];
-
-    // 權益曲線與峰值 (用於計算 Peak-to-Trough MDD)
-    let navA = 1.0;
-    let navMaxA = 1.0;
-    let mddA = 0;
-
-    let navB = 1.0;
-    let navMaxB = 1.0;
+    let equityMaxB = 0;
     let mddB = 0;
 
     for (let t = 0; t < validRows.length; t++) {
@@ -2262,22 +2258,6 @@ function calculateStrategyBacktest(windowYears) {
       const monthStr = day.date.substring(0, 7);
       const prevTwii = (t > 0) ? validRows[t - 1].twii : day.twii;
       const dailyReturn = (t > 0 && prevTwii > 0) ? (day.twii - prevTwii) / prevTwii : 0;
-
-      // 更新 Daily NAV 與 MDD
-      if (t > 0 && sharesA > 0) {
-        navA = navA * (1 + dailyReturn);
-        if (navA > navMaxA) navMaxA = navA;
-        const ddA = (navMaxA - navA) / navMaxA;
-        if (ddA > mddA) mddA = ddA;
-        returnsListA.push(dailyReturn);
-      }
-      if (t > 0 && sharesB > 0) {
-        navB = navB * (1 + dailyReturn);
-        if (navB > navMaxB) navMaxB = navB;
-        const ddB = (navMaxB - navB) / navMaxB;
-        if (ddB > mddB) mddB = ddB;
-        returnsListB.push(dailyReturn);
-      }
 
       // --- 每月中旬定期定額邏輯 (當月第 10 個交易日) ---
       if (monthStr !== lastMonthA) {
@@ -2310,6 +2290,10 @@ function calculateStrategyBacktest(windowYears) {
         if (phase === '極度恐慌' || phase === '恐慌' || phase === '順風/中性') {
           investedB += 10000;
           sharesB += 10000 / day.twii;
+        } else {
+          // T4/T5 暫停定期定額：預算轉入現金池
+          investedB += 10000;
+          cashB += 10000;
         }
       }
 
@@ -2324,20 +2308,54 @@ function calculateStrategyBacktest(windowYears) {
 
       if (cdCounterB === 0) {
         if (phase === '恐慌') {
-          investedB += 10000;
-          sharesB += 10000 / day.twii;
+          const buyAmt = 10000;
+          if (cashB >= buyAmt) {
+            cashB -= buyAmt;
+          } else {
+            investedB += (buyAmt - cashB);
+            cashB = 0;
+          }
+          sharesB += buyAmt / day.twii;
           cdCounterB = 3;
         } else if (phase === '極度恐慌') {
-          investedB += 20000;
-          sharesB += 20000 / day.twii;
+          const buyAmt = 20000;
+          if (cashB >= buyAmt) {
+            cashB -= buyAmt;
+          } else {
+            investedB += (buyAmt - cashB);
+            cashB = 0;
+          }
+          sharesB += buyAmt / day.twii;
           cdCounterB = 3;
         }
+      }
+
+      // 每日總資產 (Total Equity) 與 Peak-to-Trough MDD
+      const equityA = sharesA * day.twii;
+      const equityB = (sharesB * day.twii) + cashB;
+
+      if (t > 0 && sharesA > 0) {
+        if (equityA > equityMaxA) equityMaxA = equityA;
+        if (equityMaxA > 0) {
+          const ddA = (equityMaxA - equityA) / equityMaxA;
+          if (ddA > mddA) mddA = ddA;
+        }
+        returnsListA.push(dailyReturn);
+      }
+
+      if (t > 0 && sharesB > 0) {
+        if (equityB > equityMaxB) equityMaxB = equityB;
+        if (equityMaxB > 0) {
+          const ddB = (equityMaxB - equityB) / equityMaxB;
+          if (ddB > mddB) mddB = ddB;
+        }
+        returnsListB.push(dailyReturn);
       }
     }
 
     const lastTwii = validRows[validRows.length - 1].twii;
     const finalValueA = sharesA * lastTwii;
-    const finalValueB = sharesB * lastTwii;
+    const finalValueB = (sharesB * lastTwii) + cashB;
 
     const startDate = new Date(validRows[0].date);
     const endDate = new Date(validRows[validRows.length - 1].date);

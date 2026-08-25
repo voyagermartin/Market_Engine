@@ -908,35 +908,35 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 22px;">
           <!-- 組別 A: Baseline -->
           <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 16px; padding: 20px; border-top: 4px solid #94a3b8;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 6px;">
               <h3 style="font-size: 1.15rem; font-weight: 800; color: #cbd5e1; margin: 0;">無條件定期扣 (Baseline)</h3>
               <span style="font-size: 12px; color: #94a3b8; background: rgba(148, 163, 184, 0.15); padding: 4px 10px; border-radius: 6px;">每月固定扣 NT$ 1萬</span>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.95rem;">
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>💵 累積投入本金：</span><strong id="baseInvested" style="color: #f1f5f9;">NT$ 2,230,000</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>💰 期末累積總資產：</span><strong id="baseFinal" style="color: #f1f5f9;">NT$ 6,850,000</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>📈 累積總報酬率：</span><strong id="baseReturn" style="color: #60a5fa;">+207.17%</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>🚀 年化複合成長 (CAGR)：</span><strong id="baseCagr" style="color: #60a5fa;">+6.21%</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>📉 最大歷史回撤 (MDD)：</span><strong id="baseMdd" style="color: #f87171;">-58.30%</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>⚖️ 夏普值 (Sharpe Ratio)：</span><strong id="baseSharpe" style="color: #cbd5e1;">0.45</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #cbd5e1;"><span>⚡ 本金產出倍數：</span><strong id="baseEfficiency" style="color: #cbd5e1;">3.07x</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>💵 累積投入本金</span><strong id="baseInvested" style="color: #f1f5f9; font-size: 1rem;">NT$ 2,240,000</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>💰 期末累積總資產</span><strong id="baseFinal" style="color: #f1f5f9; font-size: 1.05rem;">NT$ 9,852,618</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>📈 累積總報酬率</span><strong id="baseReturn" style="color: #60a5fa; font-size: 1.05rem;">+339.85%</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>🚀 年化複合成長 (CAGR)</span><strong id="baseCagr" style="color: #60a5fa; font-size: 1.05rem;">+8.27%</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>📉 最大歷史回撤 (MDD)</span><strong id="baseMdd" style="color: #f87171; font-size: 1rem;">-58.30%</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>⚖️ 夏普值 (Sharpe Ratio)</span><strong id="baseSharpe" style="color: #cbd5e1; font-size: 1rem;">0.35</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; padding: 2px 0;"><span>⚡ 本金產出倍數</span><strong id="baseEfficiency" style="color: #cbd5e1; font-size: 1rem;">4.40x</strong></div>
             </div>
           </div>
 
           <!-- 組別 B: Market Engine -->
           <div style="background: rgba(45, 30, 15, 0.7); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 16px; padding: 20px; border-top: 4px solid #fbbf24; box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 6px;">
               <h3 style="font-size: 1.15rem; font-weight: 800; color: #fbbf24; margin: 0;">Market Engine 紀律調度</h3>
               <span style="font-size: 12px; color: #fef08a; background: rgba(251, 191, 36, 0.2); padding: 4px 10px; border-radius: 6px; font-weight: 700;">T1/T2加碼 + T4/T5停扣 + CD控管</span>
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.95rem;">
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>💵 累積投入本金：</span><strong id="meInvested" style="color: #ffffff;">NT$ 2,680,000</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>💰 期末累積總資產：</span><strong id="meFinal" style="color: #fde047; font-size: 1.1rem;">NT$ 12,450,000</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>📈 累積總報酬率：</span><strong id="meReturn" style="color: #34d399; font-size: 1.05rem;">+364.55%</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>🚀 年化複合成長 (CAGR)：</span><strong id="meCagr" style="color: #34d399;">+8.65%</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>📉 最大歷史回撤 (MDD)：</span><strong id="meMdd" style="color: #38bdf8;">-49.88% (顯著改善)</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>⚖️ 夏普值 (Sharpe Ratio)：</span><strong id="meSharpe" style="color: #34d399;">0.78 (+73% 提升)</strong></div>
-              <div style="display: flex; justify-content: space-between; color: #fef3c7;"><span>⚡ 本金產出倍數：</span><strong id="meEfficiency" style="color: #fde047; font-size: 1.05rem;">4.65x (+1.58 倍大幅領先)</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>💵 累積投入本金</span><strong id="meInvested" style="color: #ffffff; font-size: 1rem;">NT$ 7,550,000</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>💰 期末累積總資產</span><strong id="meFinal" style="color: #fde047; font-size: 1.05rem;">NT$ 37,997,997</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>📈 累積總報酬率</span><strong id="meReturn" style="color: #34d399; font-size: 1.05rem;">+403.28%</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>🚀 年化複合成長 (CAGR)</span><strong id="meCagr" style="color: #34d399; font-size: 1.05rem;">+9.05%</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>📉 最大歷史回撤 (MDD)</span><strong id="meMdd" style="color: #38bdf8; font-size: 1rem;">-49.88% (顯著改善)</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>⚖️ 夏普值 (Sharpe Ratio)</span><strong id="meSharpe" style="color: #34d399; font-size: 1rem;">0.39</strong></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; color: #fef3c7; padding: 2px 0;"><span>⚡ 本金產出倍數</span><strong id="meEfficiency" style="color: #fde047; font-size: 1.05rem;">5.03x</strong></div>
             </div>
           </div>
         </div>
@@ -1736,7 +1736,15 @@
           if (me.finalValue) document.getElementById('meFinal').textContent = 'NT$ ' + Number(me.finalValue).toLocaleString();
           if (me.totalReturn) document.getElementById('meReturn').textContent = me.totalReturn;
           if (me.cagr) document.getElementById('meCagr').textContent = me.cagr;
-          if (me.mdd) document.getElementById('meMdd').textContent = me.mdd + ' (顯著改善)';
+          if (me.mdd) {
+            const numA = parseFloat(String(b.mdd || '').replace(/[%-]/g, ''));
+            const numB = parseFloat(String(me.mdd || '').replace(/[%-]/g, ''));
+            let meMddText = me.mdd;
+            if (!isNaN(numA) && !isNaN(numB) && (numA - numB) >= 0.5) {
+              meMddText += ' (顯著改善)';
+            }
+            document.getElementById('meMdd').textContent = meMddText;
+          }
           if (me.sharpeRatio) document.getElementById('meSharpe').textContent = me.sharpeRatio;
           if (me.cashEfficiency) document.getElementById('meEfficiency').textContent = me.cashEfficiency;
 
