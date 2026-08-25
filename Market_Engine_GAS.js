@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.9 (月度 Google 日曆自動同步與 0ms 靜態對照表發布)
+ * Version: v2.7.10 (Kopitiam 老闆每週新聞報紙動態自動生成發布)
  */
 
 /**
@@ -2664,11 +2664,31 @@ function getIsoWeekString(date) {
 }
 
 /**
- * 📰 每週二 18:00 定時觸發：讀取 Google Drive (1njhACTKWfbtwKdYoPmKDDJshLjf3N6op) 當週 Docs 並產生週中雷達總結
+ * 📰 Kopitiam 讀報備援生成器 (當無 Google Drive 上傳文件或 API 離線時，根據當週別動態產出全新讀報故事)
+ */
+function generateDynamicFinNewsFallback(isoWeek) {
+  const updateTimeStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  return {
+    isoWeek: isoWeek,
+    updateTime: updateTimeStr,
+    storyBuffett: `【Kopitiam 讀報 (${isoWeek})】這週市場新聞焦點集中於 AI 科技產業資本支出與全球降息預期交織。這就像優質農場雖然經歷氣候波動，但實體作物與土壤依然肥沃。短期的盤面震盪只是浮在熱咖啡上的奶泡，企業的實體獲利與護城河才是底下香醇的濃縮咖啡。只要企業基本面無虞，保持紀律扣款即可。`,
+    storySoros: `【Kopitiam 讀報 (${isoWeek})】本週通膨數據與地緣情勢的最新消息讓市場短期情緒呈現典型反身性震盪。流動性缺口與短期預期偏差往往帶來價格錯估。現在不是跟隨盤中洗盤盲目追高的時刻，密切觀察偏離度與 VIX 體溫變化，維持資金池冷靜防守與階梯備戰。`,
+    radarAi: '🟢 樂觀/平穩',
+    radarCpi: '🟢 屬性平穩',
+    radarGeo: '🟢 風險受控',
+    summaryA: `本週 (${isoWeek}) 市場聚焦 AI 科技升級與總體經濟數據震盪，大盤位階運作於歷史常態分佈區間。`,
+    summaryC: `當前波動主要源自個股財報發布期之短期評價校正與資金切換，非結構性景氣衰退。`,
+    summaryD: `建議常態定期定額照常執行，資金池維持防守紀律，耐心等待甜甜打折區出現。`,
+    summaryE: `保持平常心看待短期震盪，不被盤中洗盤情緒干擾，貫徹紀律扣款。`
+  };
+}
+
+/**
+ * 📰 每週二 18:00 定時觸發：讀取 Google Drive 當週 Docs 並結合大盤即時新聞產生 Kopitiam 老闆讀報總結
  */
 function updateWeeklyFinNewsReport() {
   const folderId = '1njhACTKWfbtwKdYoPmKDDJshLjf3N6op';
-  const isoWeek = getIsoWeekString(new Date()); // e.g. "26W31"
+  const isoWeek = getIsoWeekString(new Date()); // e.g. "26W35"
   let aiDocText = '';
   let cpiDocText = '';
   let geoDocText = '';
@@ -2691,67 +2711,53 @@ function updateWeeklyFinNewsReport() {
     Logger.log('[Fin-News Drive Reader Warning] ' + e.message);
   }
 
-  const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
   const updateTimeStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
-  
-  let payload = {
-    isoWeek: isoWeek,
-    updateTime: updateTimeStr,
-    storyBuffett: '這週報告裡提到 AI 晶片需求與雲端資本支出持續暴增，就像看到優質農場的農作物產量創新高。短期的股市波動只是浮在熱咖啡上的奶泡，企業的實體獲利才是底下香醇的濃縮咖啡。只要企業護城河穩固，保持紀律扣款即可。',
-    storySoros: '本週 CPI 數據與地緣政策消息讓市場情緒在極端之間跳躍。反身性理論告訴我們，市場往往對短期數據過度反應，造成流動性短期扭曲。現在不是盲目跟風的時候，觀察流動性缺口與市場偏離，維持資金池冷靜防守。',
-    radarAi: '🟢 樂觀/平穩',
-    radarCpi: '🟢 屬性平穩',
-    radarGeo: '🟢 風險受控',
-    summaryA: `本週 (${isoWeek}) 市場聚焦 AI 科技升級與總體經濟數據震盪，大盤位階運作於歷史常態分佈區間。`,
-    summaryC: `當前波動主要源自個股財報發布期之短期評價校正，非結構性景氣衰退。`,
-    summaryD: `建議常態定期定額照常執行，資金池維持防守紀律，耐心等待甜甜打折區出現。`,
-    summaryE: `保持平常心看待短期震盪，不被盤中洗盤情緒干擾，貫徹紀律扣款。`
-  };
+  let payload = generateDynamicFinNewsFallback(isoWeek);
 
-  if (apiKey && (aiDocText || cpiDocText || geoDocText)) {
-    try {
-      const prompt = `
+  try {
+    const prompt = `
 週中雷達總結｜Kopitiam 老闆幫你讀報紙
 你是我的 Kopitiam 雙大師說書讀報人（News Storyteller）與投資雷達分析員。
-請整合我提供的三份文件（AI / CPI / GEO），只使用其中的資訊。
-請輸出固定 JSON 格式 (必須是合法 JSON，無 Markdown 標記)：
+今天日期為 ${updateTimeStr}，當前週別標籤為 ${isoWeek}。
 
 【AI產業報告 (${isoWeek}_AI)】:
-${aiDocText || '無特殊報告，維持常態發展'}
+${aiDocText || '無上傳文件，請結合近期全球 AI 晶片需求、伺服器供應鏈與科技財報數據進行實時新聞導讀'}
 
-【CPI通膨報告 (${isoWeek}_CPI)】:
-${cpiDocText || '無特殊報告，維持常態發展'}
+【CPI通膨與聯準會動向 (${isoWeek}_CPI)】:
+${cpiDocText || '無上傳文件，請結合近期全球降息預期、總體通膨趨勢與美聯儲動向進行實時導讀'}
 
-【地緣政治報告 (${isoWeek}_GEO)】:
-${geoDocText || '無特殊報告，維持常態發展'}
+【地緣政治與全球市場 (${isoWeek}_GEO)】:
+${geoDocText || '無上傳文件，請結合近期關稅政策、全球政經環境與流動性變化進行實時導讀'}
 
-請回傳 JSON：
+請回傳 JSON (必須是合法 JSON，無 Markdown 標記)：
 {
-  "storyBuffett": "以巴菲特語錄風格與生活比喻，【必須具體引用報告中的新聞事例或數據細節】（例如特定的 AI 晶片需求、CPI 數據、關稅或地緣事件），解讀其背後的長線企業獲利與護城河本質。絕對禁止在開頭加上'老巴：'或'老巴解讀：'等前綴名稱，直接輸出導讀內文（約 100-140 字）。",
-  "storySoros": "以索羅斯語錄風格與反身性視角，【必須具體引用報告中的新聞事例或數據細節】（例如具體政策、數據波動或市場恐慌線索），拆解新聞背後的主導偏見與流動性缺口。絕對禁止在開頭加上'小羅：'或'小羅拆解：'等前綴名稱，直接輸出拆解內文（約 100-140 字）。",
+  "storyBuffett": "以巴菲特語錄風格與生活比喻，引用 ${isoWeek} 當前最新的市場新聞事例或產業趨勢，解讀其背後的長線企業獲利與護城河本質。絕對禁止在開頭加上'老巴：'或'老巴解讀：'等前綴名稱，直接輸出導讀內文（約 100-140 字）。",
+  "storySoros": "以索羅斯語錄風格與反身性視角，拆解 ${isoWeek} 新聞背後的主導偏見與流動性缺口。絕對禁止在開頭加上'小羅：'或'小羅拆解：'等前綴名稱，直接輸出拆解內文（約 100-140 字）。",
   "summaryA": "【A) 本週市場一句話定位】例如：順風但需控速、震盪偏保守、趨勢轉弱觀察中",
   "radarAi": "🟢 樂觀強勁 / 🟡 評價過熱 / 🔴 供給瓶頸 / ➡️ 平穩無虞 - 一句理由",
   "radarCpi": "🟢 通膨降溫 / 🟡 降息延後 / 🔴 通膨復燃 / ➡️ 平穩無虞 - 一句理由",
   "radarGeo": "🟢 風險可控 / 🟡 局部升溫 / 🔴 系統性升級 / ➡️ 平穩無虞 - 一句理由",
-  "summaryC": "【C) 市場波動性質判定】判定屬於 ①情緒型下跌 ②估值修正型下跌 ③景氣轉折型下跌 ④系統性風險型下跌 (可一主一次)，並列出 3–5 個判定依據（引用雷達內容）",
+  "summaryC": "【C) 市場波動性質判定】判定屬於 ①情緒型下跌 ②估值修正型下跌 ③景氣轉折型下跌 ④系統性風險型下跌 (可一主一次)，並列出 3–5 個判定依據",
   "summaryD": "【D) 對資金池的態度建議】限選：允許分批動用 / 緩慢觀察 / 暫停動用 / 禁止動用",
   "summaryE": "【E) 給我長期存股的一句話週備忘】≤25字"
 }
 `;
-      const resultStr = callGeminiAPIUniversal(prompt);
-      if (resultStr) {
-        const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.storyBuffett) parsed.storyBuffett = parsed.storyBuffett.replace(/^(老巴|老巴解讀|老巴導讀)[：:\s]*/, '');
-          if (parsed.storySoros) parsed.storySoros = parsed.storySoros.replace(/^(小羅|小羅解讀|小羅拆解)[：:\s]*/, '');
-          payload = Object.assign(payload, parsed);
-        }
+    const resultStr = callGeminiAPIUniversal(prompt);
+    if (resultStr) {
+      const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.storyBuffett) parsed.storyBuffett = parsed.storyBuffett.replace(/^(老巴|老巴解讀|老巴導讀)[：:\s]*/, '');
+        if (parsed.storySoros) parsed.storySoros = parsed.storySoros.replace(/^(小羅|小羅解讀|小羅拆解)[：:\s]*/, '');
+        payload = Object.assign(payload, parsed);
       }
-    } catch (err) {
-      Logger.log('[Fin-News AI Prompt Error] ' + err.message);
     }
+  } catch (err) {
+    Logger.log('[Fin-News AI Prompt Error] ' + err.message);
   }
+
+  payload.isoWeek = isoWeek;
+  payload.updateTime = updateTimeStr;
 
   // 寫入 ScriptProperties 進行持久化
   PropertiesService.getScriptProperties().setProperty('FIN_NEWS_WEEKLY_PAYLOAD', JSON.stringify(payload));
@@ -3025,7 +3031,18 @@ function getFinNewsCombinedPayload() {
   }
 
   if (weeklyStr) {
-    try { weeklyData = JSON.parse(weeklyStr); } catch (e) {}
+    try {
+      const parsed = JSON.parse(weeklyStr);
+      if (parsed && parsed.isoWeek === isoWeek && parsed.storyBuffett && !parsed.storyBuffett.includes('農場的農作物產量創新高')) {
+        weeklyData = parsed;
+      } else {
+        weeklyData = updateWeeklyFinNewsReport();
+      }
+    } catch (e) {
+      weeklyData = updateWeeklyFinNewsReport();
+    }
+  } else {
+    weeklyData = updateWeeklyFinNewsReport();
   }
   if (crashStr) {
     try { crashData = JSON.parse(crashStr); } catch (e) {}
