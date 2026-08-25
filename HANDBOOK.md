@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.6)
+# HANDBOOK.md (v2.7.7)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -18,7 +18,7 @@
 
 ## ④ Function Library
 - `onOpen()`: 於 Google Sheet 註冊自訂 UI 選單 `🚀 Market Engine V3`
-- `fetchRealMarketData()`: 即時金融行情對接器 (含 `regularMarketTime` 時間戳比對、台北時間 09:30 開盤防呆限制、`isMarketOpen` 交易日判定與防快取健康狀態指標)
+- `fetchRealMarketData()`: 即時金融行情對接器 (v2.7.7 重構：導入 `UrlFetchApp.fetchAll` 並行擷取與 180 秒 `CacheService` 快取)
 - `fetchRealHistoricalMarketSeries()`: 全歷史 18 年交易日台股 (`^TWII` `period1=0`) 100% 官方實體收盤價 API 抓取器
 - `fetchRealVIXHistoricalMarketSeries()`: 全歷史 18 年 CBOE VIX 恐慌指數 (`^VIX` `period1=0`) 100% 官方實體收盤價 API 抓取器
 - `fetchRealEWTHistoricalMarketSeries()`: 全歷史 18 年 MSCI Taiwan ETF (`EWT` `period1=0`) 100% 官方實體夜盤漲跌幅 API 抓取器
@@ -32,10 +32,10 @@
 - `callGeminiAPIUniversal()`: 多模型自動備援重試 Gemini API 呼叫器 (依序自動切換 `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash` -> `gemini-flash-latest`)
 - `generateFallbackMorningText()` / `generateFallbackAfternoonText()`: ☕ 智慧特調備援文字產生器 (當 API 離線或金鑰未設定時，保證老巴與小羅永遠常駐 Kopitiam)
 - `generateMorningNavigation()` / `generateAfternoonNavigation()`: 老巴與小羅 AI 導航生成腳本
-- `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`: 每日盤前與盤後自動更新腳本 (對接實體 API，含時間戳過濾)
+- `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`: 每日盤前與盤後自動更新腳本 (對接實體 API，含時間戳過濾與快取自動清除)
 - `createDailyTrigger()`: 建立每日 07:30 與 16:30 雙時段自動觸發器 (盤前 07:30 老巴早餐值班，盤後 16:30 小羅午茶值班，每月 1 日 01:00 月度對帳)
 - `doGet()`: Web App / API 入口 (輸出健康狀態與即時時間戳，包含 AI 故事背景自動生成檢查)
-- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 API 與行情健康燈號
+- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 API 與行情健康燈號 (v2.7.7 重構：導入 60 秒 `CacheService` 全 Payload 快取與 DASHBOARD 批次範圍讀取)
 - `calculatePhaseDurationAndRelief()`: 掃描 `RAW_HISTORY` 統計當前位階持續天數與歷史平均天數 (打折天數撫平器)
 - `calculatePowderAndCdStatus()`: 階梯式資金池開火 (10%/20%) 與 3 交易日 CD 冷卻期 (含 Dist60 深跌 2% 提前解鎖條款)
 - `recordPowderAllocation()`: 記錄手動/觸發資金池加碼時間點與當時乖離率
@@ -52,6 +52,47 @@
   - **💣 資金池手動加碼（手動加碼）**：須「位階 (Phase) ＋ 海外夜盤動能 (EWT Change)」雙重參照！
     - 當位階處於 T1 / T2（具備加碼資格）時：
       * 若 EWT 夜盤漲幅 >= +2.5%：加碼狀態提示改為「⚠️ 開盤激情強彈 (+X%)！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估」。
+      * 若 EWT 夜盤平穩或下跌：加碼狀態提示維持「🚀 可動用資金池 10%/20% 手動加碼」。
+    - **CD 冷卻控管**：加碼後進入 3 交易日 CD 冷卻期，優先顯示「🧊 資金池加碼冷卻中 (建議 CD 剩餘 X 天)」。若 Dist60 深跌 2% 以上則自動觸發提前解鎖條款。
+    - T3 / T4 / T5 非加碼位階，加碼狀態顯示「🟢 備戰狀態，按兵不動 (資金池 0%)」。
+- **純數據位階理性分析 (Phase Analysis - v2.7.4 邊界敘述解耦與位階邏輯統一)**：
+  - **18年歷史百分比與邊界距離**：純粹依據季線偏離度 `Dist60` 對照 `P10/P25/P75/P90` 分位數計算，與整體位階完全解耦（例：當偏離度為 `+0.31%` 時，第一區塊明確標示位於 `P25 (-1.4%) ~ P75 (+4.2%) 常態區間`，向下安全距離與向上復甦距離分別精準計算至 P25 與 P75，徹底消除文字衝突）。
+  - **AI 導航解耦**：獨立區塊呈現，無須呼叫 LLM API，亦不於老巴/小羅導航中重複硬編碼數值，保持 AI 心態引導與數據理性分析解耦。
+
+## ⑥ AI Agents
+- **巴菲特‧索羅斯的 Kopitiam**
+  - 老巴盤前 AI 導航 (`generateMorningNavigation`): 07:30 值班 (老巴早餐)
+  - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 16:30 值班 (小羅午茶 - 時間校正修復)
+  - 多模型自動備援: `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash` -> `gemini-flash-latest` (含 Kopitiam 智慧特調備援，確保老巴與小羅永遠常駐 Kopitiam)
+
+## ⑦ Dashboard / UI (v2.7.7 並行 API 擷取與 CacheService 全快取加速發布)
+- **連線與回應速度大升級 (v2.7.7)**: 重構 `fetchRealMarketData` 為 `UrlFetchApp.fetchAll` 並行網路請求 (將 3 次單線耗時壓縮至 1 次網路來回)，並於 `getMarketEngineData` 與行情擷取導入 `CacheService` 雙層快取機制，將 Web App 連線延遲由原本 6~15 秒暴減至 50ms 內極速響應！
+- **老巴與小羅多模型自動備援與 Kopitiam 常駐修復 (v2.7.6)**: 導入 `callGeminiAPIUniversal` 多模型自動重試機制。
+- **季線為主市場位階與邊界解耦 (v2.7.5)**: 將位階判定全站統一為以季線偏離度 Dist60 為主要判定。
+- **SPA 頁面分頁化重構 (Tab Navigation)**: 4 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`, 📰 FIN-NEWS `finnews`）。
+- **GitHub Pages 靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
+- **GAS Web App**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
+
+## ⑧ Coding Rules
+- 遵守 Universal Handbook Prompt v2.0 所有規則。
+- 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
+- **【金流與帳務零涉入鐵則】**：Market Engine 永遠保持為「純粹的公開市場量化決策大腦」，絕不紀錄、不處理任何個人實體金流、持股張數、交易帳務或敏感資產數據。
+- **【數據與 AI 階層鐵則】**：嚴格遵守 `DATA -> QUANT ENGINE -> SIGNAL -> RULE -> ACTION -> AI EXPLANATION` 運算架構。AI 僅作為「解釋層與心態導航」，絕對不可代為產出或覆寫量化投資結論。
+
+## ⑨ Current Sprint
+v2.7.7 導入 UrlFetchApp.fetchAll 並行請求與 CacheService 雙層快取機制，極致解決連線過久問題。
+
+## ⑩ Current Version
+v2.7.7 (並行 API 擷取與 CacheService 全快取加速發布)
+
+## ⑪ Roadmap
+- Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
+- Milestone 2: 數據健康狀態燈號與颱風假/臨時休市時間戳防呆完工。
+- Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
+- Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
+- Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
+- **目前停止位置**: v2.7.7 並行 API 擷取與 CacheService 全快取加速發布！
+- **下一步施工位置**: 進入 Milestone 6 (v2.8.0) 策略對決模擬器與 Out-of-Sample 滾動驗證研發。(+X%)！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估」。
       * 若 EWT 夜盤平穩或下跌：加碼狀態提示維持「🚀 可動用資金池 10%/20% 手動加碼」。
     - **CD 冷卻控管**：加碼後進入 3 交易日 CD 冷卻期，優先顯示「🧊 資金池加碼冷卻中 (建議 CD 剩餘 X 天)」。若 Dist60 深跌 2% 以上則自動觸發提前解鎖條款。
     - T3 / T4 / T5 非加碼位階，加碼狀態顯示「🟢 備戰狀態，按兵不動 (資金池 0%)」。

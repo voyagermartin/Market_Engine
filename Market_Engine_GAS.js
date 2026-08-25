@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.6 (老巴與小羅多模型自動備援與咖啡館常駐修復)
+ * Version: v2.7.7 (並行 API 擷取與 CacheService 全快取加速發布)
  */
 
 /**
@@ -1381,18 +1381,35 @@ function updateDailyMarketEngine() {
  * (替代所有歷史模擬亂數，含交易時間戳防呆與健康狀態指標)
  */
 function fetchRealMarketData() {
+  const cache = CacheService.getScriptCache();
+  const cachedJson = cache.get("REAL_MARKET_DATA_CACHE");
+  if (cachedJson) {
+    try {
+      const cachedData = JSON.parse(cachedJson);
+      if (cachedData && (cachedData.twii || cachedData.healthStatus)) {
+        return cachedData;
+      }
+    } catch (e) {}
+  }
+
   let twii = null;
   let vix = null;
   let ewtChange = null;
   let regularMarketTime = null;
   let healthStatus = "🟢 行情即時連線";
 
-  // 1. 抓取台股加權指數 (TWII / ^TWII)
+  const requests = [
+    { url: 'https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true },
+    { url: 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true },
+    { url: 'https://query1.finance.yahoo.com/v8/finance/chart/EWT?interval=1d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true }
+  ];
+
   try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d';
-    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (resp.getResponseCode() === 200) {
-      const json = JSON.parse(resp.getContentText());
+    const responses = UrlFetchApp.fetchAll(requests);
+
+    // 1. 抓取台股加權指數 (TWII / ^TWII)
+    if (responses[0] && responses[0].getResponseCode() === 200) {
+      const json = JSON.parse(responses[0].getContentText());
       const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
       if (meta) {
         if (meta.regularMarketPrice && meta.regularMarketPrice > 0) {
@@ -1403,32 +1420,19 @@ function fetchRealMarketData() {
         }
       }
     }
-  } catch (e) {
-    Logger.log('[Market Engine API Warning] ^TWII API 擷取失敗: ' + e.message);
-    healthStatus = "⚠️ 網路連線延遲 (暫用前日盤後價)";
-  }
 
-  // 2. 抓取 VIX 恐慌指數 (^VIX)
-  try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d';
-    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (resp.getResponseCode() === 200) {
-      const json = JSON.parse(resp.getContentText());
+    // 2. 抓取 VIX 恐慌指數 (^VIX)
+    if (responses[1] && responses[1].getResponseCode() === 200) {
+      const json = JSON.parse(responses[1].getContentText());
       const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
       if (meta && meta.regularMarketPrice && meta.regularMarketPrice > 0) {
         vix = Math.round(meta.regularMarketPrice * 100) / 100;
       }
     }
-  } catch (e) {
-    Logger.log('[Market Engine API Warning] ^VIX API 擷取失敗: ' + e.message);
-  }
 
-  // 3. 抓取 EWT (iShares MSCI Taiwan ETF) 當日/夜盤漲跌幅
-  try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/EWT?interval=1d';
-    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (resp.getResponseCode() === 200) {
-      const json = JSON.parse(resp.getContentText());
+    // 3. 抓取 EWT (iShares MSCI Taiwan ETF) 當日/夜盤漲跌幅
+    if (responses[2] && responses[2].getResponseCode() === 200) {
+      const json = JSON.parse(responses[2].getContentText());
       const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
       if (meta && meta.regularMarketPrice && meta.chartPreviousClose && meta.chartPreviousClose > 0) {
         const change = (meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose;
@@ -1436,7 +1440,8 @@ function fetchRealMarketData() {
       }
     }
   } catch (e) {
-    Logger.log('[Market Engine API Warning] EWT API 擷取失敗: ' + e.message);
+    Logger.log('[Market Engine API Warning] 並列 API 擷取失敗: ' + e.message);
+    healthStatus = "⚠️ 網路連線延遲 (暫用前日盤後價)";
   }
 
   const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
@@ -1448,8 +1453,6 @@ function fetchRealMarketData() {
     if (twii) {
       healthStatus = `🟢 行情即時連線 (連線 ${timeStr} | 收盤 ${marketTimeStr})`;
     }
-    // 颱風假/臨時休市防呆判定
-    // 必須是：今天是預期開盤的交易日 (isMarketOpen 為 true)，且台北時間已經過了 09:30，但成交日期仍小於今日
     const marketOpenStatus = isMarketOpen(new Date());
     const nowTaipei = new Date();
     const currentHour = parseInt(Utilities.formatDate(nowTaipei, "Asia/Taipei", "HH"), 10);
@@ -1463,7 +1466,12 @@ function fetchRealMarketData() {
     healthStatus = `⚠️ 網路連線延遲 (暫用前日盤後價)`;
   }
 
-  return { twii, vix, ewtChange, regularMarketTime, healthStatus, timeStr };
+  const payload = { twii, vix, ewtChange, regularMarketTime, healthStatus, timeStr };
+  try {
+    cache.put("REAL_MARKET_DATA_CACHE", JSON.stringify(payload), 180);
+  } catch (e) {}
+
+  return payload;
 }
 
 /**
@@ -2109,6 +2117,17 @@ function recordPowderAllocation(customDate, customDist60) {
  * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
 function getMarketEngineData() {
+  const cache = CacheService.getScriptCache();
+  const cachedApi = cache.get("MARKET_ENGINE_DATA_API_CACHE");
+  if (cachedApi) {
+    try {
+      const parsed = JSON.parse(cachedApi);
+      if (parsed && parsed.date && parsed.phase) {
+        return parsed;
+      }
+    } catch (e) {}
+  }
+
   const ss = getSpreadsheet();
 
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
@@ -2266,11 +2285,12 @@ function getMarketEngineData() {
 
   // 2. 抓取 DASHBOARD 今日位階、DCA 扣款卡與 AI 顧問
   if (dashboardSheet) {
-    const p = dashboardSheet.getRange('B15').getDisplayValue();
-    const g = dashboardSheet.getRange('B16').getDisplayValue();
-    const dca = dashboardSheet.getRange('B20').getDisplayValue();
-    let aiM = dashboardSheet.getRange('B23').getDisplayValue();
-    let aiA = dashboardSheet.getRange('B24').getDisplayValue();
+    const dashRange = dashboardSheet.getRange('B15:B24').getDisplayValues();
+    const p = dashRange[0][0];   // B15
+    const g = dashRange[1][0];   // B16
+    const dca = dashRange[5][0]; // B20
+    let aiM = dashRange[8][0];   // B23
+    let aiA = dashRange[9][0];   // B24
 
     // 背景自動生成 AI 故事機制：若老巴或小羅故事為初始預設值/錯誤值/未設定，自動即時觸發生成，保證咖啡館永遠有人值班
     const isDefaultOrErrorMorning = !aiM || aiM.includes('若已設定') || aiM.includes('暫時離開') || aiM.includes('準備中') || aiM.includes('資料加載') || aiM.includes('未設定') || aiM.includes('沒來咖啡館');
@@ -2498,6 +2518,10 @@ function getMarketEngineData() {
   } catch (e) {
     Logger.log('FinNews payload error: ' + e.message);
   }
+
+  try {
+    cache.put("MARKET_ENGINE_DATA_API_CACHE", JSON.stringify(data), 60);
+  } catch (e) {}
 
   return data;
 }
