@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.11 (AI/CPI/GEO 三大主題實時新聞與老巴小羅專屬解讀升級發布)
+ * Version: v2.7.12 (未來重大事件自動過濾過期歷史事件與動態倒數發布)
  */
 
 /**
@@ -2896,19 +2896,25 @@ function fetchUpcomingMarketEvents() {
   
   let defaultEvents = [
     {
-      eventName: "美國 7 月 CPI 通膨數據公布",
-      eventDate: "2026-08-14",
-      importance: "通膨降溫速度直接影響美聯儲 9 月降息空間與美債殖利率走向。",
-      impactAndStrategy: "若數據高於預期短期可能打壓科技股評價，此時打折區位階將具備極佳安全邊際。"
-    },
-    {
       eventName: "NVIDIA (NVDA) 季度財報與 AI 展望",
       eventDate: "2026-08-27",
       importance: "全球 AI 產業供應鏈（含台股 CoWoS 封裝與伺服器概念股）之核心關鍵動能指標。",
       impactAndStrategy: "財報前後股價易現巨幅洗盤。資金池維持平穩防守，待洗盤沉澱後再評估進場。"
     },
     {
-      eventName: "Fed FOMC 利率決策會議",
+      eventName: "美國 8 月非農就業與失業率報告",
+      eventDate: "2026-09-04",
+      importance: "關鍵勞動市場數據，直接影響聯準會降息步調與全球資金流動性轉折。",
+      impactAndStrategy: "數據若大幅低於預期可能引發經濟衰退疑慮，季線偏離度常態區間提供極佳防守安全邊際。"
+    },
+    {
+      eventName: "美國 8 月 CPI 通膨數據公布",
+      eventDate: "2026-09-11",
+      importance: "通膨降溫速度直接影響美聯儲 9 月 FOMC 降息空間與美債殖利率走向。",
+      impactAndStrategy: "若數據降溫符合預期利好資金流動性，可維持常態定期定額按步就班扣款。"
+    },
+    {
+      eventName: "Fed FOMC 利率決策會議 (預期開啟降息)",
       eventDate: "2026-09-17",
       importance: "攸關全球資金流動性轉折與美債殖利率曲線，主導全球科技股評價定位。",
       impactAndStrategy: "決策公布前大盤易觀望震盪。常態定期定額照常執行，資金池暫緩大手筆加碼。"
@@ -2952,29 +2958,34 @@ function fetchUpcomingMarketEvents() {
     }
   }
 
-  // 為每個事件計算精準倒數天數
-  const processedEvents = defaultEvents.map(evt => {
-    let countdownDays = 0;
-    if (evt.eventDate) {
-      try {
-        const evtD = new Date(evt.eventDate + 'T00:00:00+08:00');
-        const diffMs = evtD.getTime() - now.getTime();
-        countdownDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-      } catch (e) {}
-    }
-    return {
-      eventName: evt.eventName || '未知重大事件',
-      eventDate: evt.eventDate || todayStr,
-      countdownDays: countdownDays,
-      importance: (evt.importance || '關注全球資金流動性與產業趨勢。').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, ''),
-      impactAndStrategy: (evt.impactAndStrategy || '保持冷靜，貫徹紀律扣款。').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '')
-    };
-  });
+  // ⚡ 為每個事件計算精準倒數天數，並自動過濾掉已過期之歷史事件 (eventDate < todayStr)
+  const processedEvents = defaultEvents
+    .filter(evt => evt && evt.eventDate && evt.eventDate >= todayStr)
+    .map(evt => {
+      let countdownDays = 0;
+      if (evt.eventDate) {
+        try {
+          const evtD = new Date(evt.eventDate + 'T00:00:00+08:00');
+          const diffMs = evtD.getTime() - now.getTime();
+          countdownDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        } catch (e) {}
+      }
+      return {
+        eventName: evt.eventName || '未知重大事件',
+        eventDate: evt.eventDate || todayStr,
+        countdownDays: countdownDays,
+        importance: (evt.importance || '關注全球資金流動性與產業趨勢。').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, ''),
+        impactAndStrategy: (evt.impactAndStrategy || '保持冷靜，貫徹紀律扣款。').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '')
+      };
+    });
 
   // 按倒數天數升冪排序 (近的在前面)
   processedEvents.sort((a, b) => a.countdownDays - b.countdownDays);
 
   PropertiesService.getScriptProperties().setProperty('FIN_NEWS_EVENTS_PAYLOAD', JSON.stringify(processedEvents));
+  try {
+    CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE");
+  } catch (e) {}
   Logger.log('[Upcoming Events Updated] ' + processedEvents.length + ' events saved.');
   return processedEvents;
 }
@@ -2984,24 +2995,29 @@ function fetchUpcomingMarketEvents() {
  */
 function getFinNewsCombinedPayload() {
   const props = PropertiesService.getScriptProperties();
-  const weeklyStr = props.getProperty('FIN_NEWS_WEEKLY_PAYLOAD');
+  const isoWeek = getIsoWeekString(new Date());
   const crashStr = props.getProperty('FIN_NEWS_CRASH_PAYLOAD');
   const eventsStr = props.getProperty('FIN_NEWS_EVENTS_PAYLOAD');
 
-  const isoWeek = getIsoWeekString(new Date());
-  let weeklyData = {
-    isoWeek: isoWeek,
-    updateTime: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm'),
-    storyBuffett: '這週報告裡提到 AI 晶片需求與雲端資本支出持續暴增，就像看到優質農場的農作物產量創新高。短期的股市波動只是浮在熱咖啡上的奶泡，企業的實體獲利才是底下香醇的濃縮咖啡。只要企業護城河穩固，保持紀律扣款即可。',
-    storySoros: '本週 CPI 數據與地緣政策消息讓市場情緒在極端之間跳躍。反身性理論告訴我們，市場往往對短期數據過度反應，造成流動性短期扭曲。現在不是盲目跟風的時候，觀察流動性缺口與市場偏離，維持資金池冷靜防守。',
-    radarAi: '🟢 樂觀/平穩',
-    radarCpi: '🟢 屬性平穩',
-    radarGeo: '🟢 風險受控',
-    summaryA: `本週 (${isoWeek}) 市場聚焦 AI 科技升級與總體經濟數據震盪，大盤位階運作於歷史常態分佈區間。`,
-    summaryC: `當前波動主要源自個股財報發布期之短期評價校正，非結構性景氣衰退。`,
-    summaryD: `建議常態定期定額照常執行，資金池維持防守紀律，耐心等待甜甜打折區出現。`,
-    summaryE: `保持平常心看待短期震盪，不被盤中洗盤情緒干擾，貫徹紀律扣款。`
-  };
+  let weeklyData = generateDynamicFinNewsFallback(isoWeek);
+  const weeklyStr = props.getProperty('FIN_NEWS_WEEKLY_PAYLOAD');
+
+  if (weeklyStr) {
+    try {
+      const parsed = JSON.parse(weeklyStr);
+      if (parsed && parsed.isoWeek === isoWeek && parsed.storyBuffett && parsed.storyBuffett.includes('🤖【AI 產業】')) {
+        weeklyData = parsed;
+      } else {
+        weeklyData = generateDynamicFinNewsFallback(isoWeek);
+        props.setProperty('FIN_NEWS_WEEKLY_PAYLOAD', JSON.stringify(weeklyData));
+      }
+    } catch (e) {
+      weeklyData = generateDynamicFinNewsFallback(isoWeek);
+      props.setProperty('FIN_NEWS_WEEKLY_PAYLOAD', JSON.stringify(weeklyData));
+    }
+  } else {
+    props.setProperty('FIN_NEWS_WEEKLY_PAYLOAD', JSON.stringify(weeklyData));
+  }
 
   let crashData = {
     isTriggered: false,
@@ -3016,6 +3032,13 @@ function getFinNewsCombinedPayload() {
   if (eventsStr) {
     try { eventsData = JSON.parse(eventsStr); } catch (e) {}
   }
+  
+  // ⚡ 動態防呆：過濾已過期之歷史事件 (eventDate < todayStr)
+  const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  if (eventsData && eventsData.length > 0) {
+    eventsData = eventsData.filter(evt => evt && evt.eventDate && evt.eventDate >= todayDateStr);
+  }
+
   if (!eventsData || eventsData.length === 0) {
     eventsData = fetchUpcomingMarketEvents();
   } else {
@@ -3042,7 +3065,7 @@ function getFinNewsCombinedPayload() {
   if (weeklyStr) {
     try {
       const parsed = JSON.parse(weeklyStr);
-      if (parsed && parsed.isoWeek === isoWeek && parsed.storyBuffett && !parsed.storyBuffett.includes('農場的農作物產量創新高')) {
+      if (parsed && parsed.isoWeek === isoWeek && parsed.storyBuffett && parsed.storyBuffett.includes('🤖【AI 產業】')) {
         weeklyData = parsed;
       } else {
         weeklyData = updateWeeklyFinNewsReport(true);
