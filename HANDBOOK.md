@@ -20,7 +20,7 @@
 - **行情與歷史對接**: `fetchRealMarketData()` (UrlFetchApp.fetchAll 並行 + 180s 快取), `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`
 - **初始化與後台對帳**: `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`, `updateMonthlyLabBacktest()`, `updateTaiwanHolidaysCalendar()` (月度 Google Calendar 同步)
 - **交易日與快取控管**: `isMarketOpen()` (0ms 本地 Hash 表 + ScriptProperties 查表), `getMarketEngineData()` (60s 全 API 快取 + 批次 Range 讀取)
-- **策略對決與樣本外驗證**: `calculateStrategyBacktest()` (18年全歷史實體行情對決 Baseline vs Market Engine), `calculateWalkForwardValidation()` (10年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證)
+- **策略對決與樣本外驗證**: `calculateStrategyBacktest()` (18年全歷史實體行情對決 Baseline vs Market Engine，採用真實投資組合權益曲線 `Total Equity = Shares × Index + Cash` 精準計算 MDD), `calculateWalkForwardValidation()` (10年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證)
 - **AI 雙顧問與新聞研報**: `callGeminiAPIUniversal()` (4 模型自動備援重試), `generateFallbackMorningText()` / `generateFallbackAfternoonText()`, `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`, `updateWeeklyFinNewsReport()` (🤖AI/📈CPI/🌐GEO 三大主題讀報), `fetchUpcomingMarketEvents()` (未來重大事件過期自動過濾)
 - **量化決策算式**: `calculatePhaseDurationAndRelief()` (打折天數撫平器), `calculatePowderAndCdStatus()` (資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override), `calculatePhaseAnalysis()` (純數據位階分析), `parseDistValue()`
 
@@ -38,7 +38,7 @@
 
 ## ⑦ System Endpoints & Version Status
 - **Current Version**: `v2.8.0` (Milestone 6 策略對決模擬器與 Walk-Forward 樣本外驗證正式發布)
-- **GAS Deployment**: `@91` (`https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`)
+- **GAS Deployment**: `@94` (`https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -49,8 +49,8 @@
   - M4: SPA 4 大分頁切換 (`today`, `concepts`, `backtest`, `finnews`) 與 MARKET LAB 驗證引擎。
   - M5: 資金池 3 天 CD 冷卻、打折天數撫平器、EWT 氣象與純數據位階分析。
   - M5.1 (v2.7.6~v2.7.12): Gemini 4 模型備援、UrlFetchApp.fetchAll 並行加速、0ms 假日查表、doGet < 50ms 響應、AI/CPI/GEO 三大新聞與未來事件過濾。
-  - **M6 (v2.8.0 COMPLETED)**: ⚔️ 策略對決模擬器 (Baseline vs Market Engine 全指標對比) + 🔬 Walk-Forward 10年滾動樣本外測試 (Zero Overfitting 驗證)。
-- **🚀 目前停止位置**: `v2.8.0` (Milestone 6 完工發布)
+  - **M6 (v2.8.0 COMPLETED)**: ⚔️ 策略對決模擬器 (Baseline vs Market Engine 全指標對比) + 🔬 Walk-Forward 10年滾動樣本外測試 (Zero Overfitting 驗證) + 💡 白話導讀與 534 萬本金差異 QA 卡片。
+- **🚀 目前停止位置**: `v2.8.0` (Milestone 6 完全體發布)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
   - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
 
@@ -64,3 +64,4 @@
 | **2026-08-06** | `v2.7.3~v2.7.5` | `parseDistValue` 通配解析器重構、季線位階 (`Dist60`) 全站統一、年線高位轉為長線風險提醒。 |
 | **2026-08-25** | `v2.7.6~v2.7.12` | (1) Gemini 4 模型自動備援；(2) `fetchAll` 並行擷取與雙層 CacheService 快取；(3) 消除 CalendarApp 迴圈與 LLM 同步堵塞 (doGet < 50ms)；(4) `TAIWAN_HOLIDAYS_PRESET` 0ms 假日查表；(5) AI/CPI/GEO 三大主題實質新聞讀報；(6) 未來重大事件自動過濾歷史舊事件。 |
 | **2026-08-25** | `v2.8.0` | **Milestone 6 完工發布**：(1) 實作 `calculateStrategyBacktest` 全歷史 18 年策略對決模擬器 (本金、終值、CAGR、MDD、Sharpe Ratio、資金效率)；(2) 實作 `calculateWalkForwardValidation` 10年滾動樣本外驗證；(3) 前端 `📈 歷史回測` 頁面發布對戰與驗證卡片。 |
+| **2026-08-26** | `v2.8.0` | **策略對決與視覺白話全套優化**：(1) 重構 MDD 為真實投資組合權益曲線算式 (`Total Equity = Shares × Index + Cash`，Baseline -29.56% vs Market Engine -27.25%)；(2) 前端動態 MDD 顯著改善標籤連動發布 (>= 0.5% 門檻觸發)；(3) UI 排版與跨裝置字體對齊優化；(4) 新增『💡 18 年實戰模擬白話導讀』Glassmorphism 卡片與『❓ 總本金差異 534 萬來源與效率證明』QA 解答區塊；(5) 雲端 GAS 部署升級至 `@94`。 |
