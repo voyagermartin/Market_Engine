@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.5)
+# HANDBOOK.md (v2.7.6)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -29,6 +29,8 @@
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表
 - `updateMonthlyLabBacktest()`: 月度歷史回測 4 大維度自我驗證引擎 (每月 1 日 01:00 自動對帳更新並記錄對帳日期)
 - `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與 AI 顧問值班卡片
+- `callGeminiAPIUniversal()`: 多模型自動備援重試 Gemini API 呼叫器 (依序自動切換 `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash` -> `gemini-flash-latest`)
+- `generateFallbackMorningText()` / `generateFallbackAfternoonText()`: ☕ 智慧特調備援文字產生器 (當 API 離線或金鑰未設定時，保證老巴與小羅永遠常駐 Kopitiam)
 - `generateMorningNavigation()` / `generateAfternoonNavigation()`: 老巴與小羅 AI 導航生成腳本
 - `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`: 每日盤前與盤後自動更新腳本 (對接實體 API，含時間戳過濾)
 - `createDailyTrigger()`: 建立每日 07:30 與 16:30 雙時段自動觸發器 (盤前 07:30 老巴早餐值班，盤後 16:30 小羅午茶值班，每月 1 日 01:00 月度對帳)
@@ -61,34 +63,27 @@
 - **巴菲特‧索羅斯的 Kopitiam**
   - 老巴盤前 AI 導航 (`generateMorningNavigation`): 07:30 值班 (老巴早餐)
   - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 16:30 值班 (小羅午茶 - 時間校正修復)
-  - 專用模型: `gemini-flash-latest`
+  - 多模型自動備援: `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash` -> `gemini-flash-latest` (含 Kopitiam 智慧特調備援，確保老巴與小羅永遠常駐 Kopitiam)
 
-## ⑦ Dashboard / UI (v2.7.5 季線為主位階與邊界解耦發布)
-- **季線為主市場位階與邊界解耦 (v2.7.5)**: 將位階判定全站統一為以季線偏離度 Dist60 為主要判定，並重構 `calculatePhaseAnalysis` 之向上與向下安全距離敘述，徹底根治「季線偏離度 +0.31% 處於中性」但「向下/向上邊界與市場位階衝突」的設計悖論。
-- **SPA 頁面分頁化重構 (Tab Navigation)**: 4 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`, 📰 FIN-NEWS `finnews`），極致流暢且兼顧響應式切換。
-- **觀念導航 5 大指標圖卡大升級**: 包含 VIX (市場體溫計)、MA60/MA240 (趨勢守護地板)、Dist60 (小狗散步位階)、Slope/Delta (底氣與油門) 與 EWT 5 階門檻 (海外氣象球)，全面精簡去除「白話比喻：」前綴贅字。
-- **🌱 投資入門到進階 7 大心態 QA (v2.5.4)**: 於「💡 觀念導航」頁籤底部重構為 2 大階段 Glassmorphism 完全手冊：
-  - **階段一：入門心態與避坑指南 (QA 1~4)**：包含 6 個月緊急生活預備金、槓桿/借錢追繳斷頭警告 (🛑 用力打槍)、當沖慘賠與讓頂尖企業打工 (🛑 用力打槍)、股票 2 大收益本質。
-  - **階段二：量化位階與實戰應對 (QA 5~7)**：包含過熱區報酬率與暫停扣款 (Sharpe Ratio 盈虧比)、極度恐慌高勝率建倉與 3天 CD 防護、階梯式動態停利機制 (T3:0%, T4:10%~15%, T5:20%~30%)。
-- **前端 JSONP 快取防呆 (Cache Busting)**: 於 API 請求中加入隨機毫秒時間戳參數，徹底解決瀏覽器快取舊資料的問題，確保每次重整網頁均為最新狀態。
-- **小羅 AI 導航時間點校正**: 盤後值班時段精準校正為 16:30。
-- **MARKET LAB 月度回測 4 大維度自我驗證引擎**: 新增 `LAB_CALC_DATE` 對帳日期標籤與動態勝率計算。
-- **品牌人情味與極致白話**: 巴菲特‧索羅斯的 Kopitiam (來喝咖啡看盤吧～)，全站乾淨狀態列與美味 Kopitiam 咖啡圖示 (`favicon.png` / `icon.png`)。
+## ⑦ Dashboard / UI (v2.7.6 老巴與小羅多模型自動備援發布)
+- **老巴與小羅多模型自動備援與 Kopitiam 常駐修復 (v2.7.6)**: 導入 `callGeminiAPIUniversal` 多模型自動重試機制，徹底解決單一模型 `gemini-flash-latest` 失效/404 導致 AI 顧問離開咖啡館的問題。同時新增 Kopitiam 智慧特調備援生成器與 `getMarketEngineData` 雙向自動修復，確保網頁與試算表中老巴與小羅 100% 永遠有人值班。
+- **季線為主市場位階與邊界解耦 (v2.7.5)**: 將位階判定全站統一為以季線偏離度 Dist60 為主要判定，並重構 `calculatePhaseAnalysis` 之向上與向下安全距離敘述。
+- **SPA 頁面分頁化重構 (Tab Navigation)**: 4 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`, 📰 FIN-NEWS `finnews`）。
+- **品牌人情味與極致白話**: 巴菲特‧索羅斯的 Kopitiam (來喝咖啡看盤吧～)。
 - **GitHub Pages 靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
 - **GAS Web App**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
 ## ⑧ Coding Rules
 - 遵守 Universal Handbook Prompt v2.0 所有規則。
 - 零容忍擬真數據：徹底刪除 `Math.random()` 及所有擬真推算公式，100% 連動證交所、CBOE 與 MSCI EWT 官方實體歷史盤後點位。
-- **【金流與帳務零涉入鐵則】**：Market Engine 永遠保持為「純粹的公開市場量化決策大腦」，絕不紀錄、不處理任何個人實體金流、持股張數、交易帳務或敏感資產數據。未來實體對帳統一由獨立之「存股金流系統」單向讀取本 Engine 之 API 訊號進行對接。
-- **【個人扣款日與隱私解耦】**：扣款日測試與試算均以純參數、網頁端選擇器或純歷史模擬處理，嚴禁在後端資料庫或程式碼中硬編碼特定個人扣款日期與隱私資訊。
+- **【金流與帳務零涉入鐵則】**：Market Engine 永遠保持為「純粹的公開市場量化決策大腦」，絕不紀錄、不處理任何個人實體金流、持股張數、交易帳務或敏感資產數據。
 - **【數據與 AI 階層鐵則】**：嚴格遵守 `DATA -> QUANT ENGINE -> SIGNAL -> RULE -> ACTION -> AI EXPLANATION` 運算架構。AI 僅作為「解釋層與心態導航」，絕對不可代為產出或覆寫量化投資結論。
 
 ## ⑨ Current Sprint
-v2.7.5 重構全站市場位階判定邏輯（回歸季線 Dist60 主導 + 年線 Dist240 警示），徹底消除 UI 位階矛盾 Bug。
+v2.7.6 導入 Gemini 多模型自動備援呼叫器與 Kopitiam 智慧特調，徹底解決老巴與小羅離開咖啡館的問題。
 
 ## ⑩ Current Version
-v2.7.5 (全站位階主體邏輯統一與長線年線警示解耦發布)
+v2.7.6 (老巴與小羅多模型自動備援與咖啡館常駐修復發布)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -96,7 +91,7 @@ v2.7.5 (全站位階主體邏輯統一與長線年線警示解耦發布)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.7.5 全站位階主體邏輯統一與長線年線警示解耦發布！
+- **目前停止位置**: v2.7.6 老巴與小羅多模型自動備援與咖啡館常駐修復發布！
 - **下一步施工位置**: 進入 Milestone 6 (v2.8.0) 策略對決模擬器與 Out-of-Sample 滾動驗證研發。
 
 ### 🚀 未來進化藍圖 (Future Milestones)

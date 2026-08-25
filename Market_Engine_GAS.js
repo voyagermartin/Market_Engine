@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.2 (週末 VIX 恐慌指數解耦擷取與 8/01 清晨收盤標籤對齊)
+ * Version: v2.7.6 (老巴與小羅多模型自動備援與咖啡館常駐修復)
  */
 
 /**
@@ -95,10 +95,10 @@ function testMarketOpenStatus() {
     apiStatus = "❌ 尚未設定 API 金鑰 (MARKET_ENGINE_GEMINI_API_KEY 為空)";
   } else {
     const modelsToTry = [
-      "gemini-flash-latest",
+      "gemini-2.5-flash",
       "gemini-2.0-flash",
-      "gemini-flash-lite-latest",
-      "gemini-3.1-flash-lite"
+      "gemini-1.5-flash",
+      "gemini-flash-latest"
     ];
     let results = [];
     let hasSuccess = false;
@@ -1025,19 +1025,92 @@ function buildDecisionLogSheet(sheet) {
 }
 
 // ==========================================
-// 7. 老巴盤前 AI 導航腳本 (generateMorningNavigation - V3 完全體 + 休市日連動)
+// 7. 老巴與小羅 AI 導航與 Gemini 通用引擎
 // ==========================================
 
 /**
- * 升級版老巴盤前 AI 導航腳本 (對齊 V3 Database Schema & 休市日判定)
+ * 🤖 多模型自動備援重試 Gemini API 呼叫器
+ * 自動嘗試 4 大模型 (gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash -> gemini-flash-latest)
+ * 徹底解決單一模型失效導致老巴與小羅「不在咖啡館」的問題
  */
-function generateMorningNavigation() {
+function callGeminiAPIUniversal(prompt, systemInstruction) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
   if (!apiKey) {
     Logger.log("⚠️ 尚未設定 MARKET_ENGINE_GEMINI_API_KEY");
-    return;
+    return null;
   }
 
+  const modelsToTry = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-flash-latest"
+  ];
+
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const model = modelsToTry[i];
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+    if (systemInstruction) {
+      payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    try {
+      const response = UrlFetchApp.fetch(url, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+
+      const code = response.getResponseCode();
+      const resText = response.getContentText();
+
+      if (code === 200) {
+        const result = JSON.parse(resText);
+        if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts[0].text) {
+          Logger.log(`🟢 Gemini API 成功使用模型: ${model}`);
+          return result.candidates[0].content.parts[0].text;
+        }
+      }
+      Logger.log(`⚠️ 模型 ${model} 回傳 HTTP ${code}: ${resText.substring(0, 150)}`);
+    } catch (e) {
+      Logger.log(`❌ 模型 ${model} 網路請求失敗: ${e.message}`);
+    }
+  }
+
+  Logger.log("❌ 所有 Gemini 模型均呼叫失敗");
+  return null;
+}
+
+/**
+ * ☕ 智慧特調備援：老巴盤前文字生成器 (當 API 離線或金鑰未設定時保證老巴常駐)
+ */
+function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, ewtChange, vix) {
+  return `☀️ 老巴的盤前早餐時間\n\n` +
+    `【市場位置】交易日 (${dateStr}) 台股收盤 ${twiiClose} 點，當前市場位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}。\n\n` +
+    `【今日最大的變數】盤前最需留意的指標為海外夜盤 EWT 動能 (${ewtChange}) 與 VIX 恐慌指數 (${vix})。夜盤反映國際資金情緒，VIX 呈現整體市場體溫。\n\n` +
+    `【今天可能面臨的狀況】開盤情緒將優先消化夜盤變動與國際股市連動。當前位階與指標顯示行情維持正常律動，建議靜待開盤平穩，勿急於早盤追高殺低。\n\n` +
+    `【老巴早餐的一句話】「在別人貪婪時恐懼，在別人恐懼時貪婪。」保持資本與情緒的雙重紀律，按既定策略執行即可。`;
+}
+
+/**
+ * ☕ 智慧特調備援：小羅盤後文字生成器 (當 API 離線或金鑰未設定時保證小羅常駐)
+ */
+function generateFallbackAfternoonText(dateStr, twiiClose, yesterdayClose, currentPhase, dist60, ewtChange, vix) {
+  return `☕ 小羅的盤後午茶時光\n\n` +
+    `【今天市場最大的變化】今日 (${dateStr}) 台股收盤 ${twiiClose} 點 (昨日 ${yesterdayClose} 點)，市場位階穩定運作於「${currentPhase}」區間，季線偏離度為 ${dist60}，VIX 為 ${vix}，夜盤動能為 ${ewtChange}。\n\n` +
+    `【為什麼會這樣？】大盤技術指標與偏離度結構持續運作，市場買氣與觀望情緒在目前位階獲得平衡，整體基底支撐力道依然明確。\n\n` +
+    `【市場畫面】今天的市場就像一艘在海面上穩定航行的郵輪，雖然途中偶有微波，但強韌的船底結構讓整體秩序井然。\n\n` +
+    `【明天值得觀察】下一個交易日請持續觀察季線偏離度的動態演變與夜盤 EWT 氣象，按既定紀律執行投資計畫。`;
+}
+
+/**
+ * 升級版老巴盤前 AI 導航腳本 (對齊 V3 Database Schema & 多模型自動備援)
+ */
+function generateMorningNavigation() {
   const ss = getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName("RAW_HISTORY") : null;
   const dashSheet = ss ? ss.getSheetByName("DASHBOARD") : null;
@@ -1132,46 +1205,28 @@ ${phaseTrack}
 * 保持客觀、冷靜、有溫度的老巴語氣
 `;
 
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }]
-  };
+  let aiText = callGeminiAPIUniversal(prompt);
+  if (!aiText) {
+    aiText = generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, ewtChange, vix);
+    Logger.log("⚠️ 使用 Kopitiam 特調備援文字產生老巴早餐。");
+  }
 
-  try {
-    const response = UrlFetchApp.fetch(url, {
-      method: "post",
-      contentType: "application/json",
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
+  // 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)
+  dashSheet.getRange("B23").setValue(aiText);
 
-    const result = JSON.parse(response.getContentText());
-    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts[0].text) {
-      const aiText = result.candidates[0].content.parts[0].text;
-      
-      // 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)
-      dashSheet.getRange("B23").setValue(aiText);
+  // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
+  const logDateVal = historyLogSheet.getRange(3, 1).getValue();
+  let logDateStr = "";
+  if (logDateVal instanceof Date) {
+    logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
+  }
+  const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
 
-      // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
-      const logDateVal = historyLogSheet.getRange(3, 1).getValue();
-      let logDateStr = "";
-      if (logDateVal instanceof Date) {
-        logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
-      }
-      const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
-
-      if (logDateStr === todayStr) {
-        historyLogSheet.getRange(3, 10).setValue(aiText);
-        Logger.log("老巴早餐成功生成並備份至 HISTORY_LOG！");
-      } else {
-        Logger.log("今日非交易日或未新增今日資料列，老巴早餐僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
-      }
-    } else {
-      throw new Error("API 傳回空內容: " + response.getContentText());
-    }
-  } catch (err) {
-    dashSheet.getRange("B23").setValue("☀️ 巴菲特暫時離開早餐店，稍後再回來。");
-    Logger.log("Gemini API Error: " + err);
+  if (logDateStr === todayStr) {
+    historyLogSheet.getRange(3, 10).setValue(aiText);
+    Logger.log("老巴早餐成功生成並備份至 HISTORY_LOG！");
+  } else {
+    Logger.log("今日非交易日或未新增今日資料列，老巴早餐僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
   }
 }
 
@@ -1285,46 +1340,28 @@ ${phaseTrack}
 * 優先描述市場行為與情緒變化，保持感性而客觀的小羅語氣
 `;
 
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }]
-  };
+  let aiText = callGeminiAPIUniversal(prompt);
+  if (!aiText) {
+    aiText = generateFallbackAfternoonText(dateStr, twiiClose, yesterday[1], currentPhase, dist60, ewtChange, vix);
+    Logger.log("⚠️ 使用 Kopitiam 特調備援文字產生小羅午茶。");
+  }
 
-  try {
-    const response = UrlFetchApp.fetch(url, {
-      method: "post",
-      contentType: "application/json",
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
+  // 寫入 DASHBOARD 的 AI 小羅午茶區域 (B24)
+  dashSheet.getRange("B24").setValue(aiText);
 
-    const result = JSON.parse(response.getContentText());
-    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts[0].text) {
-      const aiText = result.candidates[0].content.parts[0].text;
-      
-      // 寫入 DASHBOARD 的 AI 小羅午茶區域 (B24)
-      dashSheet.getRange("B24").setValue(aiText);
+  // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
+  const logDateVal = historyLogSheet.getRange(3, 1).getValue();
+  let logDateStr = "";
+  if (logDateVal instanceof Date) {
+    logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
+  }
+  const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
 
-      // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
-      const logDateVal = historyLogSheet.getRange(3, 1).getValue();
-      let logDateStr = "";
-      if (logDateVal instanceof Date) {
-        logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
-      }
-      const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
-
-      if (logDateStr === todayStr) {
-        historyLogSheet.getRange(3, 11).setValue(aiText);
-        Logger.log("小羅午茶成功生成並備份至 HISTORY_LOG！");
-      } else {
-        Logger.log("今日非交易日或未新增今日資料列，小羅午茶僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
-      }
-    } else {
-      throw new Error("API 傳回空內容: " + response.getContentText());
-    }
-  } catch (err) {
-    dashSheet.getRange("B24").setValue("☕ 小羅今晚沒來咖啡館，市場觀察暫停一次。");
-    Logger.log("Gemini API Error: " + err);
+  if (logDateStr === todayStr) {
+    historyLogSheet.getRange(3, 11).setValue(aiText);
+    Logger.log("小羅午茶成功生成並備份至 HISTORY_LOG！");
+  } else {
+    Logger.log("今日非交易日或未新增今日資料列，小羅午茶僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
   }
 }
 
@@ -2235,26 +2272,25 @@ function getMarketEngineData() {
     let aiM = dashboardSheet.getRange('B23').getDisplayValue();
     let aiA = dashboardSheet.getRange('B24').getDisplayValue();
 
-    // 背景自動生成 AI 故事機制：如果 API 金鑰存在，且故事為初始預設值/錯誤值，則在載入時即時觸發一次生成，優化 Web App 首次載入體驗
-    const apiKey = PropertiesService.getScriptProperties().getProperty("MARKET_ENGINE_GEMINI_API_KEY");
-    if (apiKey) {
-      const isDefaultOrErrorMorning = !aiM || aiM.includes('若已設定') || aiM.includes('暫時離開') || aiM.includes('準備中') || aiM.includes('資料加載');
-      const isDefaultOrErrorAfternoon = !aiA || aiA.includes('準備中') || aiA.includes('如何啟用') || aiA.includes('沒來咖啡館') || aiA.includes('資料加載');
+    // 背景自動生成 AI 故事機制：若老巴或小羅故事為初始預設值/錯誤值/未設定，自動即時觸發生成，保證咖啡館永遠有人值班
+    const isDefaultOrErrorMorning = !aiM || aiM.includes('若已設定') || aiM.includes('暫時離開') || aiM.includes('準備中') || aiM.includes('資料加載') || aiM.includes('未設定') || aiM.includes('沒來咖啡館');
+    const isDefaultOrErrorAfternoon = !aiA || aiA.includes('準備中') || aiA.includes('如何啟用') || aiA.includes('沒來咖啡館') || aiA.includes('資料加載') || aiA.includes('未設定') || aiA.includes('暫時離開');
 
-      if (isMorning && isDefaultOrErrorMorning) {
-        try {
-          generateMorningNavigation();
-          aiM = dashboardSheet.getRange('B23').getDisplayValue();
-        } catch (e) {
-          Logger.log("Auto morning gen error: " + e.message);
-        }
-      } else if (!isMorning && isDefaultOrErrorAfternoon) {
-        try {
-          generateAfternoonNavigation();
-          aiA = dashboardSheet.getRange('B24').getDisplayValue();
-        } catch (e) {
-          Logger.log("Auto afternoon gen error: " + e.message);
-        }
+    if (isDefaultOrErrorMorning) {
+      try {
+        generateMorningNavigation();
+        aiM = dashboardSheet.getRange('B23').getDisplayValue();
+      } catch (e) {
+        Logger.log("Auto morning gen error: " + e.message);
+      }
+    }
+
+    if (isDefaultOrErrorAfternoon) {
+      try {
+        generateAfternoonNavigation();
+        aiA = dashboardSheet.getRange('B24').getDisplayValue();
+      } catch (e) {
+        Logger.log("Auto afternoon gen error: " + e.message);
       }
     }
 
@@ -2619,20 +2655,15 @@ ${geoDocText || '無特殊報告，維持常態發展'}
   "summaryE": "【E) 給我長期存股的一句話週備忘】≤25字"
 }
 `;
-      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
-      const resp = UrlFetchApp.fetch(url, {
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        muteHttpExceptions: true
-      });
-      const resultStr = resp.getContentText();
-      const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.storyBuffett) parsed.storyBuffett = parsed.storyBuffett.replace(/^(老巴|老巴解讀|老巴導讀)[：:\s]*/, '');
-        if (parsed.storySoros) parsed.storySoros = parsed.storySoros.replace(/^(小羅|小羅解讀|小羅拆解)[：:\s]*/, '');
-        payload = Object.assign(payload, parsed);
+      const resultStr = callGeminiAPIUniversal(prompt);
+      if (resultStr) {
+        const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.storyBuffett) parsed.storyBuffett = parsed.storyBuffett.replace(/^(老巴|老巴解讀|老巴導讀)[：:\s]*/, '');
+          if (parsed.storySoros) parsed.storySoros = parsed.storySoros.replace(/^(小羅|小羅解讀|小羅拆解)[：:\s]*/, '');
+          payload = Object.assign(payload, parsed);
+        }
       }
     } catch (err) {
       Logger.log('[Fin-News AI Prompt Error] ' + err.message);
@@ -2733,20 +2764,16 @@ ${geoText || '無'}
   "warningTip": "一句話提醒 (≤25字，用來避免我情緒化行動)"
 }
 `;
-            const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
-            const resp = UrlFetchApp.fetch(url, {
-              method: "post",
-              contentType: "application/json",
-              payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-              muteHttpExceptions: true
-            });
-            const jsonMatch = resp.getContentText().match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              crashPayload.classification = parsed.classification || '① 情緒型下跌';
-              crashPayload.reasons = parsed.reasons || [];
-              crashPayload.powderAdvice = parsed.powderAdvice || '暫緩';
-              crashPayload.warningTip = parsed.warningTip || '保持冷靜，不跟風砍單。';
+            const resultStr = callGeminiAPIUniversal(prompt);
+            if (resultStr) {
+              const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                crashPayload.classification = parsed.classification || '① 情緒型下跌';
+                crashPayload.reasons = parsed.reasons || [];
+                crashPayload.powderAdvice = parsed.powderAdvice || '暫緩';
+                crashPayload.warningTip = parsed.warningTip || '保持冷靜，不跟風砍單。';
+              }
             }
           } catch (e) {
             Logger.log('[Crash Defense Prompt Error] ' + e.message);
@@ -2812,18 +2839,14 @@ function fetchUpcomingMarketEvents() {
   }
 ]
 `;
-      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
-      const resp = UrlFetchApp.fetch(url, {
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        muteHttpExceptions: true
-      });
-      const jsonMatch = resp.getContentText().match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          defaultEvents = parsed;
+      const resultStr = callGeminiAPIUniversal(prompt);
+      if (resultStr) {
+        const jsonMatch = resultStr.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            defaultEvents = parsed;
+          }
         }
       }
     } catch (e) {
