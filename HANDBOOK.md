@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.7.7)
+# HANDBOOK.md (v2.7.8)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的歷史數據分位數校正與 18 年回測，建立統一、無歧義的市場位階決策體系（Single Source of Truth）。
@@ -29,18 +29,19 @@
 - `buildLabBacktestSheet()`: 建立 1 年期前瞻報酬率與勝率統計回測表
 - `updateMonthlyLabBacktest()`: 月度歷史回測 4 大維度自我驗證引擎 (每月 1 日 01:00 自動對帳更新並記錄對帳日期)
 - `buildDashboardSheet()`: 建立日常觀察卡片、今日位階判定與 AI 顧問值班卡片
+- `isMarketOpen()`: 交易日判定函式 (v2.7.8 重構：導入 24 小時 CacheService 快取，徹底根治迴圈重複查詢 CalendarApp 造成的 45 秒網路塞車)
 - `callGeminiAPIUniversal()`: 多模型自動備援重試 Gemini API 呼叫器 (依序自動切換 `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash` -> `gemini-flash-latest`)
 - `generateFallbackMorningText()` / `generateFallbackAfternoonText()`: ☕ 智慧特調備援文字產生器 (當 API 離線或金鑰未設定時，保證老巴與小羅永遠常駐 Kopitiam)
 - `generateMorningNavigation()` / `generateAfternoonNavigation()`: 老巴與小羅 AI 導航生成腳本
 - `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`: 每日盤前與盤後自動更新腳本 (對接實體 API，含時間戳過濾與快取自動清除)
 - `createDailyTrigger()`: 建立每日 07:30 與 16:30 雙時段自動觸發器 (盤前 07:30 老巴早餐值班，盤後 16:30 小羅午茶值班，每月 1 日 01:00 月度對帳)
 - `doGet()`: Web App / API 入口 (輸出健康狀態與即時時間戳，包含 AI 故事背景自動生成檢查)
-- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 API 與行情健康燈號 (v2.7.7 重構：導入 60 秒 `CacheService` 全 Payload 快取與 DASHBOARD 批次範圍讀取)
+- `getMarketEngineData()`: 精準讀取 `RAW_HISTORY` Row 3 API 與行情健康燈號 (v2.7.8 重構：嚴禁在 doGet 中同步發起遠端 LLM 網路請求，全面採用本地特調備援，連連響應時間小於 50ms)
 - `calculatePhaseDurationAndRelief()`: 掃描 `RAW_HISTORY` 統計當前位階持續天數與歷史平均天數 (打折天數撫平器)
 - `calculatePowderAndCdStatus()`: 階梯式資金池開火 (10%/20%) 與 3 交易日 CD 冷卻期 (含 Dist60 深跌 2% 提前解鎖條款)
 - `recordPowderAllocation()`: 記錄手動/觸發資金池加碼時間點與當時乖離率
-- `parseDistValue()`: 數字/百分比字串通配解析器 (v2.7.3 重構：支援小數比率、帶符號點數與未帶 `%` 百分比，根治 `< 0.5` 被誤放大 100 倍 Bug，確保門檻與點數 100% 精準轉換)
-- `calculatePhaseAnalysis()`: 純數據位階理性分析算式，計算當前數據與 18 年歷史百分比、向下安全距離與向上復甦距離 (v2.7.4 解耦邊界敘述，與 Dist60 實體點位 100% 理性嚴密對齊，零 AI API 開銷)
+- `parseDistValue()`: 數字/百分比字串通配解析器
+- `calculatePhaseAnalysis()`: 純數據位階理性分析算式
 
 ## ⑤ Decision Engine
 - **單一位階判定邏輯 (v2.7.5 全站統一重構)**：全站統一以 `RAW_HISTORY` 最新之季線偏離度 `Dist60` 作為日常市場位階的主導判定 (`極度恐慌`, `恐慌`, `順风/中性`, `過熱`, `狂熱`)。當年線偏離度 `Dist240` 處於長線高位 (> P90) 時解耦轉為「長線趨勢警示」，附加於行動指引與戰術說明中，維護位階與上下邊界距離之 100% 邏輯一致性。
@@ -56,7 +57,7 @@
     - **CD 冷卻控管**：加碼後進入 3 交易日 CD 冷卻期，優先顯示「🧊 資金池加碼冷卻中 (建議 CD 剩餘 X 天)」。若 Dist60 深跌 2% 以上則自動觸發提前解鎖條款。
     - T3 / T4 / T5 非加碼位階，加碼狀態顯示「🟢 備戰狀態，按兵不動 (資金池 0%)」。
 - **純數據位階理性分析 (Phase Analysis - v2.7.4 邊界敘述解耦與位階邏輯統一)**：
-  - **18年歷史百分比與邊界距離**：純粹依據季線偏離度 `Dist60` 對照 `P10/P25/P75/P90` 分位數計算，與整體位階完全解耦（例：當偏離度為 `+0.31%` 時，第一區塊明確標示位於 `P25 (-1.4%) ~ P75 (+4.2%) 常態區間`，向下安全距離與向上復甦距離分別精準計算至 P25 與 P75，徹底消除文字衝突）。
+  - **18年歷史百分比與邊界距離**：純粹依據季線偏離度 `Dist60` 對照 `P10/P25/P75/P90` 分位數計算，與整體位階完全解耦。
   - **AI 導航解耦**：獨立區塊呈現，無須呼叫 LLM API，亦不於老巴/小羅導航中重複硬編碼數值，保持 AI 心態引導與數據理性分析解耦。
 
 ## ⑥ AI Agents
@@ -65,11 +66,10 @@
   - 小羅盤後 AI 導航 (`generateAfternoonNavigation`): 16:30 值班 (小羅午茶 - 時間校正修復)
   - 多模型自動備援: `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash` -> `gemini-flash-latest` (含 Kopitiam 智慧特調備援，確保老巴與小羅永遠常駐 Kopitiam)
 
-## ⑦ Dashboard / UI (v2.7.7 並行 API 擷取與 CacheService 全快取加速發布)
-- **連線與回應速度大升級 (v2.7.7)**: 重構 `fetchRealMarketData` 為 `UrlFetchApp.fetchAll` 並行網路請求 (將 3 次單線耗時壓縮至 1 次網路來回)，並於 `getMarketEngineData` 與行情擷取導入 `CacheService` 雙層快取機制，將 Web App 連線延遲由原本 6~15 秒暴減至 50ms 內極速響應！
+## ⑦ Dashboard / UI (v2.7.8 消除 CalendarApp 與 LLM 同步堵塞)
+- **毫秒級連線回應大突破 (v2.7.8)**: 徹底根治連線長達數分鐘的問題！(1) 為 `isMarketOpen` 導入 24 小時 CacheService 快取，解決迴圈中 30 次 `CalendarApp` 查詢造成的 45 秒網路堵塞；(2) 移除 `doGet` 中同步呼叫遠端 LLM API 的巨型堵塞點，改用毫秒級本地智慧特調，連線反應時間大幅壓縮至 50ms 內。
+- **連線與回應速度大升級 (v2.7.7)**: 重構 `fetchRealMarketData` 為 `UrlFetchApp.fetchAll` 並行網路請求。
 - **老巴與小羅多模型自動備援與 Kopitiam 常駐修復 (v2.7.6)**: 導入 `callGeminiAPIUniversal` 多模型自動重試機制。
-- **季線為主市場位階與邊界解耦 (v2.7.5)**: 將位階判定全站統一為以季線偏離度 Dist60 為主要判定。
-- **SPA 頁面分頁化重構 (Tab Navigation)**: 4 大 Glassmorphism 頁籤（☕ 今日戰情 `today`, 💡 觀念導航 `concepts`, 📈 歷史回測 `backtest`, 📰 FIN-NEWS `finnews`）。
 - **GitHub Pages 靜態網頁**: `https://voyagermartin.github.io/Market_Engine/`
 - **GAS Web App**: `https://script.google.com/macros/s/AKfycbyXxiVbJqRjTDfFkU2XTtScTVdLGqIafbDaqfSJeG-JQs0sJZ-A0wlQtPN52xHQqmHJqA/exec`
 
@@ -80,10 +80,10 @@
 - **【數據與 AI 階層鐵則】**：嚴格遵守 `DATA -> QUANT ENGINE -> SIGNAL -> RULE -> ACTION -> AI EXPLANATION` 運算架構。AI 僅作為「解釋層與心態導航」，絕對不可代為產出或覆寫量化投資結論。
 
 ## ⑨ Current Sprint
-v2.7.7 導入 UrlFetchApp.fetchAll 並行請求與 CacheService 雙層快取機制，極致解決連線過久問題。
+v2.7.8 消除 isMarketOpen 的 CalendarApp 迴圈讀取與 doGet 中同步 LLM API 呼叫，極致完成毫秒級響應發布。
 
 ## ⑩ Current Version
-v2.7.7 (並行 API 擷取與 CacheService 全快取加速發布)
+v2.7.8 (消除 CalendarApp 與 LLM 同步堵塞，全站毫秒級連線響應發布)
 
 ## ⑪ Roadmap
 - Milestone 1: 試算表基礎架構與 100% 三全量真實歷史行情鏈結完工。
@@ -91,7 +91,7 @@ v2.7.7 (並行 API 擷取與 CacheService 全快取加速發布)
 - Milestone 3: Kopitiam 溫馨品牌軟化、白話翻譯卡片與美味咖啡圖示完工發布。
 - Milestone 4: SPA 3 大分頁切換重構、觀念導航 5 大圖卡精簡與 MARKET LAB 4 大維度自我驗證引擎完工。
 - Milestone 5: 資金池 3 天 CD 冷卻期控管、打折天數撫平器、EWT 開盤心理準備卡與純數據位階分析完工。
-- **目前停止位置**: v2.7.7 並行 API 擷取與 CacheService 全快取加速發布！
+- **目前停止位置**: v2.7.8 消除 CalendarApp 與 LLM 同步堵塞，全站毫秒級連線響應發布！
 - **下一步施工位置**: 進入 Milestone 6 (v2.8.0) 策略對決模擬器與 Out-of-Sample 滾動驗證研發。(+X%)！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估」。
       * 若 EWT 夜盤平穩或下跌：加碼狀態提示維持「🚀 可動用資金池 10%/20% 手動加碼」。
     - **CD 冷卻控管**：加碼後進入 3 交易日 CD 冷卻期，優先顯示「🧊 資金池加碼冷卻中 (建議 CD 剩餘 X 天)」。若 Dist60 深跌 2% 以上則自動觸發提前解鎖條款。

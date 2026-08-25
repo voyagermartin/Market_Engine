@@ -1,7 +1,7 @@
 /**
  * Market Engine V3 - 整合型 Google Sheet 自動建置與維護腳本
  * Single Source of Truth 架構：市場觀察 + MARKET LAB 合一
- * Version: v2.7.7 (並行 API 擷取與 CacheService 全快取加速發布)
+ * Version: v2.7.8 (消除 CalendarApp 與 LLM 同步堵塞，全站毫秒級連線響應發布)
  */
 
 /**
@@ -40,10 +40,10 @@ function onOpen() {
 function isMarketOpen(targetDate) {
   const d = targetDate ? new Date(targetDate) : new Date();
   
-  // 100% 穩定且時區無涉地取得台北時間的星期幾
   const year = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'yyyy'), 10);
   const month = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'MM'), 10) - 1;
   const day = parseInt(Utilities.formatDate(d, 'Asia/Taipei', 'dd'), 10);
+  const dateKey = Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM-dd');
   
   const localDate = new Date(year, month, day);
   const dayOfWeek = localDate.getDay(); // 0 = Sun, 6 = Sat
@@ -51,6 +51,18 @@ function isMarketOpen(targetDate) {
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     return { isOpen: false, reason: '週休二日' };
   }
+
+  // ⚡ 關鍵效能修復：使用 CacheService 快取交易日判定，避免迴圈中重複呼叫 CalendarApp 造成數十秒卡頓
+  const cache = CacheService.getScriptCache();
+  const cacheKey = "MARKET_OPEN_CACHE_" + dateKey;
+  const cachedVal = cache.get(cacheKey);
+  if (cachedVal) {
+    try {
+      return JSON.parse(cachedVal);
+    } catch (e) {}
+  }
+
+  let result = { isOpen: true, reason: '正常交易日' };
 
   // Google Calendar 台灣節日 ID 查詢
   try {
@@ -62,14 +74,18 @@ function isMarketOpen(targetDate) {
       const events = cal.getEvents(startOfDay, endOfDay);
       if (events && events.length > 0) {
         const title = events[0].getTitle();
-        return { isOpen: false, reason: `國定假日 (${title})` };
+        result = { isOpen: false, reason: `國定假日 (${title})` };
       }
     }
   } catch (err) {
     Logger.log('Calendar API Warning: ' + err);
   }
 
-  return { isOpen: true, reason: '正常交易日' };
+  try {
+    cache.put(cacheKey, JSON.stringify(result), 86400); // 快取 24 小時
+  } catch (e) {}
+
+  return result;
 }
 
 /**
@@ -2292,26 +2308,15 @@ function getMarketEngineData() {
     let aiM = dashRange[8][0];   // B23
     let aiA = dashRange[9][0];   // B24
 
-    // 背景自動生成 AI 故事機制：若老巴或小羅故事為初始預設值/錯誤值/未設定，自動即時觸發生成，保證咖啡館永遠有人值班
+    // ⚡ 關鍵效能修復：若 B23/B24 為初始預設值/錯誤值/未設定，採用即時本地智慧特調，嚴禁在 doGet 中同步呼叫遠端 LLM API
     const isDefaultOrErrorMorning = !aiM || aiM.includes('若已設定') || aiM.includes('暫時離開') || aiM.includes('準備中') || aiM.includes('資料加載') || aiM.includes('未設定') || aiM.includes('沒來咖啡館');
     const isDefaultOrErrorAfternoon = !aiA || aiA.includes('準備中') || aiA.includes('如何啟用') || aiA.includes('沒來咖啡館') || aiA.includes('資料加載') || aiA.includes('未設定') || aiA.includes('暫時離開');
 
     if (isDefaultOrErrorMorning) {
-      try {
-        generateMorningNavigation();
-        aiM = dashboardSheet.getRange('B23').getDisplayValue();
-      } catch (e) {
-        Logger.log("Auto morning gen error: " + e.message);
-      }
+      aiM = generateFallbackMorningText(lastStockDataDate, data.twii, data.phase, data.dist60, data.ewtChange, data.vix);
     }
-
     if (isDefaultOrErrorAfternoon) {
-      try {
-        generateAfternoonNavigation();
-        aiA = dashboardSheet.getRange('B24').getDisplayValue();
-      } catch (e) {
-        Logger.log("Auto afternoon gen error: " + e.message);
-      }
+      aiA = generateFallbackAfternoonText(lastStockDataDate, data.twii, data.twii, data.phase, data.dist60, data.ewtChange, data.vix);
     }
 
     if (p && p !== '' && p !== 'N/A' && p !== '資料計算中') data.phase = p;
