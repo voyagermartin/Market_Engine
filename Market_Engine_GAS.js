@@ -1930,22 +1930,20 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
     if (rawSheet && configSheet && rawSheet.getLastRow() >= 4) {
       const v = configSheet.getRange('C12:D15').getValues();
       const p10_60 = Number(v[0][0]), p25_60 = Number(v[1][0]), p75_60 = Number(v[2][0]), p90_60 = Number(v[3][0]);
-      const p10_240 = Number(v[0][1]), p25_240 = Number(v[1][1]), p75_240 = Number(v[2][1]), p90_240 = Number(v[3][1]);
       
       const numRows = Math.min(100, rawSheet.getLastRow() - 2);
       if (numRows > 0) {
-        const distData = rawSheet.getRange(3, 6, numRows, 2).getValues(); // Col 6: Dist60, Col 7: Dist240
+        const distData = rawSheet.getRange(3, 6, numRows, 1).getValues(); // Col 6: Dist60
         
         for (let i = 1; i < distData.length; i++) {
           const d60 = parseDistValue(distData[i][0]);
-          const d240 = parseDistValue(distData[i][1]);
-          if (isNaN(d60) || isNaN(d240)) break;
+          if (isNaN(d60)) break;
           
           let rowPhase = '順風/中性';
-          if (d60 < p10_60 || d240 < p10_240) rowPhase = '極度恐慌';
-          else if (d60 < p25_60 || d240 < p25_240) rowPhase = '恐慌';
-          else if (d60 > p90_60 || d240 > p90_240) rowPhase = '狂熱';
-          else if (d60 > p75_60 || d240 > p75_240) rowPhase = '過熱';
+          if (d60 < p10_60) rowPhase = '極度恐慌';
+          else if (d60 < p25_60) rowPhase = '恐慌';
+          else if (d60 > p90_60) rowPhase = '狂熱';
+          else if (d60 > p75_60) rowPhase = '過熱';
           
           if (rowPhase === currentPhase) {
             consecutiveDays++;

@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.8.7)
+# HANDBOOK.md (v2.8.8)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -25,7 +25,7 @@
 - **交易日與快取控管**: `isMarketOpen()` (0ms 本地 Hash 表 + ScriptProperties 查表), `getMarketEngineData()` (60s 全 API 快取 + 批次 Range 讀取)
 - **策略對決與樣本外驗證**: `calculateStrategyBacktest()` (18年全歷史實體行情對決 Baseline vs Market Engine，採用真實投資組合權益曲線 `Total Equity = Shares × Index + Cash` 精準計算 MDD), `calculateWalkForwardValidation()` (10年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證)
 - **AI 雙顧問與新聞研報**: `callGeminiAPIUniversal()` (4 模型自動備援重試), `generateFallbackMorningText()` / `generateFallbackAfternoonText()`, `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`, `updateWeeklyFinNewsReport()` (🤖AI/📈CPI/🌐GEO 三大主題讀報), `fetchUpcomingMarketEvents()` (未來重大事件過期自動過濾)
-- **量化決策算式**: `calculatePhaseDurationAndRelief()` (打折天數撫平器), `calculatePowderAndCdStatus()` (資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override), `calculatePhaseAnalysis()` (純數據位階分析), `parseDistValue()`
+- **量化決策算式**: `calculatePhaseDurationAndRelief()` (位階持續天數計算，嚴格以 Single Source of Truth `Dist60` 判定歷史每列位階，修復 `d240` 造成重複斷裂歸 1 BUG), `calculatePowderAndCdStatus()` (資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override), `calculatePhaseAnalysis()` (純數據位階分析), `parseDistValue()`
 
 ## ⑤ Decision Engine & 鐵則
 - **單一位階判定**: 全站以 `RAW_HISTORY` 最新季線偏離度 `Dist60` 主導判定 (`T1極度恐慌`, `T2恐慌`, `T3順風/中性`, `T4過熱`, `T5狂熱`)。年線偏離度 `Dist240 > P90` 解耦轉為長線風險提醒。
@@ -44,8 +44,8 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.7` (回測頁面精簡清理 - 保留探索時間軸與 18 年位階統計表)
-- **GAS Deployment**: `@97`
+- **Current Version**: `v2.8.8` (修復 calculatePhaseDurationAndRelief 位階天數歸 1 Bug)
+- **GAS Deployment**: `@98`
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -58,6 +58,27 @@
   - M5.1 (v2.7.6~v2.7.12): Gemini 4 模型備援、UrlFetchApp.fetchAll 並行加速、0ms 假日查表、doGet < 50ms 響應、AI/CPI/GEO 三大新聞與未來事件過濾。
   - M6 (v2.8.0 COMPLETED): ⚔️ 策略對決模擬器 (Baseline vs Market Engine 全指標對比) + 🔬 Walk-Forward 10年滾動樣本外測試 (Zero Overfitting 驗證) + 💡 白話導讀與 534 萬本金差異 QA 卡片。
   - M6.5 (v2.8.5 COMPLETED): 🌟 核心敘事重構 (Narrative Refactoring) – 「研究市場，是為了最後不再被市場牽著走」。完成 3 年探索時間軸 (Road to Simplicity)、三大角色重定義、徹底移除高檔停利誤導性敘事、長期持有鐵則發布、雙顧問溫暖文風升級。
+  - M6.7 (v2.8.7 COMPLETED): 🧹 回測頁面精簡清理 – 徹底移除導讀卡片與雙欄數據對照卡片，保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」，維持極致純粹之 Glassmorphism 視覺質感。
+  - **M6.8 (v2.8.8 COMPLETED)**: 🐛 位階持續天數算式 BUG 修復 – 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 年線偏離度條件導致歷史位階比對誤判為過熱/狂熱，造成「順風/中性」位階天數每日被重設斷裂為「已持續第 1 天」之問題。全面對齊單一位階 `Dist60` Single Source of Truth 判定法則。
+- **🚀 目前停止位置**: `v2.8.8` (位階持續天數算式修復完工)
+- **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
+  - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
+
+---
+## ⑨ 開發日誌歷程 (Development History)
+| 日期 | 版本 | 核心更新摘要 |
+| :--- | :--- | :--- |
+| **2026-07-26** | `v1.0~v1.6.1` | 全站 V3 初始建置、18年實體歷史行情鏈結、SPA UI 頁籤、Kopitiam 人設與深色護眼模式。 |
+| **2026-08-01** | `v2.6.0~v2.7.1` | `📰 FIN-NEWS` 分頁發布、Google Docs 動態解析、近2日千點大跌鑑別、未來重大事件提醒卡。 |
+| **2026-08-02** | `v2.7.2` | 週末 VIX / EWT 時間戳解耦與美股週五結算日對齊。 |
+| **2026-08-06** | `v2.7.3~v2.7.5` | `parseDistValue` 通配解析器重構、季線位階 (`Dist60`) 全站統一、年線高位轉為長線風險提醒。 |
+| **2026-08-25** | `v2.7.6~v2.7.12` | (1) Gemini 4 模型自動備援；(2) `fetchAll` 並行擷取與雙層 CacheService 快取；(3) 消除 CalendarApp 迴圈與 LLM 同步堵塞 (doGet < 50ms)；(4) `TAIWAN_HOLIDAYS_PRESET` 0ms 假日查表；(5) AI/CPI/GEO 三大主題實質新聞讀報；(6) 未來重大事件自動過濾歷史舊事件。 |
+| **2026-08-25** | `v2.8.0` | **Milestone 6 完工發布**：(1) 實作 `calculateStrategyBacktest` 全歷史 18 年策略對決模擬器 (本金、終值、CAGR、MDD、Sharpe Ratio、資金效率)；(2) 實作 `calculateWalkForwardValidation` 10年滾動樣本外驗證；(3) 前端 `📈 歷史回測` 頁面發布對戰與驗證卡片。 |
+| **2026-08-26** | `v2.8.0` | **策略對決與視覺白話全套優化**：(1) 重構 MDD 為真實投資組合權益曲線算式 (`Total Equity = Shares × Index + Cash`，Baseline -29.56% vs Market Engine -27.25%)；(2) 前端動態 MDD 顯著改善標籤連動發布 (>= 0.5% 門檻觸發)；(3) UI 排版與跨裝置字體對齊優化；(4) 新增『💡 18 年實戰模擬白話導讀』Glassmorphism 卡片與『❓ 總本金差異 534 萬來源與效率證明』QA 解答區塊；(5) 雲端 GAS 部署升級至 `@94`。 |
+| **2026-08-27** | `v2.8.5` | **核心敘事重構 (Narrative Refactoring)**：(1) 首頁 Hero 標題更新為「研究市場，是為了最後不再被市場牽著走」；(2) 重定義三大角色（基石、彈藥、護欄）；(3) 徹底移除高檔停利誤導，寫入長期持有鐵則卡；(4) 回測頁面發布「三年探索時間軸 (Road to Simplicity)」；(5) 老巴與小羅雙顧問文風升級（專注本業、陪伴家人、長線複利）。 |
+| **2026-08-27** | `v2.8.6` | **回測去競爭化與科學驗證重構**：(1) 導讀卡標題改為「回測實驗室：18.6 年歷史數據告訴我們的量化真相」；(2) 基準組標題改為「🟢 基準組：無條件定期扣 (Time in the Market)」，強調讓時間與頂尖企業成長替你工作；(3) 調度組標題改為「🛡️ 調度組：Market Engine 紀律防守 (Risk & Liquidity)」，強調為人性設計之護欄；(4) 移除超額獲利等炫技詞彙，客觀比較時間複利與流動性防守之取向；(5) 雲端 GAS 部署升級至 `@96`。 |
+| **2026-08-27** | `v2.8.7` | **回測頁面精簡清理 (Layout Cleanup)**：(1) 徹底移除「導讀卡片」與「雙欄對照卡片」；(2) 完整保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」；(3) UI 間距與高雅 Glassmorphism 質感完全對齊；(4) 雲端 GAS 部署升級至 `@97`。 |
+| **2026-08-27** | `v2.8.8` | **位階持續天數算式 BUG 修復**：(1) 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 年線偏離度參與邏輯判斷，導致「順風/中性」位階在比對歷史天數時被誤判為過熱/狂熱而提前 `break` 歸 1 之問題；(2) 全面對齊以季線偏離度 `Dist60` 為單一位階 Single Source of Truth 的判定原則；(3) 部署升級至 `@98`。 |義、徹底移除高檔停利誤導性敘事、長期持有鐵則發布、雙顧問溫暖文風升級。
   - **M6.7 (v2.8.7 COMPLETED)**: 🧹 回測頁面精簡清理 – 徹底移除導讀卡片與雙欄數據對照卡片，保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」，維持極致純粹之 Glassmorphism 視覺質感。
 - **🚀 目前停止位置**: `v2.8.7` (回測頁面精簡清理完工)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
