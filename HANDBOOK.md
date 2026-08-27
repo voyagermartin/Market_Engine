@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.8.5)
+# HANDBOOK.md (v2.8.6)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -44,8 +44,8 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.5` (核心敘事重構 Narrative Refactoring 正式發布)
-- **GAS Deployment**: `@95`
+- **Current Version**: `v2.8.6` (回測頁面去競爭化與科學驗證敘事重構)
+- **GAS Deployment**: `@96`
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -57,8 +57,9 @@
   - M5: 資金池 3 天 CD 冷卻、打折天數撫平器、EWT 氣象與純數據位階分析。
   - M5.1 (v2.7.6~v2.7.12): Gemini 4 模型備援、UrlFetchApp.fetchAll 並行加速、0ms 假日查表、doGet < 50ms 響應、AI/CPI/GEO 三大新聞與未來事件過濾。
   - M6 (v2.8.0 COMPLETED): ⚔️ 策略對決模擬器 (Baseline vs Market Engine 全指標對比) + 🔬 Walk-Forward 10年滾動樣本外測試 (Zero Overfitting 驗證) + 💡 白話導讀與 534 萬本金差異 QA 卡片。
-  - **M6.5 (v2.8.5 COMPLETED)**: 🌟 核心敘事重構 (Narrative Refactoring) – 「研究市場，是為了最後不再被市場牽著走」。完成 3 年探索時間軸 (Road to Simplicity)、三大角色重定義、徹底移除高檔停利誤導性敘事、長期持有鐵則發布、雙顧問溫暖文風升級。
-- **🚀 目前停止位置**: `v2.8.5` (核心敘事重構完成)
+  - M6.5 (v2.8.5 COMPLETED): 🌟 核心敘事重構 (Narrative Refactoring) – 「研究市場，是為了最後不再被市場牽著走」。完成 3 年探索時間軸 (Road to Simplicity)、三大角色重定義、徹底移除高檔停利誤導性敘事、長期持有鐵則發布、雙顧問溫暖文風升級。
+  - **M6.6 (v2.8.6 COMPLETED)**: 📊 回測頁面去競爭化重構 – 導讀卡改為「回測實驗室：18.6 年歷史數據告訴我們的量化真相」，對照卡改為「純粹時間 (Baseline) vs 人性防守 (Market Engine)」，全面消除打敗大盤/超額獲利炫技詞彙，強調客觀科學驗證與風險流動性控管取向。
+- **🚀 目前停止位置**: `v2.8.6` (回測去競爭化重構完成)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
   - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
 
@@ -74,3 +75,4 @@
 | **2026-08-25** | `v2.8.0` | **Milestone 6 完工發布**：(1) 實作 `calculateStrategyBacktest` 全歷史 18 年策略對決模擬器 (本金、終值、CAGR、MDD、Sharpe Ratio、資金效率)；(2) 實作 `calculateWalkForwardValidation` 10年滾動樣本外驗證；(3) 前端 `📈 歷史回測` 頁面發布對戰與驗證卡片。 |
 | **2026-08-26** | `v2.8.0` | **策略對決與視覺白話全套優化**：(1) 重構 MDD 為真實投資組合權益曲線算式 (`Total Equity = Shares × Index + Cash`，Baseline -29.56% vs Market Engine -27.25%)；(2) 前端動態 MDD 顯著改善標籤連動發布 (>= 0.5% 門檻觸發)；(3) UI 排版與跨裝置字體對齊優化；(4) 新增『💡 18 年實戰模擬白話導讀』Glassmorphism 卡片與『❓ 總本金差異 534 萬來源與效率證明』QA 解答區塊；(5) 雲端 GAS 部署升級至 `@94`。 |
 | **2026-08-27** | `v2.8.5` | **核心敘事重構 (Narrative Refactoring)**：(1) 首頁 Hero 標題更新為「研究市場，是為了最後不再被市場牽著走」；(2) 重定義三大角色（基石、彈藥、護欄）；(3) 徹底移除高檔停利誤導，寫入長期持有鐵則卡；(4) 回測頁面發布「三年探索時間軸 (Road to Simplicity)」；(5) 老巴與小羅雙顧問文風升級（專注本業、陪伴家人、長線複利）。 |
+| **2026-08-27** | `v2.8.6` | **回測去競爭化與科學驗證重構**：(1) 導讀卡標題改為「回測實驗室：18.6 年歷史數據告訴我們的量化真相」；(2) 基準組標題改為「🟢 基準組：無條件定期扣 (Time in the Market)」，強調讓時間與頂尖企業成長替你工作；(3) 調度組標題改為「🛡️ 調度組：Market Engine 紀律防守 (Risk & Liquidity)」，強調為人性設計之護欄；(4) 移除超額獲利等炫技詞彙，客觀比較時間複利與流動性防守之取向；(5) 雲端 GAS 部署升級至 `@96`。 |
