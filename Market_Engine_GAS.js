@@ -1929,7 +1929,10 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
 
     if (rawSheet && configSheet && rawSheet.getLastRow() >= 4) {
       const v = configSheet.getRange('C12:D15').getValues();
-      const p10_60 = Number(v[0][0]), p25_60 = Number(v[1][0]), p75_60 = Number(v[2][0]), p90_60 = Number(v[3][0]);
+      const p10_60 = parseDistValue(v[0][0]);
+      const p25_60 = parseDistValue(v[1][0]);
+      const p75_60 = parseDistValue(v[2][0]);
+      const p90_60 = parseDistValue(v[3][0]);
       
       const numRows = Math.min(100, rawSheet.getLastRow() - 2);
       if (numRows > 0) {
