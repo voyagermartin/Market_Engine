@@ -72,6 +72,11 @@ const TAIWAN_HOLIDAYS_PRESET = {
 };
 
 /**
+ * 非台股休市之紀念日列表 (如軍人節/教師節等照常開盤)
+ */
+const NON_MARKET_HOLIDAYS = ["軍人節", "教師節", "父親節", "母親節", "重陽節", "七夕", "原住民族日", "記者節", "防災日"];
+
+/**
  * 🗓️ 月度自動同步台灣節日日曆至 ScriptProperties (每月 1 日對帳時背景執行一次即可)
  */
 function updateTaiwanHolidaysCalendar() {
@@ -87,12 +92,16 @@ function updateTaiwanHolidaysCalendar() {
     const holidayMap = {};
 
     events.forEach(evt => {
-      const dStr = Utilities.formatDate(evt.getStartTime(), 'Asia/Taipei', 'yyyy-MM-dd');
-      holidayMap[dStr] = evt.getTitle();
+      const title = evt.getTitle();
+      const isNonMarket = NON_MARKET_HOLIDAYS.some(k => title.includes(k));
+      if (!isNonMarket) {
+        const dStr = Utilities.formatDate(evt.getStartTime(), 'Asia/Taipei', 'yyyy-MM-dd');
+        holidayMap[dStr] = title;
+      }
     });
 
     PropertiesService.getScriptProperties().setProperty('TAIWAN_HOLIDAYS_JSON', JSON.stringify(holidayMap));
-    Logger.log(`[Holidays Calendar Updated] 月度同步完成，共 ${Object.keys(holidayMap).length} 天國定假日。`);
+    Logger.log(`[Holidays Calendar Updated] 月度同步完成，共 ${Object.keys(holidayMap).length} 天國定休假日。`);
   } catch (e) {
     Logger.log('updateTaiwanHolidaysCalendar Warning: ' + e.message);
   }
@@ -123,13 +132,17 @@ function isMarketOpen(targetDate) {
     return { isOpen: false, reason: `國定假日 (${TAIWAN_HOLIDAYS_PRESET[dateKey]})` };
   }
 
-  // 2. 查閱每月自動同步之 ScriptProperties 日曆 JSON (0 毫秒)
+  // 2. 查閱每月自動同步之 ScriptProperties 日曆 JSON (剔除軍人節/教師節等非股市休市之紀念日)
   try {
     const propsJson = PropertiesService.getScriptProperties().getProperty('TAIWAN_HOLIDAYS_JSON');
     if (propsJson) {
       const holidayMap = JSON.parse(propsJson);
-      if (holidayMap[dateKey]) {
-        return { isOpen: false, reason: `國定假日 (${holidayMap[dateKey]})` };
+      const hTitle = holidayMap[dateKey];
+      if (hTitle) {
+        const isNonMarket = NON_MARKET_HOLIDAYS.some(k => hTitle.includes(k));
+        if (!isNonMarket) {
+          return { isOpen: false, reason: `國定假日 (${hTitle})` };
+        }
       }
     }
   } catch (e) {}
@@ -1609,16 +1622,16 @@ function seedAndFixWeekendMode() {
     }
   }
 
-  // 2. 確保最新交易日 (2026-09-02) 存在於 Row 3
+  // 2. 確保最新交易日 (2026-09-03) 存在於 Row 3
   const topDateVal = rawSheet.getRange(3, 1).getValue();
   const topDateStr = (topDateVal instanceof Date) ? Utilities.formatDate(topDateVal, 'Asia/Taipei', 'yyyy-MM-dd') : String(topDateVal || '');
 
-  if (!topDateStr || topDateStr < '2026-09-02') {
+  if (!topDateStr || topDateStr < '2026-09-03') {
     rawSheet.insertRowBefore(3);
-    rawSheet.getRange(3, 1).setValue(new Date('2026-09-02T00:00:00+08:00'));
+    rawSheet.getRange(3, 1).setValue(new Date('2026-09-03T00:00:00+08:00'));
     rawSheet.getRange(3, 2).setValue(46164.72); // 最新加權指數收盤
-    rawSheet.getRange(3, 3).setValue(18.58);    // VIX
-    rawSheet.getRange(3, 10).setValue(0.0271);  // 夜盤 EWT
+    rawSheet.getRange(3, 3).setValue(16.47);    // VIX
+    rawSheet.getRange(3, 10).setValue(0.0158);  // 夜盤 EWT
   }
 
   // 3. 更新批次算式 (套用均線與乖離率)
@@ -1830,6 +1843,7 @@ function doGet(e) {
   let forceRefresh = false;
   if (e && e.parameter && e.parameter.action) {
     forceRefresh = true;
+    try { PropertiesService.getScriptProperties().deleteProperty('TAIWAN_HOLIDAYS_JSON'); } catch (err) {}
     const act = e.parameter.action;
     if (act === 'updateMorning') {
       try { seedAndFixWeekendMode(); } catch (e) {}
