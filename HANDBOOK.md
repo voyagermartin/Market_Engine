@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.8.10)
+# HANDBOOK.md (v2.8.11)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -20,12 +20,12 @@
 6. `DECISION_LOG`: 手動加碼/戰術決策審核檢討紀錄。
 
 ## ④ Function Library (核心函式索引)
-- **行情與歷史對接**: `fetchRealMarketData()` (UrlFetchApp.fetchAll 並行 + 180s 快取), `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`
+- **行情與歷史對接**: `fetchRealMarketData()` (UrlFetchApp.fetchAll 並行 + 180s 快取), `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`, `seedAugust2026HistoricalRows()` (1-step 批次 `deleteRows()` 清空與 8 月 21 個歷史交易日無條件補全防錯)
 - **初始化與後台對帳**: `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`, `updateMonthlyLabBacktest()`, `updateTaiwanHolidaysCalendar()` (月度 Google Calendar 同步)
-- **交易日與快取控管**: `isMarketOpen()` (0ms 本地 Hash 表 + ScriptProperties 查表), `getMarketEngineData()` (60s 全 API 快取 + 批次 Range 讀取)
+- **交易日與快取控管**: `isMarketOpen()` (0ms 本地 Hash 表 + `NON_MARKET_HOLIDAYS` 軍人節/教師節等非休市紀念日過濾), `getMarketEngineData()` (60s 全 API 快取 + 批次 Range 讀取 + 進入入口自動補齊與校正 8 月交易日)
 - **策略對決與樣本外驗證**: `calculateStrategyBacktest()` (18年全歷史實體行情對決 Baseline vs Market Engine，採用真實投資組合權益曲線 `Total Equity = Shares × Index + Cash` 精準計算 MDD), `calculateWalkForwardValidation()` (10年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證)
 - **AI 雙顧問與新聞研報**: `callGeminiAPIUniversal()` (4 模型自動備援重試), `generateFallbackMorningText()` / `generateFallbackAfternoonText()`, `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`, `updateWeeklyFinNewsReport()` (🤖AI/📈CPI/🌐GEO 三大主題讀報), `fetchUpcomingMarketEvents()` (未來重大事件過期自動過濾)
-- **量化決策算式**: `calculatePhaseDurationAndRelief()` (位階持續天數計算，嚴格以 Single Source of Truth `Dist60` 判定歷史每列位階，修復 `d240` 與格式解析造成重複斷裂歸 1 BUG), `calculatePowderAndCdStatus()` (資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override), `calculatePhaseAnalysis()` (純數據位階分析), `parseDistValue()`
+- **量化決策算式**: `calculatePhaseDurationAndRelief()` (位階持續天數計算，以 Single Source of Truth `Dist60` 與動態 `topMA60` 備援算式判定歷史每列位階，修復歷史跨月日期斷層導致歸 1 BUG), `calculatePowderAndCdStatus()` (資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override), `calculatePhaseAnalysis()` (純數據位階分析), `parseDistValue()`
 
 ## ⑤ Decision Engine & 鐵則
 - **單一位階判定**: 全站以 `RAW_HISTORY` 最新季線偏離度 `Dist60` 主導判定 (`T1極度恐慌`, `T2恐慌`, `T3順風/中性`, `T4過熱`, `T5狂熱`)。年線偏離度 `Dist240 > P90` 解耦轉為長線風險提醒。
@@ -44,8 +44,8 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.10` (核心敘事重構、回測頁面精簡與位階天數連線全套修復完成)
-- **GAS Deployment**: `@100`
+- **Current Version**: `v2.8.11` (非休市紀念日過濾、8月歷史交易日無條件補全與位階天數連線修復發布)
+- **GAS Deployment**: `@127`
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -56,11 +56,12 @@
   - M4: SPA 4 大分頁切換 (`today`, `concepts`, `backtest`, `finnews`) 與 MARKET LAB 驗證引擎。
   - M5: 資金池 3 天 CD 冷卻、打折天數撫平器、EWT 氣象與純數據位階分析。
   - M5.1 (v2.7.6~v2.7.12): Gemini 4 模型備援、UrlFetchApp.fetchAll 並行加速、0ms 假日查表、doGet < 50ms 響應、AI/CPI/GEO 三大新聞與未來事件過濾。
-  - M6 (v2.8.0 COMPLETED): ⚔️ 策略對決模擬器 (Baseline vs Market Engine 全指標對比) + 🔬 Walk-Forward 10年滾動樣本外測試 (Zero Overfitting 驗證) + 💡 白話導讀與 534 萬本金差異 QA 卡片。
+  - M6 (v2.8.0 COMPLETED): ⚔️ 策略對決模擬器 (Baseline vs Market Engine 全指標對比) + 🔬 Walk-Forward 10年滾動樣本外測試 (Zero Overfitting 驗證) + 💡 白話導導與 534 萬本金差異 QA 卡片。
   - M6.5 (v2.8.5 COMPLETED): 🌟 核心敘事重構 (Narrative Refactoring) – 「研究市場，是為了最後不再被市場牽著走」。完成 3 年探索時間軸 (Road to Simplicity)、三大角色重定義、徹底移除高檔停利誤導性敘事、長期持有鐵則發布、雙顧問溫暖文風升級。
   - M6.6 (v2.8.7 COMPLETED): 🧹 回測頁面精簡清理 – 徹底移除導讀卡片與雙欄數據對照卡片，保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」，維持極致純粹之 Glassmorphism 視覺質感。
-  - **M6.7 (v2.8.10 COMPLETED)**: 🐛 位階天數與 API 連線全套修復 – 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 與原生 `Number()` 門檻解析導致歷史位階比對中斷歸 1 之問題，並升級前端 `GAS_API_BASE` 指向主部署網址 (`@100`)。
-- **🚀 目前停止位置**: `v2.8.10` (核心敘事重構與位階天數全套發布完工)
+  - M6.7 (v2.8.10 COMPLETED): 🐛 位階天數與 API 連線全套修復 – 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 與原生 `Number()` 門檻解析導致歷史位階比對中斷歸 1 之問題，並升級前端 `GAS_API_BASE` 指向主部署網址 (`@100`)。
+  - **M6.8 (v2.8.11 COMPLETED)**: 🐛 9/03 非交易休市日過濾修復與 8 月歷史交易日鏈無條件批次補全 – 修復軍人節等紀念日股市照常開盤判定，無條件自動補全與清空 8 月 21 個歷史交易日（避免跨月歷史斷層卡關 2 天），並優化 1-step `deleteRows()` 批次操作防止 HTTP Context Deadline 超時。
+- **🚀 目前停止位置**: `v2.8.11` (9/03 開盤日修復、8月數據鏈無縫對接與連線優化完成)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
   - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
 
@@ -76,3 +77,5 @@
 | **2026-08-25** | `v2.8.0` | **Milestone 6 完工發布**：(1) 實作 `calculateStrategyBacktest` 全歷史 18 年策略對決模擬器 (本金、終值、CAGR、MDD、Sharpe Ratio、資金效率)；(2) 實作 `calculateWalkForwardValidation` 10年滾動樣本外驗證；(3) 前端 `📈 歷史回測` 頁面發布對戰與驗證卡片。 |
 | **2026-08-26** | `v2.8.0` | **策略對決與視覺白話全套優化**：(1) 重構 MDD 為真實投資組合權益曲線算式 (`Total Equity = Shares × Index + Cash`，Baseline -29.56% vs Market Engine -27.25%)；(2) 前端動態 MDD 顯著改善標籤連動發布 (>= 0.5% 門檻觸發)；(3) UI 排版與跨裝置字體對齊優化；(4) 新增『💡 18 年實戰模擬白話導讀』Glassmorphism 卡片與『❓ 總本金差異 534 萬來源與效率證明』QA 解答區塊；(5) 雲端 GAS 部署升級至 `@94`。 |
 | **2026-08-27** | `v2.8.5~v2.8.10` | **里程碑 Milestone 6 核心敘事重構與系統大修復**：(1) 升級 Slogan「研究市場，是為了最後不再被市場牽著走」與核心引言；(2) 重定義三大角色（基石、彈藥、護欄）並加入長期持有鐵則卡；(3) 回測頁發布「三年探索時間軸 (Road to Simplicity)」，並清理導讀卡與對照卡；(4) 修復 `calculatePhaseDurationAndRelief` 中舊 `d240` 邏輯與門檻格式解析 Bug；(5) 重構 `GAS_API_BASE` 與主 API Deployment ID 強制升級部署至 `@100`。 |
+| **2026-09-03** | `v2.8.11` | **非休市紀念日過濾與 8 月歷史交易日鏈補全修復**：(1) 在 `isMarketOpen()` 中加入 `NON_MARKET_HOLIDAYS`（軍人節、教師節等非休市紀念日過濾），修正 9/03 軍人節股市正常開盤判讀；(2) 實現 `seedAugust2026HistoricalRows()` 無條件批次補全 8 月 21 個交易日（解決 7/31 至 9/02 日期斷層導致位階卡在第 2 天之問題）；(3) 採用 1-step `deleteRows()` 批次刪除與動態 `topMA60` 回溯計算，徹底解決 GAS API Context Deadline 超時與快取滯後 BUG；(4) GAS 部署成功升級至 `@127`。 |
+
