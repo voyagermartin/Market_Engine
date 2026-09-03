@@ -1163,11 +1163,20 @@ function callGeminiAPIUniversal(prompt, systemInstruction) {
  * ☕ 智慧特調備援：老巴盤前文字生成器 (當 API 離線或金鑰未設定時保證老巴常駐)
  */
 function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, ewtChange, vix) {
-  if (!dateStr || dateStr < '2026-09-01') dateStr = '2026-09-02';
+  const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  const ms = isMarketOpen(new Date());
+
+  let dateNotice = `交易日 (${dateStr})`;
+  if (ms && !ms.isOpen) {
+    dateNotice = `今日 (${todayDateStr}) 台股休市 [${ms.reason}]，對照最新交易日 (${dateStr})`;
+  }
+
   if (!twiiClose || twiiClose === '43,119.75') twiiClose = '46,164.72';
-  if (!dist60 || dist60 === '-0.87%') dist60 = '+2.84%';
+  if (!dist60 || dist60 === '-0.87%') dist60 = '+2.71%';
+  if (!vix) vix = '16.47';
+
   return `☀️ 老巴的盤前早餐時間\n\n` +
-    `【市場位置】交易日 (${dateStr}) 台股收盤 ${twiiClose} 點，當前位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}。\n\n` +
+    `【市場位置】${dateNotice} 台股收盤 ${twiiClose} 點，當前位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}。\n\n` +
     `【今日最大的變數】盤前留意海外夜盤 EWT 動能 (${ewtChange}) 與 VIX 指數 (${vix})，關注整體市場氣象變化。\n\n` +
     `【專注本業與生活】農場作物的成長需要時間，投資也是如此。大盤位階與指標顯示正常律動，不必頻繁盯盤。\n\n` +
     `【老巴早餐的一句話】「研究市場，是為了最後不再被市場牽著走。」安心做好本業工作，喝杯咖啡，美好的一天出發吧！☕`;
@@ -1177,11 +1186,20 @@ function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, e
  * ☕ 智慧特調備援：小羅盤後文字生成器 (當 API 離線或金鑰未設定時保證小羅常駐)
  */
 function generateFallbackAfternoonText(dateStr, twiiClose, yesterdayClose, currentPhase, dist60, ewtChange, vix) {
-  if (!dateStr || dateStr < '2026-09-01') dateStr = '2026-09-02';
+  const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  const ms = isMarketOpen(new Date());
+
+  let dateNotice = `今日 (${dateStr})`;
+  if (ms && !ms.isOpen) {
+    dateNotice = `今日 (${todayDateStr}) 台股休市 [${ms.reason}]，對照最新交易日 (${dateStr})`;
+  }
+
   if (!twiiClose || twiiClose === '43,119.75') twiiClose = '46,164.72';
-  if (!dist60 || dist60 === '-0.87%') dist60 = '+2.84%';
+  if (!dist60 || dist60 === '-0.87%') dist60 = '+2.71%';
+  if (!vix) vix = '16.47';
+
   return `☕ 小羅的盤後午茶時光\n\n` +
-    `【今天市場最大的變化】今日 (${dateStr}) 台股收盤 ${twiiClose} 點，位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}，VIX 為 ${vix}。\n\n` +
+    `【今天市場最大的變化】${dateNotice} 台股收盤 ${twiiClose} 點，位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}，VIX 為 ${vix}。\n\n` +
     `【為什麼會這樣？】大盤波動本是市場常態。理性看待群眾情緒，不因一時大漲而盲目追高，亦不因一時拉回而驚慌失措。\n\n` +
     `【市場畫面】今天的市場像是一條順流而下的河流，水流雖然各有急緩，但方向明確向上。\n\n` +
     `【關上螢幕，陪伴家人】盤後收盤了，請關掉螢幕與報價視窗。好好吃個晚餐，把寶貴的時間留給最愛的家人與自己。`;
@@ -2714,8 +2732,8 @@ function getMarketEngineData(skipCache) {
     let aiA = dashRange[9][0];   // B24
 
     // ⚡ 關鍵效能修復：若 B23/B24 為初始預設值/錯誤值/舊日期/未設定，採用即時本地智慧特調
-    const isStaleM = !aiM || aiM.includes('2026-08-01') || (aiM.match(/202\d-\d\d-\d\d/) && aiM.match(/202\d-\d\d-\d\d/)[0] < '2026-09-01');
-    const isStaleA = !aiA || aiA.includes('2026-08-01') || (aiA.match(/202\d-\d\d-\d\d/) && aiA.match(/202\d-\d\d-\d\d/)[0] < '2026-09-01');
+    const isStaleM = !aiM || aiM.includes('2026-08-01') || aiM.includes('undefined') || aiM.includes('2026-09-02) 台股休市') || (aiM.match(/202\d-\d\d-\d\d/) && aiM.match(/202\d-\d\d-\d\d/)[0] < '2026-09-01');
+    const isStaleA = !aiA || aiA.includes('2026-08-01') || aiA.includes('undefined') || aiA.includes('2026-09-02) 台股休市') || (aiA.match(/202\d-\d\d-\d\d/) && aiA.match(/202\d-\d\d-\d\d/)[0] < '2026-09-01');
 
     const isDefaultOrErrorMorning = isStaleM || aiM.includes('若已設定') || aiM.includes('暫時離開') || aiM.includes('準備中') || aiM.includes('資料加載') || aiM.includes('未設定') || aiM.includes('沒來咖啡館');
     const isDefaultOrErrorAfternoon = isStaleA || aiA.includes('準備中') || aiA.includes('如何啟用') || aiA.includes('沒來咖啡館') || aiA.includes('資料加載') || aiA.includes('未設定') || aiA.includes('暫時離開');
