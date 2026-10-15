@@ -1197,7 +1197,7 @@
         </div>
       </div>
       <div style="text-align: center; color: var(--text-muted); font-size: 14px;">
-        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.7.2
+        巴菲特‧索羅斯的 Kopitiam ｜ Single Source of Truth Live Engine v2.8.18
       </div>
     </footer>
   </div>
@@ -1744,35 +1744,44 @@
 
         // 🗓️ 未來重大事件倒數雷達動態渲染
         const eventsContainer = document.getElementById('upcomingEventsList');
-        if (eventsContainer && Array.isArray(fn.upcomingEvents) && fn.upcomingEvents.length > 0) {
-          eventsContainer.innerHTML = fn.upcomingEvents.map(evt => {
-            const days = evt.countdownDays !== undefined ? evt.countdownDays : 0;
-            const badgeBg = days <= 14 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)';
-            const badgeColor = days <= 14 ? '#f87171' : '#38bdf8';
-            const badgeBorder = days <= 14 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.3)';
-            const badgeText = days === 0 ? '🔥 今日登場' : `⏱️ 距今 ${days} 天`;
+        if (eventsContainer) {
+          if (Array.isArray(fn.upcomingEvents) && fn.upcomingEvents.length > 0) {
+            eventsContainer.innerHTML = fn.upcomingEvents.map(evt => {
+              const days = evt.countdownDays !== undefined ? evt.countdownDays : 0;
+              const badgeBg = days <= 14 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)';
+              const badgeColor = days <= 14 ? '#f87171' : '#38bdf8';
+              const badgeBorder = days <= 14 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.3)';
+              const badgeText = days === 0 ? '🔥 今日登場' : `⏱️ 距今 ${days} 天`;
 
-            const cleanImportance = (evt.importance || '').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, '');
-            const cleanImpact = (evt.impactAndStrategy || '').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '');
+              const cleanImportance = (evt.importance || '').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, '');
+              const cleanImpact = (evt.impactAndStrategy || '').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '');
 
-            return `
-              <div style="background: rgba(15, 23, 42, 0.65); border-left: 4px solid ${badgeColor}; border-radius: 14px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.08);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                  <div style="font-size: 1.1rem; font-weight: 800; color: #f1f5f9;">${evt.eventName}</div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">📅 ${evt.eventDate}</span>
-                    <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px;">${badgeText}</span>
+              return `
+                <div style="background: rgba(15, 23, 42, 0.65); border-left: 4px solid ${badgeColor}; border-radius: 14px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.08);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                    <div style="font-size: 1.1rem; font-weight: 800; color: #f1f5f9;">${evt.eventName}</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">📅 ${evt.eventDate}</span>
+                      <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px;">${badgeText}</span>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.98rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 8px;">
+                    ${cleanImportance}
+                  </div>
+                  <div style="font-size: 0.98rem; color: #fef08a; line-height: 1.6; background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 10px; border-left: 3px solid #fde047;">
+                    ${cleanImpact}
                   </div>
                 </div>
-                <div style="font-size: 0.98rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 8px;">
-                  ${cleanImportance}
-                </div>
-                <div style="font-size: 0.98rem; color: #fef08a; line-height: 1.6; background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 10px; border-left: 3px solid #fde047;">
-                  ${cleanImpact}
-                </div>
+              `;
+            }).join('');
+          } else {
+            eventsContainer.innerHTML = `
+              <div style="background: rgba(15, 23, 42, 0.45); border-radius: 12px; padding: 24px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.15);">
+                <div style="font-size: 1.05rem; color: #94a3b8; margin-bottom: 12px;">⏳ 正在即時同步未來重大事件雷達...</div>
+                <button onclick="fetchLiveData(true)" style="background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; border-radius: 8px; padding: 6px 16px; cursor: pointer; font-size: 13px; font-weight: 600;">點擊立即重新同步</button>
               </div>
             `;
-          }).join('');
+          }
         }
 
         // 🚨 突發大跌事件鑑別 (平時隱藏，觸發時顯示)
