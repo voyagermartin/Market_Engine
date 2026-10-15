@@ -2134,23 +2134,20 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
   const currentRegime = getRegime(currentPhase);
 
   try {
-    SpreadsheetApp.flush();
     const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
     if (rawSheet && rawSheet.getLastRow() >= 3) {
       const realLastRow = rawSheet.getLastRow();
       const numRows = Math.min(120, realLastRow - 2);
       if (numRows > 0) {
-        // 讀取日期 (Col 1), TWII (Col 2), MA60 (Col 4), Dist60 (Col 6)
-        const dateList = rawSheet.getRange(3, 1, numRows, 1).getDisplayValues();
-        const distData = rawSheet.getRange(3, 6, numRows, 1).getDisplayValues();
-        const twiiData = rawSheet.getRange(3, 2, numRows, 1).getValues();
-        const ma60Data = rawSheet.getRange(3, 4, numRows, 1).getValues();
+        // ⚡ 一次性批次讀取前 6 欄 (Col 1: Date, Col 2: TWII, Col 4: MA60, Col 6: Dist60)，減少 IPC 往返次數
+        const rawDisplayGrid = rawSheet.getRange(3, 1, numRows, 6).getDisplayValues();
+        const rawValueGrid = rawSheet.getRange(3, 1, numRows, 4).getValues();
 
         // 1. 找到 lastStockDataDate 在 RAW_HISTORY 中的起算索引
         let startIdx = 0;
         if (lastStockDataDate) {
-          for (let i = 0; i < dateList.length; i++) {
-            if (dateList[i][0] && dateList[i][0].trim() === lastStockDataDate) {
+          for (let i = 0; i < rawDisplayGrid.length; i++) {
+            if (rawDisplayGrid[i][0] && rawDisplayGrid[i][0].trim() === lastStockDataDate) {
               startIdx = i;
               break;
             }
@@ -2162,18 +2159,18 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
 
         // 從起算點的下一個交易日 (startIdx + 1) 往歷史回溯比對
         for (let i = startIdx + 1; i < numRows; i++) {
-          const dStr = dateList[i][0];
+          const dStr = rawDisplayGrid[i][0];
           if (!dStr || dStr.trim() === '') continue;
 
           // 驗證是否為實體開盤交易日 (排除週末休市)
           const checkOpen = isMarketOpen(dStr);
           if (checkOpen && !checkOpen.isOpen) continue;
 
-          let d60 = parseDistValue(distData[i][0]);
+          let d60 = parseDistValue(rawDisplayGrid[i][5]);
           // 若無 Dist60，以 (TWII - MA60) / MA60 動態備份計算
           if (isNaN(d60)) {
-            const twiiVal = parseFloat(twiiData[i][0]);
-            const ma60Val = parseFloat(ma60Data[i][0]);
+            const twiiVal = parseFloat(rawValueGrid[i][1]);
+            const ma60Val = parseFloat(rawValueGrid[i][3]);
             if (!isNaN(twiiVal) && !isNaN(ma60Val) && ma60Val > 0) {
               d60 = (twiiVal - ma60Val) / ma60Val;
             }
@@ -2772,10 +2769,6 @@ function getMarketEngineData(skipCache) {
   }
 
   const ss = getSpreadsheet();
-
-  // ⚡ 1. 確保 2026-08 月歷史交易日鏈與 09-03 最新收盤資料寫入 RAW_HISTORY
-  try { seedAndFixWeekendMode(); } catch (e) {}
-
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
@@ -2791,13 +2784,6 @@ function getMarketEngineData(skipCache) {
   let stockRowValues = null;
   let ewtRowValues = null;
   let vixRowValues = null;
-
-  try {
-    const rawSheetCheck = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-    if (rawSheetCheck) {
-      seedAndFixWeekendMode();
-    }
-  } catch (e) {}
 
   if (rawSheet && rawSheet.getLastRow() >= 3) {
     const numRows = Math.min(30, rawSheet.getLastRow() - 2);
@@ -3146,7 +3132,7 @@ function getMarketEngineData(skipCache) {
   }
 
   try {
-    cache.put("MARKET_ENGINE_DATA_API_CACHE", JSON.stringify(data), 60);
+    cache.put("MARKET_ENGINE_DATA_API_CACHE", JSON.stringify(data), 300);
   } catch (e) {}
 
   return data;

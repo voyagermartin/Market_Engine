@@ -1806,9 +1806,25 @@
       }
     });
 
+    // ⚡ 0ms 本地優先快取 (Stale-While-Revalidate，重整瞬間即刻呈現，告別轉圈等待)
+    try {
+      const cachedRaw = localStorage.getItem('MARKET_ENGINE_LOCAL_CACHE');
+      if (cachedRaw) {
+        const cachedData = JSON.parse(cachedRaw);
+        if (cachedData && cachedData.phase && cachedData.twii) {
+          updateDOM(cachedData);
+        }
+      }
+    } catch (e) {}
+
     // 透過動態 <script> 標籤 (JSONP) 進行背景更新
     (function fetchLiveUpdates() {
       window.onMarketDataCallback = function(data) {
+        try {
+          if (data && data.phase && data.twii) {
+            localStorage.setItem('MARKET_ENGINE_LOCAL_CACHE', JSON.stringify(data));
+          }
+        } catch (e) {}
         updateDOM(data);
       };
       const script = document.createElement('script');

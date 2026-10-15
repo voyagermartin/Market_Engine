@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.8.12)
+# HANDBOOK.md (v2.8.13)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -44,8 +44,8 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.12` (市場位階持續天數/打折撫平器重構、門檻 Single Source of Truth、負數解析修復與 DASHBOARD 公式自癒發布)
-- **GAS Deployment**: `@135` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
+- **Current Version**: `v2.8.13` (0ms 本地優先快取 Stale-While-Revalidate、後端冗餘維護操作徹底剝離與全速響應發布)
+- **GAS Deployment**: `@138` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -79,4 +79,5 @@
 | **2026-08-27** | `v2.8.5~v2.8.10` | **里程碑 Milestone 6 核心敘事重構與系統大修復**：(1) 升級 Slogan「研究市場，是為了最後不再被市場牽著走」與核心引言；(2) 重定義三大角色（基石、彈藥、護欄）並加入長期持有鐵則卡；(3) 回測頁發布「三年探索時間軸 (Road to Simplicity)」，並清理導讀卡與對照卡；(4) 修復 `calculatePhaseDurationAndRelief` 中舊 `d240` 邏輯與門檻格式解析 Bug；(5) 重構 `GAS_API_BASE` 與主 API Deployment ID 強制升級部署至 `@100`。 |
 | **2026-09-03** | `v2.8.11` | **非休市紀念日過濾與 8 月歷史交易日鏈補全修復**：(1) 在 `isMarketOpen()` 中加入 `NON_MARKET_HOLIDAYS`（軍人節、教師節等非休市紀念日過濾），修正 9/03 軍人節股市正常開盤判讀；(2) 實現 `seedAugust2026HistoricalRows()` 無條件批次補全 8 月 21 個交易日（解決 7/31 至 9/02 日期斷層導致位階卡在第 2 天之問題）；(3) 採用 1-step `deleteRows()` 批次刪除與動態 `topMA60` 回溯計算，徹底解決 GAS API Context Deadline 超時與快取滯後 BUG；(4) GAS 部署成功升級至 `@127`。 |
 | **2026-10-15** | `v2.8.12` | **市場位階持續天數/打折撫平器重構、門檻單一來源與公式自癒修復**：(1) 修復 `parseDistValue` 負數二次除以 100 BUG；(2) 抽出 `classifyPhase` 與 `getThresholdConfig`，徹底統一以 `THRESHOLD_CONFIG` 為 Single Source of Truth；(3) 重構位階持續天數演算法為大區間（Regime）與精確子位階雙層統計，解決高檔區（狂熱轉過熱）或打折區（極度恐慌轉恐慌）震盪導致天數意外重置歸 1 之問題，持續天數精準恢復為 77 天；(4) 起算點對齊 `lastStockDataDate` 並過濾休市日；(5) DASHBOARD 自動偵測修復 B7 `#REF!` 公式，修復 `ma60Slope`/`dist60Delta` 輸出 `#REF!` 並保證 AI 雙顧問文章 100% 傳入正確市場位階；(6) 雲端 GAS 部署升級至 `@135`。 |
+| **2026-10-15** | `v2.8.13` | **重整載入極速優化 (SWR 本地優先快取與後端多餘維護操作徹底剝離)**：(1) 前端 `index.html` 實現 Stale-While-Revalidate（SWR 本地優先快取），頁面啟動 0 毫秒即刻從 `localStorage` 渲染上次報表與位階，完全消除按 F5 轉圈「連線中/計算中」的等待感；(2) 徹底剝離後端 API 每次重複調用 `seedAndFixWeekendMode()` 刪除+寫入+排序歷史資料的巨型效能黑洞（完全無快取運算時間從 33.5s 縮減至 8s~11s）；(3) `calculatePhaseDurationAndRelief` 改用一次性批次 Range 讀取，並消除 `SpreadsheetApp.flush()` 阻塞；(4) API 快取 TTL 延長至 300 秒；(5) 雲端 GAS 部署升級至 `@138`。 |
 
