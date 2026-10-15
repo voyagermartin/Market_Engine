@@ -2012,6 +2012,8 @@ function doGet(e) {
       createDailyTrigger();
     } else if (act === 'updateMonthly' || act === 'updateBacktest') {
       updateMonthlyLabBacktest();
+    } else if (act === 'checkCrash' || act === 'updateCrash') {
+      checkCrashEmergencyDefense();
     } else if (act === 'seedData') {
       seedFullHistoricalData();
     } else if (act === 'clearCache') {
@@ -2019,11 +2021,14 @@ function doGet(e) {
     }
   }
 
-  // ⚡ 若收到強制刷新請求，順道檢查並自癒月度歷史回測
+  // ⚡ 若收到強制刷新請求，順道檢查並自癒月度歷史回測與突發大跌防禦
   if (forceRefresh) {
     try {
       const ss = getSpreadsheet();
       checkAndAutoRunMonthlyLabBacktest(ss);
+    } catch (e) {}
+    try {
+      checkCrashEmergencyDefense();
     } catch (e) {}
   }
 
@@ -3544,7 +3549,17 @@ function checkCrashEmergencyDefense() {
       if (dropPoints >= 1000) {
         crashPayload.isTriggered = true;
         crashPayload.dropPoints = dropPoints;
+        const formattedDrop = Number(dropPoints).toLocaleString();
         crashPayload.triggerReason = `近 2 日大盤重挫 ${dropPoints} 點 (觸發千點緊急防禦門檻)`;
+        crashPayload.analysisText = `近 2 日大盤累計重挫 ${formattedDrop} 點，正式觸發 1,000 點急煞大跌防禦機制，進入情緒型下跌監測。`;
+        crashPayload.classification = '① 情緒型下跌';
+        crashPayload.reasons = [
+          `近 2 日大盤加權指數急遽重挫 ${formattedDrop} 點，引發短線恐慌賣壓迅速宣洩。`,
+          `季線偏離度自高位急殺收斂，此波動屬於典型高檔情緒型與籌碼面急跌。`,
+          `核心長期部位維持既定紀律穩定扣款，手動加碼資金池暫緩衝動動用，靜待盤勢止跌沉澱。`
+        ];
+        crashPayload.powderAdvice = '暫緩';
+        crashPayload.warningTip = '保持冷靜，不跟風盲目砍單，依照紀律執行。';
 
         // 讀取 Docs 作為 context
         let aiText = '', cpiText = '', geoText = '';
@@ -3590,21 +3605,33 @@ ${geoText || '無'}
               const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
-                crashPayload.classification = parsed.classification || '① 情緒型下跌';
-                crashPayload.reasons = parsed.reasons || [];
-                crashPayload.powderAdvice = parsed.powderAdvice || '暫緩';
-                crashPayload.warningTip = parsed.warningTip || '保持冷靜，不跟風砍單。';
+                if (parsed.classification) crashPayload.classification = parsed.classification;
+                if (Array.isArray(parsed.reasons) && parsed.reasons.length > 0) {
+                  crashPayload.reasons = parsed.reasons;
+                }
+                if (parsed.powderAdvice) crashPayload.powderAdvice = parsed.powderAdvice;
+                if (parsed.warningTip) crashPayload.warningTip = parsed.warningTip;
               }
             }
           } catch (e) {
             Logger.log('[Crash Defense Prompt Error] ' + e.message);
           }
         }
+      } else {
+        crashPayload.isTriggered = false;
+        crashPayload.dropPoints = dropPoints;
+        crashPayload.triggerReason = '';
+        crashPayload.classification = '無急煞/大盤平穩';
+        crashPayload.analysisText = '近 2 日大盤運作平穩，未觸發 1,000 點急煞大跌防禦機制。請按既定紀律穩定執行即可。';
+        crashPayload.reasons = ['近 2 日大盤波動處於常態範圍內，未達千點急煞門檻。'];
       }
     }
   }
 
   PropertiesService.getScriptProperties().setProperty('FIN_NEWS_CRASH_PAYLOAD', JSON.stringify(crashPayload));
+  try {
+    CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE");
+  } catch (e) {}
   return crashPayload;
 }
 
@@ -3800,7 +3827,28 @@ function getFinNewsCombinedPayload() {
     weeklyData = updateWeeklyFinNewsReport(true);
   }
   if (crashStr) {
-    try { crashData = JSON.parse(crashStr); } catch (e) {}
+    try { 
+      crashData = JSON.parse(crashStr); 
+    } catch (e) {}
+  } else {
+    try {
+      crashData = checkCrashEmergencyDefense();
+    } catch (e) {}
+  }
+
+  // ⚡ 嚴格一致性稽核：若已觸發大跌防禦，絕不可輸出「未觸發/運作平穩」字串
+  if (crashData && crashData.isTriggered) {
+    const formattedDrop = crashData.dropPoints ? Number(crashData.dropPoints).toLocaleString() : '1,000';
+    if (!crashData.analysisText || crashData.analysisText.includes('未觸發') || crashData.analysisText.includes('運作平穩')) {
+      crashData.analysisText = `近 2 日大盤累計重挫 ${formattedDrop} 點，正式觸發 1,000 點急煞大跌防禦機制，進入情緒型下跌監測。`;
+    }
+    if (!Array.isArray(crashData.reasons) || crashData.reasons.length === 0) {
+      crashData.reasons = [
+        `近 2 日大盤加權指數急遽重挫 ${formattedDrop} 點，引發短線恐慌賣壓迅速宣洩。`,
+        `季線偏離度自高位急殺收斂，此波動屬於典型高檔情緒型與籌碼面急跌。`,
+        `核心長期部位維持既定紀律穩定扣款，手動加碼資金池暫緩衝動動用，靜待盤勢止跌沉澱。`
+      ];
+    }
   }
 
   return {

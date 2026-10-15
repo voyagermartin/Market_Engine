@@ -1789,8 +1789,15 @@
             let reasonsHtml = '';
             if (Array.isArray(c.reasons) && c.reasons.length > 0) {
               reasonsHtml = '<ul style="margin: 8px 0 12px 20px; padding: 0;">' + c.reasons.map(r => `<li>${r}</li>`).join('') + '</ul>';
-            } else if (c.analysisText) {
+            } else if (c.analysisText && !c.analysisText.includes('未觸發') && !c.analysisText.includes('運作平穩')) {
               reasonsHtml = `<p>${c.analysisText}</p>`;
+            } else {
+              const dropStr = c.dropPoints ? Number(c.dropPoints).toLocaleString() : '1,000';
+              reasonsHtml = `<ul style="margin: 8px 0 12px 20px; padding: 0;">
+                <li>近 2 日大盤累計重挫 ${dropStr} 點，正式觸發 1,000 點急煞大跌防禦機制，進入情緒型下跌監測。</li>
+                <li>短線恐慌情緒快速宣洩，目前偏離度急遽收斂，核心長期資產維持既定扣款紀律。</li>
+                <li>手動加碼資金池暫緩衝動進場，耐心觀察後續盤勢止跌與籌碼落底訊號。</li>
+              </ul>`;
             }
 
             crashBody.innerHTML = `
