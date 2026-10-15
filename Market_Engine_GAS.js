@@ -2260,10 +2260,10 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
     ? lastStockDataDate.split('-').slice(1).join('/') 
     : '今天';
 
-  // ⚡ 產生歷史脈絡轉折文字 (Phase Transition Text)
+  // ⚡ 產生歷史脈絡轉折文字 (Phase Transition Text - 常態存在直至下一個位階轉折出現)
   let phaseTransitionText = '';
-  if (exactDays === 1 && prevPhase && prevDuration > 0) {
-    phaseTransitionText = `${getPhaseFullName(prevPhase)} (持續 ${prevDuration} 天) → 今天 ${mmDd}：${getPhaseFullName(currentPhase)} (持續 1 天)`;
+  if (prevPhase && prevDuration > 0) {
+    phaseTransitionText = `${getPhaseFullName(prevPhase)} (持續 ${prevDuration} 天) → 今天 ${mmDd}：${getPhaseFullName(currentPhase)} (持續 ${exactDays} 天)`;
   } else {
     phaseTransitionText = `${getPhaseFullName(currentPhase)} (持續 ${exactDays} 天)`;
   }
