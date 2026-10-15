@@ -2023,15 +2023,15 @@ function calculateEwtReadiness(ewtValStr) {
 }
 
 /**
- * ⚡ 數字/百分比字串通配解析器
+ * ⚡ 數字/百分比字串通配解析器 (v2.8.12 核心修復：防止負數比率被誤除以 100)
  */
 function parseDistValue(val) {
   if (val === null || val === undefined || val === '') return NaN;
   if (typeof val === 'number') {
     if (isNaN(val)) return NaN;
-    // 若數值絕對值 > 0.8（例如 5.3 代表 5.3%、32.29 代表 32.29%），除以 100 轉為小數比率
-    // 若絕對值 <= 0.8（例如 0.0031 代表 0.31%、0.053 代表 5.3%），代表本身已為小數比率
-    return Math.abs(val) > 0.8 ? val / 100 : val;
+    // 試算表原始小數（如 0.0508, -0.0538），絕對值 <= 1.0，直接代表比率
+    // 若絕對值 > 1.0（例如輸入 5.08 代表 5.08%），才除以 100
+    return Math.abs(val) > 1.0 ? val / 100 : val;
   }
   const str = String(val).trim();
   if (str === '' || str === 'N/A' || str === '#N/A') return NaN;
@@ -2041,31 +2041,76 @@ function parseDistValue(val) {
   if (isNaN(num)) return NaN;
   
   if (hasPercent) {
-    // 帶有 % 符號的字串（如 "+0.31%", "-0.87%", "5.3%"），cleanStr 為百分比數值，必須除以 100 轉為小數比率
+    // 帶有 % 符號的字串（如 "+5.08%", "-1.44%"），除以 100
     return num / 100;
   }
   
   // 未帶 % 符號的字串：
-  // 1. 若為原始小數比率字串（如 "0.0031"、"-0.082"），絕對值極小 (< 0.05)，直接回傳
-  if (Math.abs(num) < 0.05) {
-    return num;
-  }
-  
-  // 2. 若開頭帶有 '+' 或 '-' 符號且絕對值 < 1.0（如 "+0.31"、"-0.87"），代表 % 格式被吃掉的百分比點數，除以 100
-  if ((str.includes('+') || str.includes('-')) && Math.abs(num) < 1.0) {
-    return num / 100;
-  }
-  
-  // 3. 一般未帶 % 的百分比數字（如 "5.3"、"32.29"）：若 > 0.8 則除以 100
-  return Math.abs(num) > 0.8 ? num / 100 : num;
+  // 若絕對值 > 1.0 (如 "5.08", "-2.15")，視為百分點除以 100；
+  // 若絕對值 <= 1.0 (如 "0.0508", "-0.0538")，代表本身已為小數比率，直接回傳
+  return Math.abs(num) > 1.0 ? num / 100 : num;
 }
 
 /**
- * 💡 v2.5.0「打折視窗與天數撫平器」 (Missed-out Relief)
- * 掃描 RAW_HISTORY 統計當前位階持續天數與歷史平均持續天數
+ * ⚡ 從 THRESHOLD_CONFIG 試算表讀取 18 年歷史分位數標準 (Single Source of Truth)
  */
-function calculatePhaseDurationAndRelief(currentPhase, ss) {
-  let consecutiveDays = 1;
+function getThresholdConfig(ss) {
+  const defaults = {
+    dist60: { p10: -0.0538, p25: -0.0144, p75: 0.0403, p90: 0.0664 },
+    dist240: { p10: -0.0215, p25: 0.0385, p75: 0.1850, p90: 0.2530 }
+  };
+  try {
+    const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
+    if (configSheet) {
+      const v = configSheet.getRange('C12:D15').getValues();
+      const p10_60 = parseDistValue(v[0][0]);
+      const p25_60 = parseDistValue(v[1][0]);
+      const p75_60 = parseDistValue(v[2][0]);
+      const p90_60 = parseDistValue(v[3][0]);
+      const p10_240 = parseDistValue(v[0][1]);
+      const p25_240 = parseDistValue(v[1][1]);
+      const p75_240 = parseDistValue(v[2][1]);
+      const p90_240 = parseDistValue(v[3][1]);
+
+      if (!isNaN(p10_60) && !isNaN(p25_60) && !isNaN(p75_60) && !isNaN(p90_60)) {
+        defaults.dist60 = { p10: p10_60, p25: p25_60, p75: p75_60, p90: p90_60 };
+      }
+      if (!isNaN(p10_240) && !isNaN(p25_240) && !isNaN(p75_240) && !isNaN(p90_240)) {
+        defaults.dist240 = { p10: p10_240, p25: p25_240, p75: p75_240, p90: p90_240 };
+      }
+    }
+  } catch (e) {
+    Logger.log('Error reading THRESHOLD_CONFIG: ' + e.message);
+  }
+  return defaults;
+}
+
+/**
+ * ⚡ 全站統一市場位階判定函式 (Single Source of Truth)
+ * @param {number} d60Val - 季線乖離率數值 (小數比率，例如 0.0508 代表 +5.08%)
+ * @param {Object} pDist60 - 季線分位數門檻 { p10, p25, p75, p90 }
+ */
+function classifyPhase(d60Val, pDist60) {
+  if (isNaN(d60Val)) return '順風/中性';
+  const p = pDist60 || { p10: -0.0538, p25: -0.0144, p75: 0.0403, p90: 0.0664 };
+  if (d60Val < p.p10) return '極度恐慌';
+  if (d60Val < p.p25) return '恐慌';
+  if (d60Val > p.p90) return '狂熱';
+  if (d60Val > p.p75) return '過熱';
+  return '順風/中性';
+}
+
+/**
+ * 💡 v2.8.12「市場位階與打折天數撫平器」 (Missed-out Relief & Regime Duration)
+ * 嚴格以 THRESHOLD_CONFIG 歷史分位數為依歸，統計：
+ * 1. regimeDays: 當前大位階區間（打折逢低區 / 高檔警戒區 / 中性區）累計持續交易日數，避免微幅震盪導致天數中斷
+ * 2. exactDays: 當前單一位階（如過熱或狂熱）精確連續交易日數
+ * 3. 輸出友善且專業的心理撫平文案
+ */
+function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, lastStockDataDate) {
+  let regimeDays = 1;
+  let exactDays = 1;
+  
   const avgDaysMap = {
     '極度恐慌': 11,
     '恐慌': 19,
@@ -2073,51 +2118,93 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
     '過熱': 25,
     '狂熱': 14
   };
-  const avgDays = avgDaysMap[currentPhase] || 15;
+  const avgDays = avgDaysMap[currentPhase] || 20;
+
+  // 取得分位數門檻 (若未傳入則動態讀取)
+  const cfg = thresholdConfig || getThresholdConfig(ss);
+  const pDist60 = cfg.dist60;
+
+  // 定義三大市場區間 (Regimes)
+  const getRegime = function(phase) {
+    if (phase === '極度恐慌' || phase === '恐慌') return 'DISCOUNT'; // 打折恐慌區
+    if (phase === '狂熱' || phase === '過熱') return 'OVERHEATED'; // 高檔警戒區
+    return 'NEUTRAL'; // 順風中性區
+  };
+
+  const currentRegime = getRegime(currentPhase);
 
   try {
     SpreadsheetApp.flush();
     const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-    const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
-
-    if (rawSheet && rawSheet.getLastRow() >= 4) {
-      // ⚡ 嚴格遵守 18 年動態分位數標準 (P25: -1.4%, P75: +4.2%, P10: -3.8%, P90: +7.5%)
-      const p10_60 = -0.038;
-      const p25_60 = -0.014;
-      const p75_60 = 0.042;
-      const p90_60 = 0.075;
-      
+    if (rawSheet && rawSheet.getLastRow() >= 3) {
       const realLastRow = rawSheet.getLastRow();
-      const numRows = Math.min(100, realLastRow - 2);
+      const numRows = Math.min(120, realLastRow - 2);
       if (numRows > 0) {
-        const distData = rawSheet.getRange(3, 6, numRows, 1).getDisplayValues(); // Col 6: Dist60
-        const fullGrid = rawSheet.getRange(3, 1, numRows, 5).getValues(); // Cols 1..5 for dynamic backup calculation
-        
-        for (let i = 1; i < distData.length; i++) {
+        // 讀取日期 (Col 1), TWII (Col 2), MA60 (Col 4), Dist60 (Col 6)
+        const dateList = rawSheet.getRange(3, 1, numRows, 1).getDisplayValues();
+        const distData = rawSheet.getRange(3, 6, numRows, 1).getDisplayValues();
+        const twiiData = rawSheet.getRange(3, 2, numRows, 1).getValues();
+        const ma60Data = rawSheet.getRange(3, 4, numRows, 1).getValues();
+
+        // 1. 找到 lastStockDataDate 在 RAW_HISTORY 中的起算索引
+        let startIdx = 0;
+        if (lastStockDataDate) {
+          for (let i = 0; i < dateList.length; i++) {
+            if (dateList[i][0] && dateList[i][0].trim() === lastStockDataDate) {
+              startIdx = i;
+              break;
+            }
+          }
+        }
+
+        let isExactContinuing = true;
+        let isRegimeContinuing = true;
+
+        // 從起算點的下一個交易日 (startIdx + 1) 往歷史回溯比對
+        for (let i = startIdx + 1; i < numRows; i++) {
+          const dStr = dateList[i][0];
+          if (!dStr || dStr.trim() === '') continue;
+
+          // 驗證是否為實體開盤交易日 (排除週末休市)
+          const checkOpen = isMarketOpen(dStr);
+          if (checkOpen && !checkOpen.isOpen) continue;
+
           let d60 = parseDistValue(distData[i][0]);
-          
-          // ⚡ 若試算表 Dist60 尚未計算 (如因歷史深度不足無法算 MA60)，借用 Top MA60 動態計算
-          if (isNaN(d60) && fullGrid[i]) {
-            const twiiVal = parseFloat(fullGrid[i][1]); // Col 2: TWII
-            const ma60Val = parseFloat(fullGrid[i][3]) || parseFloat(fullGrid[0][3]); // Col 4: MA60 or Top MA60
+          // 若無 Dist60，以 (TWII - MA60) / MA60 動態備份計算
+          if (isNaN(d60)) {
+            const twiiVal = parseFloat(twiiData[i][0]);
+            const ma60Val = parseFloat(ma60Data[i][0]);
             if (!isNaN(twiiVal) && !isNaN(ma60Val) && ma60Val > 0) {
               d60 = (twiiVal - ma60Val) / ma60Val;
             }
           }
 
           if (isNaN(d60)) continue;
-          
-          let rowPhase = '順風/中性';
-          if (d60 < p10_60) rowPhase = '極度恐慌';
-          else if (d60 < p25_60) rowPhase = '恐慌';
-          else if (d60 > p90_60) rowPhase = '狂熱';
-          else if (d60 > p75_60) rowPhase = '過熱';
-          
-          if (rowPhase === currentPhase) {
-            consecutiveDays++;
-          } else {
-            break;
+
+          // 使用統一函式判定該歷史日之位階
+          const rowPhase = classifyPhase(d60, pDist60);
+          const rowRegime = getRegime(rowPhase);
+
+          // 統計單一位階連續天數
+          if (isExactContinuing) {
+            if (rowPhase === currentPhase) {
+              exactDays++;
+            } else {
+              isExactContinuing = false;
+            }
           }
+
+          // 統計大區間連續天數
+          if (isRegimeContinuing) {
+            if (rowRegime === currentRegime) {
+              regimeDays++;
+            } else {
+              isRegimeContinuing = false;
+            }
+          }
+
+          // 若大區間已斷裂，停止回溯
+          if (!isRegimeContinuing) break;
         }
       }
     }
@@ -2125,15 +2212,30 @@ function calculatePhaseDurationAndRelief(currentPhase, ss) {
     Logger.log('Error calculating phase duration: ' + e.message);
   }
 
-  const isPanic = (currentPhase === '極度恐慌' || currentPhase === '恐慌');
-  const phaseDurationText = isPanic 
-    ? `🛒 打折第 ${consecutiveDays} 天 / 歷史平均持續約 ${avgDays} 天`
-    : `🛒 已持續第 ${consecutiveDays} 天`;
-    
-  const phaseReliefGuide = `基於 18 年動態分位數連動校正`;
+  // 產生友善文字
+  let phaseDurationText = '';
+  if (currentRegime === 'DISCOUNT') {
+    if (regimeDays === exactDays) {
+      phaseDurationText = `🛒 打折第 ${regimeDays} 天 / 歷史平均持續約 ${avgDays} 天`;
+    } else {
+      phaseDurationText = `🛒 打折第 ${regimeDays} 天 (${currentPhase} 第 ${exactDays} 天) / 歷史平均約 ${avgDays} 天`;
+    }
+  } else if (currentRegime === 'OVERHEATED') {
+    if (regimeDays === exactDays) {
+      phaseDurationText = `🛒 高檔警戒第 ${regimeDays} 天 / 歷史平均持續約 ${avgDays} 天`;
+    } else {
+      phaseDurationText = `🛒 高檔警戒第 ${regimeDays} 天 (${currentPhase} 第 ${exactDays} 天) / 歷史平均約 ${avgDays} 天`;
+    }
+  } else {
+    phaseDurationText = `🛒 已持續第 ${regimeDays} 天 / 歷史平均持續約 ${avgDays} 天`;
+  }
+
+  const phaseReliefGuide = `基於 18 年動態分位數連動校正 (區間累計 ${regimeDays} 天 / 當前位階 ${exactDays} 天)`;
 
   return {
-    consecutiveDays: consecutiveDays,
+    consecutiveDays: regimeDays,
+    exactDays: exactDays,
+    regimeDays: regimeDays,
     avgDays: avgDays,
     phaseDurationText: phaseDurationText,
     phaseReliefGuide: phaseReliefGuide
@@ -2834,8 +2936,55 @@ function getMarketEngineData(skipCache) {
     data.dcaGuide = '🟢 週末休市中 (下週一照常執行紀律)';
   }
 
+  // ⚡ 1.5 讀取 THRESHOLD_CONFIG (18年歷史分位數 Single Source of Truth)
+  const thresholdConfig = getThresholdConfig(ss);
+  const pDist60 = thresholdConfig.dist60;
+  const pDist240 = thresholdConfig.dist240;
+
+  // ⚡ 1.6 核心位階與行動指引計算 (在讀取 DASHBOARD 之前鎖定，保證 AI 顧問傳入精確位階)
+  const d60 = parseDistValue(data.dist60);
+  const d240 = parseDistValue(data.dist240);
+  if (!isNaN(d60)) {
+    const phase = classifyPhase(d60, pDist60);
+    let actionGuide = '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！';
+    let dcaRegularGuide = '🚀 明天照常自動扣款';
+    let dcaPowderGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
+
+    if (phase === '極度恐慌') {
+      actionGuide = '股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！';
+    } else if (phase === '恐慌') {
+      actionGuide = '股市打折中！價格很划算，維持定期定額並可以逢低多買一點！';
+    } else if (phase === '狂熱') {
+      actionGuide = '股市非常危險！行情熱到發燙，請務必保留大量現金防範回檔！';
+      dcaRegularGuide = '🛑 暫停定期定額';
+    } else if (phase === '過熱') {
+      actionGuide = '股市有點貴囉！不要衝動追高，可以陸續把賺到的部分落袋為安！';
+      dcaRegularGuide = '🛑 暫停定期定額';
+    }
+
+    if (!isNaN(d240) && d240 > pDist240.p90 && phase === '順風/中性') {
+      actionGuide += ' (⚠️ 注意：長線年線乖離較高，請保持資產配置紀律，切勿槓桿追高)';
+    }
+
+    data.phase = phase;
+    data.actionGuide = actionGuide;
+    data.dcaRegularGuide = dcaRegularGuide;
+    data.dcaPowderGuide = dcaPowderGuide;
+  }
+
   // 2. 抓取 DASHBOARD 今日位階、DCA 扣款卡與 AI 顧問
   if (dashboardSheet) {
+    // ⚡ 自我修復：若 B7 為空或出現 #REF!，代表公式參照漂移，立即自動重構 DASHBOARD
+    const b7Check = dashboardSheet.getRange('B7').getDisplayValue();
+    if (!b7Check || b7Check.includes('#REF') || b7Check === '') {
+      try {
+        buildDashboardSheet(dashboardSheet);
+        SpreadsheetApp.flush();
+      } catch (errHealing) {
+        Logger.log('Self-healing DASHBOARD error: ' + errHealing.message);
+      }
+    }
+
     const dashRange = dashboardSheet.getRange('B15:B24').getDisplayValues();
     const p = dashRange[0][0];   // B15
     const g = dashRange[1][0];   // B16
@@ -2859,74 +3008,9 @@ function getMarketEngineData(skipCache) {
       try { dashboardSheet.getRange('B24').setValue(aiA); } catch (e) {}
     }
 
-    if (p && p !== '' && p !== 'N/A' && p !== '資料計算中') data.phase = p;
-    if (g && g !== '' && g !== 'N/A' && g !== '資料加載中...') data.actionGuide = g;
     if (dca && dca !== '' && dca !== 'N/A') data.dcaGuide = dca;
     if (aiM && aiM !== '' && aiM !== 'N/A') data.aiMorningStory = aiM;
     if (aiA && aiA !== '' && aiA !== 'N/A') data.aiAfternoonStory = aiA;
-    data.aiActiveStory = isMorning ? data.aiMorningStory : data.aiAfternoonStory;
-
-    // ========================================================
-    // ⚠️ 核心位階與行動指引覆寫 (防止試算表插入新行導致 DASHBOARD 參照漂移而顯示舊狀態)
-    // ========================================================
-    const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
-    if (configSheet && data.dist60 && data.dist240 && data.dist60 !== 'N/A' && data.dist240 !== 'N/A') {
-      try {
-        const v = configSheet.getRange('C12:D15').getValues();
-        const pValues = {
-          dist60: {
-            p10: parseDistValue(v[0][0]),
-            p25: parseDistValue(v[1][0]),
-            p75: parseDistValue(v[2][0]),
-            p90: parseDistValue(v[3][0])
-          },
-          dist240: {
-            p10: parseDistValue(v[0][1]),
-            p25: parseDistValue(v[1][1]),
-            p75: parseDistValue(v[2][1]),
-            p90: parseDistValue(v[3][1])
-          }
-        };
-
-        const d60 = parseDistValue(data.dist60);
-        const d240 = parseDistValue(data.dist240);
-        
-        if (!isNaN(d60) && !isNaN(d240)) {
-          let phase = '順風/中性';
-          let actionGuide = '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！';
-          let dcaRegularGuide = '🚀 明天照常自動扣款';
-          let dcaPowderGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
-          
-          if (d60 < pValues.dist60.p10) {
-            phase = '極度恐慌';
-            actionGuide = '股市大特價！這是極難得的超殺撿便宜好時機，快分批勇敢買進！';
-          } else if (d60 < pValues.dist60.p25) {
-            phase = '恐慌';
-            actionGuide = '股市打折中！價格很划算，維持定期定額並可以逢低多買一點！';
-          } else if (d60 > pValues.dist60.p90) {
-            phase = '狂熱';
-            actionGuide = '股市非常危險！行情熱到發燙，請務必保留大量現金防範回檔！';
-            dcaRegularGuide = '🛑 暫停定期定額';
-          } else if (d60 > pValues.dist60.p75) {
-            phase = '過熱';
-            actionGuide = '股市有點貴囉！不要衝動追高，可以陸續把賺到的部分落袋為安！';
-            dcaRegularGuide = '🛑 暫停定期定額';
-          }
-          
-          if (d240 > pValues.dist240.p90 && phase === '順風/中性') {
-            actionGuide += ' (⚠️ 注意：長線年線乖離較高，請保持資產配置紀律，切勿槓桿追高)';
-          }
-          
-          data.phase = phase;
-          data.actionGuide = actionGuide;
-          data.dcaRegularGuide = dcaRegularGuide;
-          data.dcaPowderGuide = dcaPowderGuide;
-        }
-      } catch (err) {
-        Logger.log('Error overriding phase: ' + err.message);
-      }
-    }
-
     data.aiActiveStory = isMorning ? data.aiMorningStory : data.aiAfternoonStory;
 
     const sDist60 = dashboardSheet.getRange('D7').getDisplayValue();
@@ -2979,10 +3063,12 @@ function getMarketEngineData(skipCache) {
     if (sSlope) data.metricsStatus.ma60Slope = sSlope;
     if (sDelta) data.metricsStatus.dist60Delta = sDelta;
 
-    // 5. v2.5.0 打折天數撫平器 (Missed-out Relief)
+    // 5. v2.8.12 市場位階與打折天數撫平器 (Missed-out Relief & Regime Duration)
     try {
-      const reliefInfo = calculatePhaseDurationAndRelief(data.phase, ss);
+      const reliefInfo = calculatePhaseDurationAndRelief(data.phase, ss, thresholdConfig, lastStockDataDate);
       data.consecutiveDays = reliefInfo.consecutiveDays;
+      data.exactDays = reliefInfo.exactDays;
+      data.regimeDays = reliefInfo.regimeDays;
       data.avgDays = reliefInfo.avgDays;
       data.phaseDurationText = reliefInfo.phaseDurationText;
       data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
@@ -2993,7 +3079,6 @@ function getMarketEngineData(skipCache) {
     }
 
     // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)
-    let pValuesRef = null;
     try {
       const d60ValForCd = parseDistValue(data.dist60);
       const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, data.ewtChange, ss);
@@ -3009,19 +3094,7 @@ function getMarketEngineData(skipCache) {
     // 7. v2.5.1 純數據位階理性分析 (Phase Analysis - 無須 AI API)
     try {
       const d60ValForAnalysis = parseDistValue(data.dist60);
-      const configSheet = ss ? ss.getSheetByName('THRESHOLD_CONFIG') : null;
-      if (configSheet) {
-        const v = configSheet.getRange('C12:D15').getValues();
-        pValuesRef = {
-          dist60: {
-            p10: parseDistValue(v[0][0]),
-            p25: parseDistValue(v[1][0]),
-            p75: parseDistValue(v[2][0]),
-            p90: parseDistValue(v[3][0])
-          }
-        };
-      }
-      data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, pValuesRef, data.phase, data.date);
+      data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, thresholdConfig, data.phase, data.date);
     } catch (e) {
       Logger.log('Phase analysis calc error: ' + e.message);
     }

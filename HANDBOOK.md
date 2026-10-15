@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.8.11)
+# HANDBOOK.md (v2.8.12)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -44,8 +44,8 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.11` (非休市紀念日過濾、8月歷史交易日無條件補全與位階天數連線修復發布)
-- **GAS Deployment**: `@127`
+- **Current Version**: `v2.8.12` (市場位階持續天數/打折撫平器重構、門檻 Single Source of Truth、負數解析修復與 DASHBOARD 公式自癒發布)
+- **GAS Deployment**: `@135` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -61,7 +61,7 @@
   - M6.6 (v2.8.7 COMPLETED): 🧹 回測頁面精簡清理 – 徹底移除導讀卡片與雙欄數據對照卡片，保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」，維持極致純粹之 Glassmorphism 視覺質感。
   - M6.7 (v2.8.10 COMPLETED): 🐛 位階天數與 API 連線全套修復 – 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 與原生 `Number()` 門檻解析導致歷史位階比對中斷歸 1 之問題，並升級前端 `GAS_API_BASE` 指向主部署網址 (`@100`)。
   - **M6.8 (v2.8.11 COMPLETED)**: 🐛 9/03 非交易休市日過濾修復與 8 月歷史交易日鏈無條件批次補全 – 修復軍人節等紀念日股市照常開盤判定，無條件自動補全與清空 8 月 21 個歷史交易日（避免跨月歷史斷層卡關 2 天），並優化 1-step `deleteRows()` 批次操作防止 HTTP Context Deadline 超時。
-- **🚀 目前停止位置**: `v2.8.11` (9/03 開盤日修復、8月數據鏈無縫對接與連線優化完成)
+- **🚀 目前停止位置**: `v2.8.12` (市場位階持續天數/打折撫平器重構、門檻單一來源與公式自癒完成)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
   - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
 
@@ -78,4 +78,5 @@
 | **2026-08-26** | `v2.8.0` | **策略對決與視覺白話全套優化**：(1) 重構 MDD 為真實投資組合權益曲線算式 (`Total Equity = Shares × Index + Cash`，Baseline -29.56% vs Market Engine -27.25%)；(2) 前端動態 MDD 顯著改善標籤連動發布 (>= 0.5% 門檻觸發)；(3) UI 排版與跨裝置字體對齊優化；(4) 新增『💡 18 年實戰模擬白話導讀』Glassmorphism 卡片與『❓ 總本金差異 534 萬來源與效率證明』QA 解答區塊；(5) 雲端 GAS 部署升級至 `@94`。 |
 | **2026-08-27** | `v2.8.5~v2.8.10` | **里程碑 Milestone 6 核心敘事重構與系統大修復**：(1) 升級 Slogan「研究市場，是為了最後不再被市場牽著走」與核心引言；(2) 重定義三大角色（基石、彈藥、護欄）並加入長期持有鐵則卡；(3) 回測頁發布「三年探索時間軸 (Road to Simplicity)」，並清理導讀卡與對照卡；(4) 修復 `calculatePhaseDurationAndRelief` 中舊 `d240` 邏輯與門檻格式解析 Bug；(5) 重構 `GAS_API_BASE` 與主 API Deployment ID 強制升級部署至 `@100`。 |
 | **2026-09-03** | `v2.8.11` | **非休市紀念日過濾與 8 月歷史交易日鏈補全修復**：(1) 在 `isMarketOpen()` 中加入 `NON_MARKET_HOLIDAYS`（軍人節、教師節等非休市紀念日過濾），修正 9/03 軍人節股市正常開盤判讀；(2) 實現 `seedAugust2026HistoricalRows()` 無條件批次補全 8 月 21 個交易日（解決 7/31 至 9/02 日期斷層導致位階卡在第 2 天之問題）；(3) 採用 1-step `deleteRows()` 批次刪除與動態 `topMA60` 回溯計算，徹底解決 GAS API Context Deadline 超時與快取滯後 BUG；(4) GAS 部署成功升級至 `@127`。 |
+| **2026-10-15** | `v2.8.12` | **市場位階持續天數/打折撫平器重構、門檻單一來源與公式自癒修復**：(1) 修復 `parseDistValue` 負數二次除以 100 BUG；(2) 抽出 `classifyPhase` 與 `getThresholdConfig`，徹底統一以 `THRESHOLD_CONFIG` 為 Single Source of Truth；(3) 重構位階持續天數演算法為大區間（Regime）與精確子位階雙層統計，解決高檔區（狂熱轉過熱）或打折區（極度恐慌轉恐慌）震盪導致天數意外重置歸 1 之問題，持續天數精準恢復為 77 天；(4) 起算點對齊 `lastStockDataDate` 並過濾休市日；(5) DASHBOARD 自動偵測修復 B7 `#REF!` 公式，修復 `ma60Slope`/`dist60Delta` 輸出 `#REF!` 並保證 AI 雙顧問文章 100% 傳入正確市場位階；(6) 雲端 GAS 部署升級至 `@135`。 |
 
