@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.8.15)
+# HANDBOOK.md (v2.8.16)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -21,7 +21,7 @@
 
 ## ④ Function Library (核心函式索引)
 - **行情與歷史對接**: `fetchRealMarketData()` (UrlFetchApp.fetchAll 並行 + 180s 快取), `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`, `seedAugust2026HistoricalRows()` (1-step 批次 `deleteRows()` 清空與 8 月 21 個歷史交易日無條件補全防錯)
-- **初始化與後台對帳**: `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`, `updateMonthlyLabBacktest()`, `updateTaiwanHolidaysCalendar()` (月度 Google Calendar 同步)
+- **初始化與後台對帳**: `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`, `updateMonthlyLabBacktest()` (月度歷史回測計算與 4 大維度自我驗證，含 HISTORY_LOG 動態擴充與月初自癒排程), `updateTaiwanHolidaysCalendar()` (月度 Google Calendar 同步)
 - **交易日與快取控管**: `isMarketOpen()` (0ms 本地 Hash 表 + `NON_MARKET_HOLIDAYS` 軍人節/教師節等非休市紀念日過濾), `getMarketEngineData()` (60s 全 API 快取 + 批次 Range 讀取 + 進入入口自動補齊與校正 8 月交易日)
 - **策略對決與樣本外驗證**: `calculateStrategyBacktest()` (18年全歷史實體行情對決 Baseline vs Market Engine，採用真實投資組合權益曲線 `Total Equity = Shares × Index + Cash` 精準計算 MDD), `calculateWalkForwardValidation()` (10年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證)
 - **AI 雙顧問與新聞研報**: `callGeminiAPIUniversal()` (4 模型自動備援重試), `generateFallbackMorningText()` / `generateFallbackAfternoonText()`, `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`, `updateWeeklyFinNewsReport()` (🤖AI/📈CPI/🌐GEO 三大主題讀報), `fetchUpcomingMarketEvents()` (未來重大事件過期自動過濾)
@@ -44,8 +44,8 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.15` (轉折路徑標籤常態常駐化 Persistent Transition Breadcrumb、前後位階雙色彩徽章連動發布)
-- **GAS Deployment**: `@142` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
+- **Current Version**: `v2.8.16` (MARKET LAB 18年歷史回測維度溢出修復、月初自癒補跑機制與日期推進發布)
+- **GAS Deployment**: `@144` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 
 ## ⑧ Roadmap & Milestones
@@ -61,7 +61,7 @@
   - M6.6 (v2.8.7 COMPLETED): 🧹 回測頁面精簡清理 – 徹底移除導讀卡片與雙欄數據對照卡片，保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」，維持極致純粹之 Glassmorphism 視覺質感。
   - M6.7 (v2.8.10 COMPLETED): 🐛 位階天數與 API 連線全套修復 – 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 與原生 `Number()` 門檻解析導致歷史位階比對中斷歸 1 之問題，並升級前端 `GAS_API_BASE` 指向主部署網址 (`@100`)。
   - **M6.8 (v2.8.11 COMPLETED)**: 🐛 9/03 非交易休市日過濾修復與 8 月歷史交易日鏈無條件批次補全 – 修復軍人節等紀念日股市照常開盤判定，無條件自動補全與清空 8 月 21 個歷史交易日（避免跨月歷史斷層卡關 2 天），並優化 1-step `deleteRows()` 批次操作防止 HTTP Context Deadline 超時。
-- **🚀 目前停止位置**: `v2.8.15` (轉折路徑標籤常態常駐化 Persistent Transition Breadcrumb、前後位階雙色彩徽章連動發布完成)
+- **🚀 目前停止位置**: `v2.8.16` (MARKET LAB 18年歷史回測維度溢出修復、月初自癒補跑機制與日期成功推進至 2026-10-01)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
   - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
 
@@ -82,5 +82,7 @@
 | **2026-10-15** | `v2.8.13` | **重整載入極速優化 (SWR 本地優先快取與後端多餘維護操作徹底剝離)**：(1) 前端 `index.html` 實現 Stale-While-Revalidate（SWR 本地優先快取），頁面啟動 0 毫秒即刻從 `localStorage` 渲染上次報表與位階，完全消除按 F5 轉圈「連線中/計算中」的等待感；(2) 徹底剝離後端 API 每次重複調用 `seedAndFixWeekendMode()` 刪除+寫入+排序歷史資料的巨型效能黑洞（完全無快取運算時間從 33.5s 縮減至 8s~11s）；(3) `calculatePhaseDurationAndRelief` 改用一次性批次 Range 讀取，並消除 `SpreadsheetApp.flush()` 阻塞；(4) API 快取 TTL 延長至 300 秒；(5) 雲端 GAS 部署升級至 `@138`。 |
 | **2026-10-15** | `v2.8.14` | **前一位階歷史脈絡 (Phase Transition Breadcrumb) 與動態轉折路徑發布**：(1) 升級 `calculatePhaseDurationAndRelief()` 演算法，若當前位階天數 `currentDuration === 1`（剛轉折），自動向歷史回溯統計前一位階名稱 `prevPhase` 與持續天數 `prevDuration`；(2) API 與 `DASHBOARD` Sheet B17 補齊 `phaseTransitionText`（如 `"T5 狂熱 (持續 74 天) → 今天 10/15：T4 過熱 (持續 1 天)"`）、`prevPhase`、`prevDuration`；(3) 前端 `index.html` 在位階卡片動態展示 Glassmorphism 轉折脈絡標籤（附帶箭頭與徽章），若已持續 2 天以上則自動維持簡潔計數（如 `T4 過熱 (持續 2 天)`）；(4) 雲端 GAS 部署升級至 `@140`。 |
 | **2026-10-15** | `v2.8.15` | **轉折路徑標籤常態常駐化 (Persistent Transition Breadcrumb until Next Transition)**：(1) 移除前端 `currentDays === 1` 隱藏限制，改為只要存在前一位階歷史（`prevPhase && prevDuration > 0`），轉折路徑麵包屑標籤永遠常態存在（一直顯示），右側天數依實際持續天數動態更新為 `今天 MM/DD：T4 過熱 (持續 X 天)`，直到下一個新的位階轉折出現為止；(2) 前端加入 `getPhaseStyle()` 輔助函式，前後位階自動映射專屬 emoji（🔥/⚠️/☕/🛒/💎）與色彩邊框；(3) 後端 `Market_Engine_GAS.js` 確保 `phaseTransitionText` 常態輸出並持續同步寫入 DASHBOARD B17；(4) 雲端 GAS 部署升級至 `@142`。 |
+| **2026-10-15** | `v2.8.16` | **MARKET LAB 18年歷史回測月度自癒排程重算與維度溢出徹底修復**：(1) 徹底修復 `HISTORY_LOG` 預設列數（1,000列）低於 `RAW_HISTORY`（4,500列）導致 `applyHistoryLogFormulas` 拋出 `Range coordinates exceed sheet dimensions` 崩潰之致命錯誤，新增自動擴充列數保護；(2) 優化 `verifyLabBacktest` 與 `updateMonthlyLabBacktest` 為增量安全填充（防止對 4,000+ 列重複寫入 3.6 萬個 Excel 算式導致 GAS 逾時）；(3) 實作 `checkAndAutoRunMonthlyLabBacktest()` 每月初自癒排程機制，若發現上次計算月份落後，在每日 16:30 盤後小羅值班與 API 強制刷新時自動補跑，並在 `doGet` 提供 `action=updateMonthly` 手動入口；(4) 雲端實體執行對帳成功，回測計算日期成功由「2026-07-29」精準推進至 **`2026-10-01`**，各位階歷史天數與勝率全數刷新完畢；(5) 雲端 GAS 部署升級至 `@144`。 |
+
 
 

@@ -690,6 +690,12 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
   const count = endRow - startRow + 1;
   if (count <= 0) return;
 
+  // ⚡ 1. 自動擴充列數，防止 Range coordinates exceed sheet dimensions 拋出例外
+  const maxRows = sheet.getMaxRows();
+  if (maxRows < endRow) {
+    sheet.insertRowsAfter(maxRows, endRow - maxRows);
+  }
+
   const formulas = [];
   for (let i = startRow; i <= endRow; i++) {
     const rawRow = i;
@@ -851,7 +857,16 @@ function verifyLabBacktest(sheet) {
   const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
   const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
   if (historyLogSheet) {
-    applyHistoryLogFormulas(historyLogSheet, 3, 2 + rawRowCount);
+    const logMax = historyLogSheet.getMaxRows();
+    const targetEndRow = 2 + rawRowCount;
+    if (logMax < targetEndRow) {
+      historyLogSheet.insertRowsAfter(logMax, targetEndRow - logMax);
+    }
+    const logLast = historyLogSheet.getLastRow();
+    if (logLast < targetEndRow) {
+      applyHistoryLogFormulas(historyLogSheet, Math.max(3, logLast + 1), targetEndRow);
+    }
+    applyHistoryLogFormulas(historyLogSheet, 3, Math.min(30, targetEndRow));
   }
 
   SpreadsheetApp.flush();
@@ -934,7 +949,7 @@ function verifyLabBacktest(sheet) {
 
 /**
  * 月度歷史回測計算與自我驗證腳本
- * 建議每個月底或需要重校時執行一次，極速秒級完成
+ * 每月 1 日定時執行或月初自癒自動補算，極速秒級完成
  */
 function updateMonthlyLabBacktest() {
   const ss = getSpreadsheet();
@@ -947,9 +962,33 @@ function updateMonthlyLabBacktest() {
     updateTaiwanHolidaysCalendar();
   } catch (e) {}
 
-  // 僅建立與鎖定 LAB_BACKTEST 的 5 列輕量對帳公式 (免去對 4,000+ 列重複寫入 4 萬個 Excel 算式導致逾時)
+  // 1. 確保 HISTORY_LOG 行數足夠與公式齊全
+  const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
+  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
+  if (historyLogSheet) {
+    const logMax = historyLogSheet.getMaxRows();
+    const targetEndRow = 2 + rawRowCount;
+    if (logMax < targetEndRow) {
+      historyLogSheet.insertRowsAfter(logMax, targetEndRow - logMax);
+    }
+    const logLast = historyLogSheet.getLastRow();
+    if (logLast < targetEndRow) {
+      applyHistoryLogFormulas(historyLogSheet, Math.max(3, logLast + 1), targetEndRow);
+    }
+    applyHistoryLogFormulas(historyLogSheet, 3, Math.min(30, targetEndRow));
+  }
+
+  // 2. 建立與鎖定 LAB_BACKTEST 的 5 列輕量對帳公式
   buildLabBacktestSheet(sheet);
+  SpreadsheetApp.flush();
+
+  // 3. 執行自我驗證並寫入最新計算日期時間戳
   const result = verifyLabBacktest(sheet);
+
+  // 4. 清除 API 快取，確保前端隨即取得最新月度對帳資料
+  try {
+    CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE");
+  } catch (e) {}
 
   let msg = `📅 月度歷史回測與勝率計算完工 (${result.date})\n\n`;
   msg += result.bannerText + '\n\n【自我驗證詳細結果】:\n';
@@ -962,6 +1001,38 @@ function updateMonthlyLabBacktest() {
     SpreadsheetApp.getUi().alert(msg);
   } catch (e) {}
   return result;
+}
+
+/**
+ * ⚡ 每月初歷史回測自癒檢查 (Monthly Backtest Auto-Healing)
+ * 每日盤後 16:30 或 API 強制刷新時檢查：若當前月份尚未執行月度回測，自動補跑 updateMonthlyLabBacktest()
+ */
+function checkAndAutoRunMonthlyLabBacktest(ss) {
+  try {
+    const labSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
+    if (!labSheet) return false;
+
+    const bannerVal = labSheet.getRange('A10').getDisplayValue();
+    const nowMonthStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM');
+    let lastCalcMonth = '';
+
+    if (bannerVal && bannerVal.includes('上次對帳驗證時間:')) {
+      const match = bannerVal.match(/上次對帳驗證時間:\s*(\d{4}\-\d{2})/);
+      if (match && match[1]) {
+        lastCalcMonth = match[1];
+      }
+    }
+
+    // 若上次計算月份落後於當前月份（例如仍停留在 7 月、8 月或 9 月），自動補跑月度歷史回測！
+    if (!lastCalcMonth || lastCalcMonth !== nowMonthStr) {
+      Logger.log(`[Auto-Healing] 偵測到 MARKET LAB 18年歷史回測上次計算月份 (${lastCalcMonth || '無'}) 落後於當前月份 (${nowMonthStr})，自動啟動月度重新計算...`);
+      updateMonthlyLabBacktest();
+      return true;
+    }
+  } catch (e) {
+    Logger.log('[Auto-Healing Warning] ' + e.message);
+  }
+  return false;
 }
 
 // ==========================================
@@ -1853,6 +1924,13 @@ function updateAfternoonMarketEngine() {
     Logger.log('Crash defense check error: ' + e.message);
   }
 
+  // ⚡ 每月初歷史回測自癒檢查：若當前月份尚未執行月度歷史回測，自動觸發 updateMonthlyLabBacktest()
+  try {
+    checkAndAutoRunMonthlyLabBacktest(ss);
+  } catch (e) {
+    Logger.log('[Monthly Backtest Auto Check] ' + e.message);
+  }
+
   SpreadsheetApp.flush();
   Logger.log('Afternoon Market Engine update (16:30 - 小羅午茶值班) completed for ' + todayStr);
 }
@@ -1932,11 +2010,21 @@ function doGet(e) {
       updateAfternoonMarketEngine();
     } else if (act === 'createTriggers') {
       createDailyTrigger();
+    } else if (act === 'updateMonthly' || act === 'updateBacktest') {
+      updateMonthlyLabBacktest();
     } else if (act === 'seedData') {
       seedFullHistoricalData();
     } else if (act === 'clearCache') {
       try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (err) {}
     }
+  }
+
+  // ⚡ 若收到強制刷新請求，順道檢查並自癒月度歷史回測
+  if (forceRefresh) {
+    try {
+      const ss = getSpreadsheet();
+      checkAndAutoRunMonthlyLabBacktest(ss);
+    } catch (e) {}
   }
 
   const data = getMarketEngineData(forceRefresh);
@@ -3187,7 +3275,7 @@ function getMarketEngineData(skipCache) {
     }
   }
   if (!data.backtestCalcDate) {
-    data.backtestCalcDate = '2026-07-29';
+    data.backtestCalcDate = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-01');
   }
 
   // ⚡ 週末 Weekend Mode 最終防護覆寫 (確保週末決策卡與戰術卡正確呈現休市戰術)
