@@ -1030,6 +1030,11 @@ function buildDashboardSheet(sheet) {
   sheet.getRange('B16:E16').merge().setFormula('=IFERROR(VLOOKUP(B15, THRESHOLD_CONFIG!$B$4:$G$8, 6, FALSE), "等待最新數據對照")')
        .setWrap(true).setBackground('#f8fafc').setFontWeight('bold');
 
+  sheet.getRange('A17').setValue('位階歷史脈絡 (Breadcrumb)').setFontWeight('bold');
+  sheet.getRange('17:17').breakApart();
+  sheet.getRange('B17:E17').merge().setValue('計算中...')
+       .setWrap(true).setBackground('#f0f9ff').setFontColor('#0369a1').setFontWeight('bold');
+
   // 若明天要執行定期定額扣款
   sheet.getRange('18:18').breakApart();
   sheet.getRange('A18:E18').merge().setValue('📅 定期定額扣款決策卡 (若明天要執行定期定額扣款)')
@@ -2107,9 +2112,19 @@ function classifyPhase(d60Val, pDist60) {
  * 2. exactDays: 當前單一位階（如過熱或狂熱）精確連續交易日數
  * 3. 輸出友善且專業的心理撫平文案
  */
+/**
+ * 💡 v2.8.14「市場位階持續天數與轉折歷史脈絡」 (Phase Transition Breadcrumb & Duration)
+ * 統計：
+ * 1. currentDuration (exactDays): 當前位階連續天數
+ * 2. 若 currentDuration === 1，繼續回溯前一個不同位階 prevPhase 與其連續天數 prevDuration
+ * 3. regimeDays: 當前大位階區間（打折逢低區 / 高檔警戒區 / 中性區）累計持續交易日數
+ * 4. 輸出 phaseTransitionText (例如 "T5 狂熱 (持續 32 天) → 今天 10/15：T4 過熱 (持續 1 天)")
+ */
 function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, lastStockDataDate) {
   let regimeDays = 1;
   let exactDays = 1;
+  let prevPhase = null;
+  let prevDuration = 0;
   
   const avgDaysMap = {
     '極度恐慌': 11,
@@ -2131,6 +2146,23 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
     return 'NEUTRAL'; // 順風中性區
   };
 
+  const getPhaseCode = function(phaseName) {
+    if (!phaseName) return 'T3';
+    if (phaseName.includes('極度恐慌')) return 'T1';
+    if (phaseName.includes('恐慌')) return 'T2';
+    if (phaseName.includes('順風') || phaseName.includes('中性')) return 'T3';
+    if (phaseName.includes('過熱')) return 'T4';
+    if (phaseName.includes('狂熱')) return 'T5';
+    return 'T3';
+  };
+
+  const getPhaseFullName = function(phaseName) {
+    if (!phaseName) return '';
+    const code = getPhaseCode(phaseName);
+    const cleanName = phaseName.replace(/^T\d\s*/, '').trim();
+    return `${code} ${cleanName}`;
+  };
+
   const currentRegime = getRegime(currentPhase);
 
   try {
@@ -2139,7 +2171,7 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
       const realLastRow = rawSheet.getLastRow();
       const numRows = Math.min(120, realLastRow - 2);
       if (numRows > 0) {
-        // ⚡ 一次性批次讀取前 6 欄 (Col 1: Date, Col 2: TWII, Col 4: MA60, Col 6: Dist60)，減少 IPC 往返次數
+        // ⚡ 一次性批次讀取前 6 欄 (Col 1: Date, Col 2: TWII, Col 4: MA60, Col 6: Dist60)
         const rawDisplayGrid = rawSheet.getRange(3, 1, numRows, 6).getDisplayValues();
         const rawValueGrid = rawSheet.getRange(3, 1, numRows, 4).getValues();
 
@@ -2156,6 +2188,7 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
 
         let isExactContinuing = true;
         let isRegimeContinuing = true;
+        let isPrevContinuing = false;
 
         // 從起算點的下一個交易日 (startIdx + 1) 往歷史回溯比對
         for (let i = startIdx + 1; i < numRows; i++) {
@@ -2182,16 +2215,27 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
           const rowPhase = classifyPhase(d60, pDist60);
           const rowRegime = getRegime(rowPhase);
 
-          // 統計單一位階連續天數
+          // 1. 統計當前單一位階連續天數
           if (isExactContinuing) {
             if (rowPhase === currentPhase) {
               exactDays++;
             } else {
               isExactContinuing = false;
+              // ⚡ 剛轉折！記錄第一個不同的前一位階與起算天數
+              prevPhase = rowPhase;
+              prevDuration = 1;
+              isPrevContinuing = true;
+            }
+          } else if (isPrevContinuing) {
+            // 2. 統計前一位階連續天數
+            if (rowPhase === prevPhase) {
+              prevDuration++;
+            } else {
+              isPrevContinuing = false;
             }
           }
 
-          // 統計大區間連續天數
+          // 3. 統計大區間連續天數
           if (isRegimeContinuing) {
             if (rowRegime === currentRegime) {
               regimeDays++;
@@ -2200,13 +2244,28 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
             }
           }
 
-          // 若大區間已斷裂，停止回溯
-          if (!isRegimeContinuing) break;
+          // 若三者均不再持續，停止回溯
+          if (!isExactContinuing && !isPrevContinuing && !isRegimeContinuing) {
+            break;
+          }
         }
       }
     }
   } catch (e) {
     Logger.log('Error calculating phase duration: ' + e.message);
+  }
+
+  // 格式化月日字串 (如 "10/15")
+  const mmDd = (lastStockDataDate && lastStockDataDate.includes('-')) 
+    ? lastStockDataDate.split('-').slice(1).join('/') 
+    : '今天';
+
+  // ⚡ 產生歷史脈絡轉折文字 (Phase Transition Text)
+  let phaseTransitionText = '';
+  if (exactDays === 1 && prevPhase && prevDuration > 0) {
+    phaseTransitionText = `${getPhaseFullName(prevPhase)} (持續 ${prevDuration} 天) → 今天 ${mmDd}：${getPhaseFullName(currentPhase)} (持續 1 天)`;
+  } else {
+    phaseTransitionText = `${getPhaseFullName(currentPhase)} (持續 ${exactDays} 天)`;
   }
 
   // 產生友善文字
@@ -2232,7 +2291,13 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
   return {
     consecutiveDays: regimeDays,
     exactDays: exactDays,
+    currentDuration: exactDays,
     regimeDays: regimeDays,
+    prevPhase: getPhaseCode(prevPhase),
+    prevPhaseName: prevPhase || '',
+    prevPhaseFullName: prevPhase ? getPhaseFullName(prevPhase) : '',
+    prevDuration: prevDuration,
+    phaseTransitionText: phaseTransitionText,
     avgDays: avgDays,
     phaseDurationText: phaseDurationText,
     phaseReliefGuide: phaseReliefGuide
@@ -3049,19 +3114,36 @@ function getMarketEngineData(skipCache) {
     if (sSlope) data.metricsStatus.ma60Slope = sSlope;
     if (sDelta) data.metricsStatus.dist60Delta = sDelta;
 
-    // 5. v2.8.12 市場位階與打折天數撫平器 (Missed-out Relief & Regime Duration)
+    // 5. v2.8.14 市場位階持續天數與轉折歷史脈絡 (Phase Transition Breadcrumb & Duration)
     try {
       const reliefInfo = calculatePhaseDurationAndRelief(data.phase, ss, thresholdConfig, lastStockDataDate);
       data.consecutiveDays = reliefInfo.consecutiveDays;
       data.exactDays = reliefInfo.exactDays;
+      data.currentDuration = reliefInfo.currentDuration;
       data.regimeDays = reliefInfo.regimeDays;
+      data.prevPhase = reliefInfo.prevPhase;
+      data.prevPhaseName = reliefInfo.prevPhaseName;
+      data.prevPhaseFullName = reliefInfo.prevPhaseFullName;
+      data.prevDuration = reliefInfo.prevDuration;
+      data.phaseTransitionText = reliefInfo.phaseTransitionText;
       data.avgDays = reliefInfo.avgDays;
       data.phaseDurationText = reliefInfo.phaseDurationText;
       data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
+
+      // ⚡ 同步回寫 DASHBOARD Sheet B17 轉折脈絡格
+      try {
+        if (dashboardSheet && reliefInfo.phaseTransitionText) {
+          dashboardSheet.getRange('B17').setValue(reliefInfo.phaseTransitionText);
+        }
+      } catch (e) {}
     } catch (e) {
       Logger.log('Relief calc error: ' + e.message);
       data.phaseDurationText = `🛒 ${data.date} 位階：${data.phase}`;
       data.phaseReliefGuide = `💡 心理指南：按既定策略穩定執行即可。`;
+      data.currentDuration = 1;
+      data.prevPhase = 'T3';
+      data.prevDuration = 0;
+      data.phaseTransitionText = `${data.phase} (持續 1 天)`;
     }
 
     // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)

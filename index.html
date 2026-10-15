@@ -460,6 +460,8 @@
       <div class="glass-card phase-card" style="padding: 24px;">
         <div class="phase-title" id="marketTempTitle">☕ 收盤位階</div>
         <div class="phase-badge" id="phaseBadge">連線中...</div>
+        <!-- ⚡ 前一位階歷史脈絡標籤 (Phase Transition Breadcrumb) -->
+        <div id="phaseTransitionContainer" style="display: none; margin-top: 10px; margin-bottom: 6px;"></div>
         <div id="phaseDurationText" style="font-size: 14px; font-weight: 700; color: #fde047; margin-top: 8px;">🛒 打折天數計算中...</div>
         <div id="phaseReliefGuide" style="font-size: 13px; color: #d6d3d1; margin-top: 6px; line-height: 1.6;">💡 明日/未來心理預期指南：18 年動態分位數校正</div>
       </div>
@@ -1201,8 +1203,23 @@
   </div>
 
   <script>
-    // 背景異步動態數據更新
     const GAS_API_BASE = 'https://script.google.com/macros/s/AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw/exec';
+
+    function getPhaseCode(phaseName) {
+      if (!phaseName) return 'T3';
+      if (phaseName.includes('極度恐慌')) return 'T1';
+      if (phaseName.includes('恐慌')) return 'T2';
+      if (phaseName.includes('順風') || phaseName.includes('中性')) return 'T3';
+      if (phaseName.includes('過熱')) return 'T4';
+      if (phaseName.includes('狂熱')) return 'T5';
+      return 'T3';
+    }
+    function getPhaseFullName(phaseName) {
+      if (!phaseName) return '';
+      const code = getPhaseCode(phaseName);
+      const cleanName = phaseName.replace(/^T\d\s*/, '').trim();
+      return `${code} ${cleanName}`;
+    }
 
     // 全局頁籤切換處理邏輯 (Tab Switching)
     window.switchTab = function(tabName) {
@@ -1343,8 +1360,48 @@
         if (labDateEl) labDateEl.textContent = data.backtestCalcDate;
       }
 
-      if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') document.getElementById('phaseBadge').textContent = data.phase;
-      if (data.phaseDurationText) document.getElementById('phaseDurationText').textContent = data.phaseDurationText;
+      if (data.phase && data.phase !== 'N/A' && data.phase !== '資料計算中') {
+        const pCode = data.phase.startsWith('T') ? '' : `${getPhaseCode(data.phase)} `;
+        document.getElementById('phaseBadge').textContent = pCode + data.phase;
+      }
+
+      // ⚡ 前一位階歷史脈絡標籤 (Phase Transition Breadcrumb)
+      const currentDays = data.currentDuration || data.exactDays || 1;
+      const transContainer = document.getElementById('phaseTransitionContainer');
+      if (transContainer) {
+        if (currentDays === 1 && data.prevPhase && data.prevDuration > 0) {
+          transContainer.style.display = 'block';
+          const prevFullName = data.prevPhaseFullName || `${data.prevPhase} ${data.prevPhaseName || ''}`.trim();
+          const currName = data.phase || '過熱';
+          const currFullName = currName.startsWith('T') ? currName : `${getPhaseCode(currName)} ${currName}`;
+          const mmDd = data.date && data.date.includes('-') ? data.date.split('-').slice(1).join('/') : '今天';
+          
+          transContainer.innerHTML = `
+            <div class="phase-transition-breadcrumb" style="display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 14px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 10px; font-size: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);">
+              <span class="badge-prev" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); padding: 3px 10px; border-radius: 6px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                🔥 ${prevFullName} (持續 ${data.prevDuration} 天)
+              </span>
+              <span style="color: #38bdf8; font-weight: 800; font-size: 15px;">→</span>
+              <span class="badge-curr" style="background: rgba(245, 158, 11, 0.2); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.4); padding: 3px 10px; border-radius: 6px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                今天 ${mmDd}：${currFullName} (持續 1 天)
+              </span>
+            </div>
+          `;
+        } else {
+          transContainer.style.display = 'none';
+        }
+      }
+
+      // ⚡ 若已持續 2 天以上，則維持原本的簡潔計數（如 T4 過熱 (持續 2 天)）；若第 1 天則呈現完整大區間撫平文案
+      if (document.getElementById('phaseDurationText')) {
+        if (currentDays >= 2) {
+          const currName = data.phase || '';
+          const currFullName = currName.startsWith('T') ? currName : `${getPhaseCode(currName)} ${currName}`;
+          document.getElementById('phaseDurationText').textContent = `🛒 ${currFullName} (持續 ${currentDays} 天) / 歷史平均約 ${data.avgDays || 25} 天`;
+        } else if (data.phaseDurationText) {
+          document.getElementById('phaseDurationText').textContent = data.phaseDurationText;
+        }
+      }
       if (data.phaseReliefGuide) document.getElementById('phaseReliefGuide').textContent = data.phaseReliefGuide;
 
       if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
