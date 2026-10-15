@@ -7,28 +7,65 @@
 * **產品哲學**：`Market Engine 不是預測明天的機器，而是一套從「想預測市場」走到「理解市場」，最後學會「不必預測市場」的投資紀律實驗。`
 
 ## ② System Architecture
-- **Data Layer**: Google Sheet 6 大結構化分頁 (`RAW_HISTORY`, `THRESHOLD_CONFIG`, `LAB_BACKTEST`, `DASHBOARD`, `HISTORY_LOG`, `DECISION_LOG`)
-- **Engine Layer**: Google Apps Script 核心算式與自動化維護腳本 ([Market_Engine_GAS.js](file:///f:/Projects/Market_Engine/Market_Engine_GAS.js))
-- **Presentation Layer**: GitHub Pages 靜態網頁與 GAS Web App ([index.html](file:///f:/Projects/Market_Engine/index.html))
+- **Data Layer (數據底座)**: Google Sheet 6 大結構化分頁
+  - `RAW_HISTORY`: 18 年官方實體歷史數據底座 (Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change)。
+  - `THRESHOLD_CONFIG`: 全站唯一門檻定義表 (Single Source of Truth，連動 18 年 P10/P25/P75/P90 分位數)。
+  - `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (含 4 大維度自我驗證算式與 `LAB_CALC_DATE` 月度對帳標籤)。
+  - `DASHBOARD`: 行情最新數據、今日位階、策略行動指引、動態轉折路徑與 AI 雙顧問值班卡片。
+  - `HISTORY_LOG`: 每日盤後定時快照歷史備份 (具備動態自動擴展列數防溢出機制)。
+  - `DECISION_LOG`: 手動加碼/戰術決策審核檢討紀錄。
+- **Engine Layer (核心大腦)**: Google Apps Script 自動化引擎 ([Market_Engine_GAS.js](file:///f:/Projects/Market_Engine/Market_Engine_GAS.js))
+  - 核心包含：統一門檻解析 (`getThresholdConfig`/`classifyPhase`)、位階大區間雙層撫平器、18 年月次回測排程自癒機制 (`checkAndAutoRunMonthlyLabBacktest`)、未來重大事件永續滾動生成引擎 (`generateRollingUpcomingEvents`)，並徹底剝離同步阻塞達成 2 秒響應。
+- **Presentation & Cache Layer (展示與快取層)**: GitHub Pages 靜態前端與 GAS Web App ([index.html](file:///f:/Projects/Market_Engine/index.html))
+  - 實現 **SWR (Stale-While-Revalidate)** 本地優先快取（0 毫秒即時渲染上次報表，完全消除 F5 轉圈感）。
+  - **常態轉折路徑標籤 (Persistent Transition Breadcrumb)**：清晰呈現「前一位階歷史脈絡 → 今日位階」，賦予決策連續性。
 
 ## ③ Database Schema (6 大 Sheet 職責)
 1. `RAW_HISTORY`: 100% 官方實體歷史數據底座 (Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change)。
 2. `THRESHOLD_CONFIG`: 位階門檻定義表 (Single Source of Truth，連動 18 年 P10/P25/P75/P90 分位數)。
 3. `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (含 4 大維度自我驗證算式與 `LAB_CALC_DATE` 月度對帳標籤)。
-4. `DASHBOARD`: 行情最新數據、今日位階、策略行動指引與 AI 顧問值班卡片。
-5. `HISTORY_LOG`: 每日盤後定時快照歷史備份。
+4. `DASHBOARD`: 行情最新數據、今日位階、策略行動指引、動態轉折脈絡與 AI 顧問值班卡片。
+5. `HISTORY_LOG`: 每日盤後定時快照歷史備份 (內建動態列數擴充安全防護)。
 6. `DECISION_LOG`: 手動加碼/戰術決策審核檢討紀錄。
 
 ## ④ Function Library (核心函式索引)
-- **行情與歷史對接**: `fetchRealMarketData()` (UrlFetchApp.fetchAll 並行 + 180s 快取), `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`, `seedAugust2026HistoricalRows()` (1-step 批次 `deleteRows()` 清空與 8 月 21 個歷史交易日無條件補全防錯)
-- **初始化與後台對帳**: `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`, `updateMonthlyLabBacktest()` (月度歷史回測計算與 4 大維度自我驗證，含 HISTORY_LOG 動態擴充與月初自癒排程), `updateTaiwanHolidaysCalendar()` (月度 Google Calendar 同步)
-- **交易日與快取控管**: `isMarketOpen()` (0ms 本地 Hash 表 + `NON_MARKET_HOLIDAYS` 軍人節/教師節等非休市紀念日過濾), `getMarketEngineData()` (60s 全 API 快取 + 批次 Range 讀取 + 進入入口自動補齊與校正 8 月交易日)
-- **策略對決與樣本外驗證**: `calculateStrategyBacktest()` (18年全歷史實體行情對決 Baseline vs Market Engine，採用真實投資組合權益曲線 `Total Equity = Shares × Index + Cash` 精準計算 MDD), `calculateWalkForwardValidation()` (10年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證)
-- **AI 雙顧問與新聞研報**: `callGeminiAPIUniversal()` (4 模型自動備援重試), `generateFallbackMorningText()` / `generateFallbackAfternoonText()`, `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`, `updateWeeklyFinNewsReport()` (🤖AI/📈CPI/🌐GEO 三大主題讀報), `fetchUpcomingMarketEvents()` (未來重大事件過期自動過濾)
-- **量化決策算式**: `calculatePhaseDurationAndRelief()` (位階持續天數計算，以 Single Source of Truth `Dist60` 與動態 `topMA60` 備援算式判定歷史每列位階，修復歷史跨月日期斷層導致歸 1 BUG), `calculatePowderAndCdStatus()` (資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override), `calculatePhaseAnalysis()` (純數據位階分析), `parseDistValue()`
+- **門檻定義與位階判定單一來源**:
+  - `getThresholdConfig(sheet)`: 從 `THRESHOLD_CONFIG` 動態提取 P10/P25/P75/P90 百分比，確保全站單一門檻來源。
+  - `classifyPhase(dist60, thresholdConfig)`: 模組化單一出口，精準劃分 T1~T5 位階，杜絕各模組各自硬編碼。
+- **行情與歷史對接**:
+  - `fetchRealMarketData()`: `UrlFetchApp.fetchAll` 並行擷取最新行情 + 300s 快取。
+  - `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`.
+  - `seedAugust2026HistoricalRows()`: 1-step 批次 `deleteRows()` 清空與 8 月 21 個歷史交易日無條件補全防錯。
+- **初始化與後台對帳**:
+  - `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`.
+  - `updateMonthlyLabBacktest()`: 月度歷史回測計算與 4 大維度自我驗證，含 HISTORY_LOG 動態擴充與月初自癒排程。
+  - `checkAndAutoRunMonthlyLabBacktest()`: 自動偵測回測月份是否落後，於 16:30 盤後小羅值班與 `action=updateMonthly` 安全增量計算，徹底移出 `doGet` 阻塞鏈。
+  - `updateTaiwanHolidaysCalendar()`: 月度 Google Calendar 假日同步。
+- **交易日與快取控管**:
+  - `isMarketOpen()`: 0ms 本地 Hash 表 + `NON_MARKET_HOLIDAYS` 軍人節/教師節等非休市紀念日過濾。
+  - `getMarketEngineData()`: 300s API 快取 + 批次 Range 讀取，極速 2 秒出圖。
+- **策略對決與樣本外驗證**:
+  - `calculateStrategyBacktest()`: 18 年全歷史實體行情對決 (Baseline vs Market Engine)，採用真實投資組合權益曲線 `Total Equity = Shares × Index + Cash` 精準計算 MDD。
+  - `calculateWalkForwardValidation()`: 10 年滾動樣本外 Out-of-Sample 無未來資料偏誤驗證。
+- **AI 雙顧問與新聞研報**:
+  - `callGeminiAPIUniversal()`: 4 模型自動備援重試 (Gemini 2.5 Flash / 2.0 Flash / Pro 等)。
+  - `generateFallbackMorningText()` / `generateFallbackAfternoonText()`.
+  - `updateMorningMarketEngine()` / `updateAfternoonMarketEngine()`.
+  - `updateWeeklyFinNewsReport()`: 🤖AI/📈CPI/🌐GEO 三大主題實質新聞讀報。
+  - `generateRollingUpcomingEvents()`: 未來重大事件永續動態滾動生成引擎（2026 Q4 ~ 2027 關鍵錨點事件庫 + 90 天總經循環算式），確保永不斷糧。
+  - `checkCrashEmergencyDefense()`: 突發大跌 1,000 點急煞鑑別，確保點數計算與 3 點客觀判定依據字句 100% 一致。
+- **量化決策算式**:
+  - `calculatePhaseDurationAndRelief()`: 位階持續天數計算，採大區間 (Regime) 與精確子位階雙層統計，解決同區間內微幅震盪導致天數意外歸 1 之問題；支援回溯統計前一位階 `prevPhase` 與持續天數 `prevDuration`。
+  - `calculatePowderAndCdStatus()`: 資金池 10%/20% + 3天 CD 冷卻 + 暴跌 3.5% Override。
+  - `calculatePhaseAnalysis()`: 純數據位階分析。
+  - `parseDistValue()`: 通配型正負百分比防呆解析器。
 
 ## ⑤ Decision Engine & 鐵則
 - **單一位階判定**: 全站以 `RAW_HISTORY` 最新季線偏離度 `Dist60` 主導判定 (`T1極度恐慌`, `T2恐慌`, `T3順風/中性`, `T4過熱`, `T5狂熱`)。年線偏離度 `Dist240 > P90` 解耦轉為長線風險提醒。
+- **位階震盪撫平與大區間 (Regime) 穩定準則**:
+  - 市場於高檔區（T5 狂熱 ⇄ T4 過熱）或打折區（T1 極度恐慌 ⇄ T2 恐慌）內微幅震盪時，採用同屬性大區間天數連續累積，避免投資人心態隨 1 天微幅偏離而動搖。
+- **歷史脈絡常態連動準則 (Transition Breadcrumb)**:
+  - 位階卡片常態呈現「前一位階歷史 (持續 X 天) → 當前位階 (持續 Y 天)」，直至下一次正式位階跨區變更，賦予當前位階清晰的歷史縱深。
 - **三大角色與核心哲學**:
   - 🧱 **1. 基石 (持續投入)**：固定扣款是資產累積的主體，讓時間與人類頂尖企業的成長替你工作。
   - 💣 **2. 彈藥 (保留選擇權)**：高利水庫保留流動性是為了「在極端崩盤時擁有勇氣」，而非試圖猜測高低點。
@@ -44,9 +81,10 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.8.18` (未來重大事件永續滾動生成引擎、事件日曆多重自癒機制、doGet 2秒極速響應完工發布)
+- **Current Version**: `v2.8.18` (全系統自癒重構、SWR 極速體驗、轉折常態化與永續事件引擎完工發布)
 - **GAS Deployment**: `@150` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
+- **Data Status**: 行情對帳日 `2026-10-15`，回測基準日 `2026-10-01`。
 
 ## ⑧ Roadmap & Milestones
 - **Milestone 1~6 (COMPLETED)**:
@@ -61,10 +99,18 @@
   - M6.6 (v2.8.7 COMPLETED): 🧹 回測頁面精簡清理 – 徹底移除導讀卡片與雙欄數據對照卡片，保留「三年探索時間軸 (Road to Simplicity)」與客觀標準「18年歷史位階前瞻報酬與勝率統計表」，維持極致純粹之 Glassmorphism 視覺質感。
   - M6.7 (v2.8.10 COMPLETED): 🐛 位階天數與 API 連線全套修復 – 修復 `calculatePhaseDurationAndRelief` 中因舊式 `d240` 與原生 `Number()` 門檻解析導致歷史位階比對中斷歸 1 之問題，並升級前端 `GAS_API_BASE` 指向主部署網址 (`@100`)。
   - M6.8 (v2.8.11 COMPLETED): 🐛 9/03 非交易休市日過濾修復與 8 月歷史交易日鏈無條件批次補全 – 修復軍人節等紀念日股市照常開盤判定，無條件自動補全與清空 8 月 21 個歷史交易日（避免跨月歷史斷層卡關 2 天），並優化 1-step `deleteRows()` 批次操作防止 HTTP Context Deadline 超時。
-  - **M6.9 (v2.8.18 COMPLETED)**: 🗓️ **未來重大事件永續動態滾動生成引擎與極速響應重構** – 徹底解決重大事件過期後過濾導致斷糧歸零的死循環 BUG；升級 2026 Q4 ~ 2027 全年關鍵錨點事件庫並導入 `generateRollingUpcomingEvents()` 永續演算法（任何時間點永遠動態保有 5~6 個合格重大事件）；消除 `doGet` 中同步阻塞執行 18 年回測的效能黑洞，API 響應時間自 40 秒壓縮至 **2 秒**；完成雲端部署至 `@150`。
-- **🚀 目前停止位置**: `v2.8.18` (未來重大事件永續滾動生成引擎、事件日曆多重自癒機制、doGet 2秒極速響應完工發布)
+  - **M6.9 (v2.8.12~v2.8.18 COMPLETED)**: 🛠️ **全系統自癒重構、SWR 極速體驗、轉折常態化與永續事件引擎**
+    - `v2.8.12`: 門檻單一來源 (`THRESHOLD_CONFIG` / `classifyPhase`)、持續天數大區間雙層撫平與 DASHBOARD B7 `#REF!` 公式自癒。
+    - `v2.8.13`: 前端 SWR 本地優先快取 (0ms 啟動即渲染上次資料) 與後端重複維護操作剝離。
+    - `v2.8.14~v2.8.15`: 前一位階歷史脈絡與動態轉折路徑常態常駐化 (Persistent Transition Breadcrumb)。
+    - `v2.8.16`: MARKET LAB 18年歷史回測列數溢出防護與月初自動增量排程自癒 (回測基準精準推進至 2026-10-01)。
+    - `v2.8.17`: 突發大跌 1,000 點急煞防禦機制之判定依據一致性保證。
+    - `v2.8.18`: 未來重大事件永續動態滾動生成引擎 (永不斷糧)，並徹底消除 `doGet` 回測計算負擔，響應速度飆升至 **2 秒**；GAS 升級至 `@150`。
+- **🚀 目前停止位置**: `v2.8.18` (全系統自癒重構、SWR 極速體驗、轉折常態化與永續事件引擎完工發布)
 - **🎯 下一步施工目標 (Milestone 7 / v2.9.0)**:
   - **多視窗動態分位數比對 (3Y / 5Y / 10Y / 18Y Window)**: 比對不同時間視窗下之 P10/P25/P75/P90 門檻，識別「長線常態 vs. 短線結構過熱」之市場分歧訊號。
+  - **策略對決模擬器進階互動擴充**: 提供定期定額每月扣款與彈藥池投入比例之即時自選試算。
+  - **行動裝置細節體驗與暗色調 Glassmorphism 微動態打磨**。
 
 ---
 ## ⑨ 開發日誌歷程 (Development History)
