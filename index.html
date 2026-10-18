@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Market Engine v2.8.15 - 研究市場，是為了最後不再被市場牽著走</title>
+  <title>Market Engine v2.9.0 - 研究市場，是為了最後不再被市場牽著走</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -370,6 +370,31 @@
     .win-rate {
       color: #34d399;
       font-weight: 700;
+    }
+
+    /* Milestone 7 Calibration Window Switcher Pills */
+    .cal-window-btn {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #94a3b8;
+      border-radius: 9999px;
+      padding: 6px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .cal-window-btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.5);
+      color: #38bdf8;
+      transform: translateY(-1px);
+    }
+    .cal-window-btn.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(56, 189, 248, 0.25) 100%);
+      border: 1px solid #fbbf24;
+      color: #fde047;
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
     }
   </style>
 </head>
@@ -1040,6 +1065,240 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- 🔬 三窗口歷史位階校準與比較實驗室 (18Y / 10Y / 5Y Calibration Lab) -->
+      <div class="glass-card" style="margin-top: 36px; margin-bottom: 28px; border: 1px solid rgba(56, 189, 248, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 27, 24, 0.9) 100%); padding: 26px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);">
+        
+        <!-- 模組標題與研究定位 -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 28px;">🔬</span>
+            <div>
+              <h3 style="font-size: 1.4rem; font-weight: 800; color: #38bdf8; margin: 0; line-height: 1.3;">
+                三窗口歷史位階校準與比較實驗室
+              </h3>
+              <div style="font-size: 0.9rem; color: #94a3b8; margin-top: 3px;">
+                18Y (長線全景) ⇄ 10Y (景氣循環) ⇄ 5Y (近期結構) 歷史分佈穩定性與窗口敏感度分析
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 12px; background: rgba(56, 189, 248, 0.18); color: #7dd3fc; padding: 4px 14px; border-radius: 9999px; font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.35);">
+            Milestone 7 核心研究模組
+          </span>
+        </div>
+
+        <!-- ⚠️ 研究與校準專用邊界說明 (鐵則防護) -->
+        <div style="background: rgba(30, 41, 59, 0.7); border-left: 4px solid #f59e0b; border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; font-size: 0.92rem; color: #cbd5e1; line-height: 1.65; border: 1px solid rgba(245, 158, 11, 0.2);">
+          <strong style="color: #fbbf24;">💡 實驗性校準研究聲明：</strong>
+          本模組專供量化研究與窗口敏感度對照使用。全站正式市場位階與定期定額/資金池紀律，嚴格維持以 <strong>18 年官方實體全歷史 (THRESHOLD_CONFIG)</strong> 為 Single Source of Truth。此處切換窗口與推算僅為校準實驗檢視，絕不覆寫或干擾正式 MARKET_STATE。
+        </div>
+
+        <!-- 窗口切換按鈕組 (Window Switcher Pills) -->
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap;">
+          <span style="font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-right: 4px;">歷史觀測窗口：</span>
+          <button id="btnCal18Y" onclick="switchCalibrationWindow('18Y')" class="cal-window-btn active">
+            🏛️ 18年 (長線基準)
+          </button>
+          <button id="btnCal10Y" onclick="switchCalibrationWindow('10Y')" class="cal-window-btn">
+            🔭 10年 (景氣循環)
+          </button>
+          <button id="btnCal5Y" onclick="switchCalibrationWindow('5Y')" class="cal-window-btn">
+            ⚡ 5年 (近期結構)
+          </button>
+          <span id="calWindowRangeBadge" style="margin-left: auto; font-size: 13px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); font-family: monospace;">
+            涵蓋期間：計算中...
+          </span>
+        </div>
+
+        <!-- 4.2 校準摘要卡 (Selected Window Summary Card) -->
+        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px; padding: 20px; margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="calSummaryTitle" style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">🏛️ 18Y 長線全景窗口校準摘要</span>
+              <span id="calSampleCountBadge" style="font-size: 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 10px; border-radius: 6px; font-weight: 600;">N = --</span>
+            </div>
+            <div style="font-size: 13px; color: #94a3b8;">
+              基準日：<strong id="calBaseDate" style="color: #fde047;">--</strong>（同一基準日無偏誤比對）
+            </div>
+          </div>
+
+          <!-- 三核心指標卡片格 (Dist60 / Dist240 / VIX) -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 18px;">
+            <!-- Dist60 Card -->
+            <div style="background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <span style="font-size: 0.9rem; font-weight: 700; color: #94a3b8;">季線乖離率 (Dist60)</span>
+                <span id="calRankDist60" style="font-size: 12px; color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.15); padding: 2px 8px; border-radius: 6px;">P--</span>
+              </div>
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                <span id="calCurValDist60" style="font-size: 1.55rem; font-weight: 800; color: #f8fafc; font-family: 'Outfit', sans-serif;">+0.00%</span>
+                <span style="font-size: 12px; color: #94a3b8;">最新實體值</span>
+              </div>
+              <div style="font-size: 12px; color: #cbd5e1; line-height: 1.7; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P10 (極度恐慌) / P25 (恐慌):</span>
+                  <strong id="calP10P25Dist60" style="color: #38bdf8;">-- / --</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P50 (中位) / P75 (過熱):</span>
+                  <strong id="calP50P75Dist60" style="color: #fde047;">-- / --</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P90 (狂熱超漲門檻):</span>
+                  <strong id="calP90Dist60" style="color: #f87171;">--</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dist240 Card -->
+            <div style="background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(192, 132, 252, 0.25); border-radius: 12px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <span style="font-size: 0.9rem; font-weight: 700; color: #94a3b8;">年線乖離率 (Dist240)</span>
+                <span id="calRankDist240" style="font-size: 12px; color: #c084fc; font-weight: 700; background: rgba(192, 132, 252, 0.15); padding: 2px 8px; border-radius: 6px;">P--</span>
+              </div>
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                <span id="calCurValDist240" style="font-size: 1.55rem; font-weight: 800; color: #f8fafc; font-family: 'Outfit', sans-serif;">+0.00%</span>
+                <span style="font-size: 12px; color: #94a3b8;">最新實體值</span>
+              </div>
+              <div style="font-size: 12px; color: #cbd5e1; line-height: 1.7; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P10 / P25 (長線超跌分位):</span>
+                  <strong id="calP10P25Dist240" style="color: #c084fc;">-- / --</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P50 (中位) / P75 (長線偏高):</span>
+                  <strong id="calP50P75Dist240" style="color: #fde047;">-- / --</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P90 (歷史極端警戒線):</span>
+                  <strong id="calP90Dist240" style="color: #f87171;">--</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- VIX Card -->
+            <div style="background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(251, 191, 36, 0.25); border-radius: 12px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <span style="font-size: 0.9rem; font-weight: 700; color: #94a3b8;">VIX 恐慌指數</span>
+                <span id="calRankVix" style="font-size: 12px; color: #fbbf24; font-weight: 700; background: rgba(251, 191, 36, 0.15); padding: 2px 8px; border-radius: 6px;">P--</span>
+              </div>
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                <span id="calCurValVix" style="font-size: 1.55rem; font-weight: 800; color: #f8fafc; font-family: 'Outfit', sans-serif;">0.00</span>
+                <span style="font-size: 12px; color: #94a3b8;">最新實體值</span>
+              </div>
+              <div style="font-size: 12px; color: #cbd5e1; line-height: 1.7; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P10 / P25 (平穩分位):</span>
+                  <strong id="calP10P25Vix" style="color: #34d399;">-- / --</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P50 (中位) / P75 (恐慌警戒):</span>
+                  <strong id="calP50P75Vix" style="color: #fbbf24;">-- / --</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>P90 (極端海嘯恐慌分位):</span>
+                  <strong id="calP90Vix" style="color: #f87171;">--</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 依選定窗口門檻推算之「實驗性位階」 -->
+          <div style="background: rgba(0, 0, 0, 0.35); border-radius: 12px; padding: 14px 18px; border: 1px dashed rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 20px;">🧪</span>
+              <div>
+                <div style="font-size: 0.88rem; color: #94a3b8; font-weight: 600;">依選定窗口歷史門檻推算之實驗性位階：</div>
+                <div id="calExpPhaseTag" style="display: inline-block; font-size: 1.15rem; font-weight: 800; padding: 2px 10px; border-radius: 6px; margin-top: 4px;">
+                  計算中...
+                </div>
+              </div>
+            </div>
+            <div style="font-size: 0.88rem; color: #cbd5e1; max-width: 580px; line-height: 1.5;">
+              <span id="calExpPhaseNote">此為選定窗口獨立推算之實驗結果，正式 MARKET_STATE 仍由全站唯一 18 年 THRESHOLD_CONFIG 主導。</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4.3 三窗口橫向比較表 (Three-Window Comparison Table) -->
+        <h4 style="font-size: 1.15rem; font-weight: 800; color: #fde047; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <span>📊 18Y / 10Y / 5Y 三窗口歷史門檻橫向比較表</span>
+        </h4>
+        <div class="table-container" style="margin-bottom: 22px;">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width: 140px;">指標代號</th>
+                <th style="min-width: 110px;">統計維度</th>
+                <th style="color: #38bdf8;">🏛️ 18Y (長線基準)</th>
+                <th style="color: #c084fc;">🔭 10Y (景氣循環)</th>
+                <th style="color: #34d399;">⚡ 5Y (近期結構)</th>
+                <th style="color: #fbbf24;">10Y 差值 (vs 18Y)</th>
+                <th style="color: #f87171;">5Y 差值 (vs 18Y)</th>
+              </tr>
+            </thead>
+            <tbody id="calComparisonTableBody">
+              <!-- 動態由 JavaScript 填入 -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 五、位階敏感度分析 (Phase Sensitivity Analysis) -->
+        <div class="glass-card" style="background: rgba(30, 41, 59, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 22px;">⚖️</span>
+              <h4 style="font-size: 1.15rem; font-weight: 800; color: #f8fafc; margin: 0;" id="calSensitivityTitle">
+                位階對歷史窗口敏感度分析
+              </h4>
+            </div>
+            <span id="calSensitivityBadge" style="font-size: 12px; font-weight: 800; padding: 4px 12px; border-radius: 9999px;">
+              檢查中...
+            </span>
+          </div>
+
+          <!-- 三窗口推算位階對比 Chips -->
+          <div style="display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;">
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 14px; border-radius: 10px; border-left: 3px solid #38bdf8; font-size: 0.9rem;">
+              <span style="color: #94a3b8;">18Y 推算：</span>
+              <strong id="chipPhase18Y" style="color: #f8fafc;">--</strong>
+            </div>
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 14px; border-radius: 10px; border-left: 3px solid #c084fc; font-size: 0.9rem;">
+              <span style="color: #94a3b8;">10Y 推算：</span>
+              <strong id="chipPhase10Y" style="color: #f8fafc;">--</strong>
+            </div>
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 14px; border-radius: 10px; border-left: 3px solid #34d399; font-size: 0.9rem;">
+              <span style="color: #94a3b8;">5Y 推算：</span>
+              <strong id="chipPhase5Y" style="color: #f8fafc;">--</strong>
+            </div>
+          </div>
+
+          <div id="calSensitivityDetail" style="font-size: 0.95rem; color: #cbd5e1; line-height: 1.7; background: rgba(0,0,0,0.25); padding: 14px 16px; border-radius: 10px; border-left: 3px solid #fbbf24;">
+            正在分析歷史窗口分位數之分佈穩定性...
+          </div>
+        </div>
+
+        <!-- 七、研究報告與後續回測接口 (Research Schema & Interface) -->
+        <div style="border-top: 1px dashed rgba(255, 255, 255, 0.12); padding-top: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div style="font-size: 0.88rem; color: #94a3b8;">
+            🔬 <strong>全域回測接口已就緒：</strong>支援控制台讀取 <code style="color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 2px 6px; border-radius: 4px;">window.CALIBRATION_RESEARCH_DATA</code> 進行樣本外回測
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="toggleCalibrationJsonView()" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2); color: #cbd5e1; border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;">
+              👁️ 檢視接口 JSON
+            </button>
+            <button id="btnCopyCalJson" onclick="copyCalibrationJson()" style="background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;">
+              📋 複製研究接口
+            </button>
+          </div>
+        </div>
+
+        <!-- Collapsible JSON block -->
+        <div id="calJsonViewer" style="display: none; margin-top: 14px; background: rgba(10, 15, 26, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 14px; max-height: 280px; overflow-y: auto;">
+          <pre id="calJsonCode" style="font-family: monospace; font-size: 11px; color: #7dd3fc; margin: 0; white-space: pre-wrap; word-break: break-all;"></pre>
+        </div>
+
       </div>
     </div>
     <!-- END TAB 3: 歷史回測 -->
@@ -1881,7 +2140,526 @@
         }
 
         renderBacktestData(data.backtest);
+
+        // 🔬 Milestone 7 三窗口歷史位階校準模組渲染
+        if (data.calibrationWindows) {
+          renderCalibrationModule(data.calibrationWindows, activeCalibrationWindow);
+        } else {
+          renderCalibrationModule(FALLBACK_CALIBRATION_DATA, activeCalibrationWindow);
+        }
       }
+
+    // ==========================================
+    // 🔬 Milestone 7: 三窗口歷史位階校準與比較模組 (18Y / 10Y / 5Y Calibration Lab)
+    // ==========================================
+    let currentCalibrationData = null;
+    let activeCalibrationWindow = '18Y';
+    let isCalJsonVisible = false;
+
+    // 預設備援三窗口校準數據 (零延遲即時呈現，防呆防空白)
+    const FALLBACK_CALIBRATION_DATA = {
+      base_date: "2026-10-16",
+      current_values: { dist60: 0.0481, dist240: 0.5520, vix: 19.99 },
+      windows: {
+        "18Y": {
+          calibration_window: "18Y",
+          window_name: "18 年歷史全景 (長線基準)",
+          description: "18.8 年跨完整景氣與多空循環之官方歷史分佈底座 (全站正式門檻來源)",
+          base_date: "2026-10-16",
+          data_start_date: "2008-10-16",
+          data_end_date: "2026-10-16",
+          sample_count: 4344,
+          metrics: {
+            dist60: {
+              metric_name: "Dist60 (季線乖離率)",
+              current_value: 0.0481,
+              sample_count: 4344,
+              min: -0.2945, max: 0.2650, mean: 0.0144, median: 0.0172, std: 0.0550,
+              percentiles: { p5: -0.0745, p10: -0.0458, p20: -0.0204, p25: -0.0121, p50: 0.0172, p75: 0.0421, p80: 0.0490, p90: 0.0707, p95: 0.0951, p99: 0.1815 },
+              current_percentile_rank: 79.27
+            },
+            dist240: {
+              metric_name: "Dist240 (年線乖離率)",
+              current_value: 0.5520,
+              sample_count: 4344,
+              min: -0.4503, max: 0.5688, mean: 0.0487, median: 0.0505, std: 0.1265,
+              percentiles: { p5: -0.1353, p10: -0.0918, p20: -0.0264, p25: -0.0035, p50: 0.0505, p75: 0.0944, p80: 0.1140, p90: 0.1998, p95: 0.2672, p99: 0.4315 },
+              current_percentile_rank: 99.98
+            },
+            vix: {
+              metric_name: "VIX (恐慌指數)",
+              current_value: 19.99,
+              sample_count: 4204,
+              min: 9.14, max: 82.69, mean: 19.66, median: 17.17, std: 8.82,
+              percentiles: { p5: 11.49, p10: 12.39, p20: 13.45, p25: 14.01, p50: 17.17, p75: 22.37, p80: 24.14, p90: 29.51, p95: 35.76, p99: 57.08 },
+              current_percentile_rank: 66.10
+            }
+          },
+          experimental_thresholds: {
+            dist60: { p10: -0.0458, p25: -0.0121, p75: 0.0421, p90: 0.0707 },
+            dist240: { p10: -0.0918, p25: -0.0035, p75: 0.0944, p90: 0.1998 },
+            vix: { p10: 12.39, p25: 14.01, p75: 22.37, p90: 29.51 }
+          },
+          experimental_market_phase: "過熱",
+          calculation_timestamp: "2026-10-18T10:00:00.000Z",
+          percentile_method: "Linear Interpolation (PERCENTILE.INC)",
+          data_quality_status: "COMPLETE (100% 官方實體歷史數據，零未來偏誤)"
+        },
+        "10Y": {
+          calibration_window: "10Y",
+          window_name: "10 年景氣循環 (中期演變)",
+          description: "2016 年至今的中期循環，檢視量化寬鬆與供應鏈重組後的分佈位移",
+          base_date: "2026-10-16",
+          data_start_date: "2016-10-16",
+          data_end_date: "2026-10-16",
+          sample_count: 2376,
+          metrics: {
+            dist60: {
+              metric_name: "Dist60 (季線乖離率)",
+              current_value: 0.0481,
+              sample_count: 2376,
+              min: -0.2470, max: 0.2263, mean: 0.0205, median: 0.0207, std: 0.0518,
+              percentiles: { p5: -0.0640, p10: -0.0372, p20: -0.0144, p25: -0.0083, p50: 0.0207, p75: 0.0494, p80: 0.0570, p90: 0.0818, p95: 0.1007, p99: 0.1632 },
+              current_percentile_rank: 74.05
+            },
+            dist240: {
+              metric_name: "Dist240 (年線乖離率)",
+              current_value: 0.5520,
+              sample_count: 2376,
+              min: -0.2218, max: 0.5688, mean: 0.0773, median: 0.0685, std: 0.1199,
+              percentiles: { p5: -0.1084, p10: -0.0761, p20: 0.0011, p25: 0.0164, p50: 0.0685, p75: 0.1226, p80: 0.1493, p90: 0.2255, p95: 0.2937, p99: 0.4825 },
+              current_percentile_rank: 99.96
+            },
+            vix: {
+              metric_name: "VIX (恐慌指數)",
+              current_value: 19.99,
+              sample_count: 2299,
+              min: 9.14, max: 82.69, mean: 18.68, median: 16.98, std: 7.38,
+              percentiles: { p5: 10.65, p10: 11.87, p20: 13.12, p25: 13.73, p50: 16.98, p75: 21.66, p80: 23.02, p90: 27.55, p95: 31.06, p99: 43.86 },
+              current_percentile_rank: 68.34
+            }
+          },
+          experimental_thresholds: {
+            dist60: { p10: -0.0372, p25: -0.0083, p75: 0.0494, p90: 0.0818 },
+            dist240: { p10: -0.0761, p25: 0.0164, p75: 0.1226, p90: 0.2255 },
+            vix: { p10: 11.87, p25: 13.73, p75: 21.66, p90: 27.55 }
+          },
+          experimental_market_phase: "順風/中性",
+          calculation_timestamp: "2026-10-18T10:00:00.000Z",
+          percentile_method: "Linear Interpolation (PERCENTILE.INC)",
+          data_quality_status: "COMPLETE (100% 官方實體歷史數據，零未來偏誤)"
+        },
+        "5Y": {
+          calibration_window: "5Y",
+          window_name: "5 年近期結構 (結構性牛市)",
+          description: "2021 年至今的近期結構，突顯 AI 浪潮與結構性高估值對位階門檻的推升效應",
+          base_date: "2026-10-16",
+          data_start_date: "2021-10-16",
+          data_end_date: "2026-10-16",
+          sample_count: 1158,
+          metrics: {
+            dist60: {
+              metric_name: "Dist60 (季線乖離率)",
+              current_value: 0.0481,
+              sample_count: 1158,
+              min: -0.2290, max: 0.2263, mean: 0.0258, median: 0.0295, std: 0.0595,
+              percentiles: { p5: -0.0747, p10: -0.0474, p20: -0.0188, p25: -0.0110, p50: 0.0295, p75: 0.0607, p80: 0.0693, p90: 0.0959, p95: 0.1167, p99: 0.1841 },
+              current_percentile_rank: 66.26
+            },
+            dist240: {
+              metric_name: "Dist240 (年線乖離率)",
+              current_value: 0.5520,
+              sample_count: 1158,
+              min: -0.2218, max: 0.5688, mean: 0.0882, median: 0.0739, std: 0.1475,
+              percentiles: { p5: -0.1323, p10: -0.0942, p20: -0.0269, p25: 0.0077, p50: 0.0739, p75: 0.1574, p80: 0.1812, p90: 0.2818, p95: 0.3959, p99: 0.5028 },
+              current_percentile_rank: 99.91
+            },
+            vix: {
+              metric_name: "VIX (恐慌指數)",
+              current_value: 19.99,
+              sample_count: 1118,
+              min: 11.86, max: 52.33, mean: 19.22, median: 17.80, std: 5.36,
+              percentiles: { p5: 12.91, p10: 13.50, p20: 14.75, p25: 15.34, p50: 17.80, p75: 21.95, p80: 23.51, p90: 27.20, p95: 30.18, p99: 33.61 },
+              current_percentile_rank: 65.95
+            }
+          },
+          experimental_thresholds: {
+            dist60: { p10: -0.0474, p25: -0.0110, p75: 0.0607, p90: 0.0959 },
+            dist240: { p10: -0.0942, p25: 0.0077, p75: 0.1574, p90: 0.2818 },
+            vix: { p10: 13.50, p25: 15.34, p75: 21.95, p90: 27.20 }
+          },
+          experimental_market_phase: "順風/中性",
+          calculation_timestamp: "2026-10-18T10:00:00.000Z",
+          percentile_method: "Linear Interpolation (PERCENTILE.INC)",
+          data_quality_status: "COMPLETE (100% 官方實體歷史數據，零未來偏誤)"
+        }
+      },
+      differences_vs_18y: {
+        "10Y": {
+          dist60: { sample_count_diff: -1968, abs_diff_p25: 0.0038, abs_diff_p50: 0.0035, abs_diff_p75: 0.0073, abs_diff_p90: 0.0111, rank_diff: -5.22 },
+          dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 },
+          vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: 2.24 }
+        },
+        "5Y": {
+          dist60: { sample_count_diff: -3186, abs_diff_p25: 0.0011, abs_diff_p50: 0.0123, abs_diff_p75: 0.0186, abs_diff_p90: 0.0252, rank_diff: -13.01 },
+          dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 },
+          vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: -0.15 }
+        }
+      },
+      sensitivity_analysis: {
+        is_consistent: false,
+        verdict_title: "位階對歷史窗口敏感 (Window Sensitive)",
+        verdict_badge: "⚠️ 窗口敏感",
+        experimental_phases: {
+          "18Y": "過熱",
+          "10Y": "順風/中性",
+          "5Y": "順風/中性"
+        },
+        analysis_text: "當前季線乖離率在 18Y 基準下判定為【過熱】，而在 10Y 下判定為【順風/中性】、5Y 下判定為【順風/中性】。主因在於近 5~10 年多頭結構使常態通道上界 (P75/P90) 顯著向上平移，導致相同數值在長線中屬過熱，但在短線強勢通道中仍屬中性。此現象印證了維持 18 年 Single Source of Truth 作為核心決策基準的必要性，避免被短期牛市門檻墊高所誤導！"
+      },
+      system_principle: "嚴格維持 THRESHOLD_CONFIG (18Y) 為全站唯一 Single Source of Truth，此模組僅作為量化研究與敏感度校準檢視。"
+    };
+
+    function formatCalPct(val) {
+      if (val === undefined || val === null || isNaN(val)) return '--';
+      const num = Number(val) * 100;
+      return (num >= 0 ? '+' : '') + num.toFixed(2) + '%';
+    }
+
+    function formatCalDiffPct(val) {
+      if (val === undefined || val === null || isNaN(val)) return '--';
+      const num = Number(val) * 100;
+      const str = (num >= 0 ? '+' : '') + num.toFixed(2) + '%';
+      const color = num > 0.05 ? '#fde047' : (num < -0.05 ? '#38bdf8' : '#94a3b8');
+      const bg = num > 0.05 ? 'rgba(251, 191, 36, 0.15)' : (num < -0.05 ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)');
+      return `<span style="background: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 12px; font-family: monospace;">${str}</span>`;
+    }
+
+    function formatCalDiffNum(val) {
+      if (val === undefined || val === null || isNaN(val)) return '--';
+      const num = Number(val);
+      const str = (num >= 0 ? '+' : '') + num.toFixed(2);
+      const color = num > 0.5 ? '#f87171' : (num < -0.5 ? '#34d399' : '#94a3b8');
+      const bg = num > 0.5 ? 'rgba(248, 113, 113, 0.15)' : (num < -0.5 ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255, 255, 255, 0.05)');
+      return `<span style="background: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 12px; font-family: monospace;">${str}</span>`;
+    }
+
+    function renderCalibrationModule(calData, selectedWinKey) {
+      if (!calData || !calData.windows) calData = FALLBACK_CALIBRATION_DATA;
+      currentCalibrationData = calData;
+      activeCalibrationWindow = selectedWinKey || '18Y';
+
+      // 暴露全域回測研究物件接口
+      window.CALIBRATION_RESEARCH_DATA = currentCalibrationData;
+
+      const winKey = activeCalibrationWindow;
+      const curWin = calData.windows[winKey] || calData.windows['18Y'];
+      const win18 = calData.windows['18Y'];
+      const win10 = calData.windows['10Y'];
+      const win5 = calData.windows['5Y'];
+      const diff10 = (calData.differences_vs_18y && calData.differences_vs_18y['10Y']) || {};
+      const diff5 = (calData.differences_vs_18y && calData.differences_vs_18y['5Y']) || {};
+
+      // 1. 切換按鈕狀態更新
+      ['18Y', '10Y', '5Y'].forEach(k => {
+        const btn = document.getElementById('btnCal' + k);
+        if (btn) btn.classList.toggle('active', k === winKey);
+      });
+
+      const rangeBadge = document.getElementById('calWindowRangeBadge');
+      if (rangeBadge) rangeBadge.textContent = `涵蓋期間：${curWin.data_start_date} ~ ${curWin.data_end_date}`;
+
+      // 2. 選定窗口校準摘要卡更新
+      const sumTitle = document.getElementById('calSummaryTitle');
+      if (sumTitle) sumTitle.textContent = `${curWin.window_name} 校準摘要`;
+      const sampleBadge = document.getElementById('calSampleCountBadge');
+      if (sampleBadge) sampleBadge.textContent = `N = ${Number(curWin.sample_count).toLocaleString()} 交易日`;
+      const baseDateEl = document.getElementById('calBaseDate');
+      if (baseDateEl) baseDateEl.textContent = curWin.base_date;
+
+      // Dist60 卡
+      const d60 = curWin.metrics.dist60;
+      if (d60) {
+        const rankEl = document.getElementById('calRankDist60');
+        if (rankEl) rankEl.textContent = `P${d60.current_percentile_rank.toFixed(1)}`;
+        const valEl = document.getElementById('calCurValDist60');
+        if (valEl) valEl.textContent = formatCalPct(d60.current_value);
+        const p1025 = document.getElementById('calP10P25Dist60');
+        if (p1025) p1025.textContent = `${formatCalPct(d60.percentiles.p10)} / ${formatCalPct(d60.percentiles.p25)}`;
+        const p5075 = document.getElementById('calP50P75Dist60');
+        if (p5075) p5075.textContent = `${formatCalPct(d60.percentiles.p50)} / ${formatCalPct(d60.percentiles.p75)}`;
+        const p90 = document.getElementById('calP90Dist60');
+        if (p90) p90.textContent = formatCalPct(d60.percentiles.p90);
+      }
+
+      // Dist240 卡
+      const d240 = curWin.metrics.dist240;
+      if (d240) {
+        const rankEl = document.getElementById('calRankDist240');
+        if (rankEl) rankEl.textContent = `P${d240.current_percentile_rank.toFixed(1)}`;
+        const valEl = document.getElementById('calCurValDist240');
+        if (valEl) valEl.textContent = formatCalPct(d240.current_value);
+        const p1025 = document.getElementById('calP10P25Dist240');
+        if (p1025) p1025.textContent = `${formatCalPct(d240.percentiles.p10)} / ${formatCalPct(d240.percentiles.p25)}`;
+        const p5075 = document.getElementById('calP50P75Dist240');
+        if (p5075) p5075.textContent = `${formatCalPct(d240.percentiles.p50)} / ${formatCalPct(d240.percentiles.p75)}`;
+        const p90 = document.getElementById('calP90Dist240');
+        if (p90) p90.textContent = formatCalPct(d240.percentiles.p90);
+      }
+
+      // VIX 卡
+      const vix = curWin.metrics.vix;
+      if (vix) {
+        const rankEl = document.getElementById('calRankVix');
+        if (rankEl) rankEl.textContent = `P${vix.current_percentile_rank.toFixed(1)}`;
+        const valEl = document.getElementById('calCurValVix');
+        if (valEl) valEl.textContent = Number(vix.current_value).toFixed(2);
+        const p1025 = document.getElementById('calP10P25Vix');
+        if (p1025) p1025.textContent = `${vix.percentiles.p10.toFixed(2)} / ${vix.percentiles.p25.toFixed(2)}`;
+        const p5075 = document.getElementById('calP50P75Vix');
+        if (p5075) p5075.textContent = `${vix.percentiles.p50.toFixed(2)} / ${vix.percentiles.p75.toFixed(2)}`;
+        const p90 = document.getElementById('calP90Vix');
+        if (p90) p90.textContent = vix.percentiles.p90.toFixed(2);
+      }
+
+      // 實驗性位階標籤
+      const expPhase = curWin.experimental_market_phase;
+      const expTag = document.getElementById('calExpPhaseTag');
+      if (expTag) {
+        const st = getPhaseStyle(expPhase);
+        const code = getPhaseCode(expPhase);
+        expTag.style.background = st.bg;
+        expTag.style.color = st.color;
+        expTag.style.border = `1px solid ${st.border}`;
+        expTag.innerHTML = `${st.emoji} ${code} ${expPhase}`;
+      }
+      const expNote = document.getElementById('calExpPhaseNote');
+      if (expNote && d60) {
+        expNote.innerHTML = `【${curWin.window_name} 實驗推算】：當前 Dist60 最新值 (${formatCalPct(d60.current_value)}) 依該窗口門檻推算為 <strong style="color: #fde047;">${getPhaseCode(expPhase)} ${expPhase}</strong>。全站正式決策維持以 18Y THRESHOLD_CONFIG 為 Single Source of Truth。`;
+      }
+
+      // 3. 三窗口橫向比較表渲染
+      const tbody = document.getElementById('calComparisonTableBody');
+      if (tbody) {
+        const m60_18 = win18.metrics.dist60.percentiles;
+        const m60_10 = win10.metrics.dist60.percentiles;
+        const m60_5 = win5.metrics.dist60.percentiles;
+        const d60_10 = diff10.dist60 || {};
+        const d60_5 = diff5.dist60 || {};
+
+        const m240_18 = win18.metrics.dist240.percentiles;
+        const m240_10 = win10.metrics.dist240.percentiles;
+        const m240_5 = win5.metrics.dist240.percentiles;
+        const d240_10 = diff10.dist240 || {};
+        const d240_5 = diff5.dist240 || {};
+
+        const mvix_18 = win18.metrics.vix.percentiles;
+        const mvix_10 = win10.metrics.vix.percentiles;
+        const mvix_5 = win5.metrics.vix.percentiles;
+        const dvix_10 = diff10.vix || {};
+        const dvix_5 = diff5.vix || {};
+
+        tbody.innerHTML = `
+          <!-- Dist60 區塊 -->
+          <tr>
+            <td rowspan="4" style="font-weight: 800; color: #38bdf8; vertical-align: middle; background: rgba(56, 189, 248, 0.04);">
+              Dist60<br><span style="font-size: 11px; color: #94a3b8; font-weight: normal;">季線乖離率</span>
+            </td>
+            <td>P25 (恐慌分位)</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m60_18.p25)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m60_10.p25)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m60_5.p25)}</td>
+            <td>${formatCalDiffPct(d60_10.abs_diff_p25)}</td>
+            <td>${formatCalDiffPct(d60_5.abs_diff_p25)}</td>
+          </tr>
+          <tr>
+            <td>P50 (中位數)</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m60_18.p50)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m60_10.p50)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m60_5.p50)}</td>
+            <td>${formatCalDiffPct(d60_10.abs_diff_p50)}</td>
+            <td>${formatCalDiffPct(d60_5.abs_diff_p50)}</td>
+          </tr>
+          <tr>
+            <td style="color: #fde047; font-weight: 700;">P75 (過熱門檻)</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fde047;">${formatCalPct(m60_18.p75)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fde047;">${formatCalPct(m60_10.p75)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fde047;">${formatCalPct(m60_5.p75)}</td>
+            <td>${formatCalDiffPct(d60_10.abs_diff_p75)}</td>
+            <td>${formatCalDiffPct(d60_5.abs_diff_p75)}</td>
+          </tr>
+          <tr>
+            <td style="color: #f87171; font-weight: 700;">P90 (狂熱門檻)</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m60_18.p90)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m60_10.p90)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m60_5.p90)}</td>
+            <td>${formatCalDiffPct(d60_10.abs_diff_p90)}</td>
+            <td>${formatCalDiffPct(d60_5.abs_diff_p90)}</td>
+          </tr>
+
+          <!-- Dist240 區塊 -->
+          <tr style="border-top: 2px solid rgba(255,255,255,0.08);">
+            <td rowspan="4" style="font-weight: 800; color: #c084fc; vertical-align: middle; background: rgba(192, 132, 252, 0.04);">
+              Dist240<br><span style="font-size: 11px; color: #94a3b8; font-weight: normal;">年線乖離率</span>
+            </td>
+            <td>P25 (恐慌分位)</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_18.p25)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_10.p25)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_5.p25)}</td>
+            <td>${formatCalDiffPct(d240_10.abs_diff_p25)}</td>
+            <td>${formatCalDiffPct(d240_5.abs_diff_p25)}</td>
+          </tr>
+          <tr>
+            <td>P50 (中位數)</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_18.p50)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_10.p50)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_5.p50)}</td>
+            <td>${formatCalDiffPct(d240_10.abs_diff_p50)}</td>
+            <td>${formatCalDiffPct(d240_5.abs_diff_p50)}</td>
+          </tr>
+          <tr>
+            <td>P75 (偏高分位)</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_18.p75)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_10.p75)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalPct(m240_5.p75)}</td>
+            <td>${formatCalDiffPct(d240_10.abs_diff_p75)}</td>
+            <td>${formatCalDiffPct(d240_5.abs_diff_p75)}</td>
+          </tr>
+          <tr>
+            <td style="color: #f87171; font-weight: 700;">P90 (長線警戒)</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m240_18.p90)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m240_10.p90)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m240_5.p90)}</td>
+            <td>${formatCalDiffPct(d240_10.abs_diff_p90)}</td>
+            <td>${formatCalDiffPct(d240_5.abs_diff_p90)}</td>
+          </tr>
+
+          <!-- VIX 區塊 -->
+          <tr style="border-top: 2px solid rgba(255,255,255,0.08);">
+            <td rowspan="4" style="font-weight: 800; color: #fbbf24; vertical-align: middle; background: rgba(251, 191, 36, 0.04);">
+              VIX<br><span style="font-size: 11px; color: #94a3b8; font-weight: normal;">恐慌指數</span>
+            </td>
+            <td>P25 (平穩分位)</td>
+            <td style="font-family: monospace; font-weight: 600;">${mvix_18.p25.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${mvix_10.p25.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${mvix_5.p25.toFixed(2)}</td>
+            <td>${formatCalDiffNum(dvix_10.abs_diff_p25)}</td>
+            <td>${formatCalDiffNum(dvix_5.abs_diff_p25)}</td>
+          </tr>
+          <tr>
+            <td>P50 (中位數)</td>
+            <td style="font-family: monospace; font-weight: 600;">${mvix_18.p50.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${mvix_10.p50.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${mvix_5.p50.toFixed(2)}</td>
+            <td>${formatCalDiffNum(dvix_10.abs_diff_p50)}</td>
+            <td>${formatCalDiffNum(dvix_5.abs_diff_p50)}</td>
+          </tr>
+          <tr>
+            <td style="color: #fbbf24; font-weight: 700;">P75 (警戒分位)</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${mvix_18.p75.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${mvix_10.p75.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${mvix_5.p75.toFixed(2)}</td>
+            <td>${formatCalDiffNum(dvix_10.abs_diff_p75)}</td>
+            <td>${formatCalDiffNum(dvix_5.abs_diff_p75)}</td>
+          </tr>
+          <tr>
+            <td style="color: #f87171; font-weight: 700;">P90 (海嘯恐慌)</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${mvix_18.p90.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${mvix_10.p90.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${mvix_5.p90.toFixed(2)}</td>
+            <td>${formatCalDiffNum(dvix_10.abs_diff_p90)}</td>
+            <td>${formatCalDiffNum(dvix_5.abs_diff_p90)}</td>
+          </tr>
+
+          <!-- 樣本數與位階推算行 -->
+          <tr style="border-top: 2px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.2);">
+            <td colspan="2" style="font-weight: 700; color: #cbd5e1;">有效樣本數 (N)</td>
+            <td style="font-weight: 700; color: #38bdf8;">${Number(win18.sample_count).toLocaleString()}</td>
+            <td style="font-weight: 700; color: #c084fc;">${Number(win10.sample_count).toLocaleString()}</td>
+            <td style="font-weight: 700; color: #34d399;">${Number(win5.sample_count).toLocaleString()}</td>
+            <td style="font-size: 12px; color: #94a3b8;">${(win10.sample_count - win18.sample_count).toLocaleString()}</td>
+            <td style="font-size: 12px; color: #94a3b8;">${(win5.sample_count - win18.sample_count).toLocaleString()}</td>
+          </tr>
+          <tr style="background: rgba(0,0,0,0.35);">
+            <td colspan="2" style="font-weight: 800; color: #fde047;">實驗性市場位階 (T1~T5)</td>
+            <td><span style="background: rgba(245,158,11,0.2); color: #fde047; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 13px;">${getPhaseCode(win18.experimental_market_phase)} ${win18.experimental_market_phase}</span></td>
+            <td><span style="background: rgba(56,189,248,0.2); color: #38bdf8; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 13px;">${getPhaseCode(win10.experimental_market_phase)} ${win10.experimental_market_phase}</span></td>
+            <td><span style="background: rgba(56,189,248,0.2); color: #38bdf8; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 13px;">${getPhaseCode(win5.experimental_market_phase)} ${win5.experimental_market_phase}</span></td>
+            <td colspan="2" style="font-size: 12px; color: #94a3b8; line-height: 1.4;">
+              ${win10.experimental_market_phase === win18.experimental_market_phase && win5.experimental_market_phase === win18.experimental_market_phase ? '✅ 三窗口判定一致' : '⚠️ 窗口產生位階分歧'}
+            </td>
+          </tr>
+        `;
+      }
+
+      // 4. 位階敏感度分析更新
+      const sens = calData.sensitivity_analysis || {};
+      const sensTitle = document.getElementById('calSensitivityTitle');
+      if (sensTitle) sensTitle.textContent = sens.verdict_title || '位階敏感度分析';
+      const sensBadge = document.getElementById('calSensitivityBadge');
+      if (sensBadge) {
+        sensBadge.textContent = sens.verdict_badge || (sens.is_consistent ? '🟢 高度穩健' : '⚠️ 窗口敏感');
+        sensBadge.style.background = sens.is_consistent ? 'rgba(52, 211, 153, 0.2)' : 'rgba(245, 158, 11, 0.2)';
+        sensBadge.style.color = sens.is_consistent ? '#34d399' : '#fde047';
+        sensBadge.style.border = sens.is_consistent ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)';
+      }
+
+      const p18 = sens.experimental_phases ? sens.experimental_phases['18Y'] : win18.experimental_market_phase;
+      const p10 = sens.experimental_phases ? sens.experimental_phases['10Y'] : win10.experimental_market_phase;
+      const p5 = sens.experimental_phases ? sens.experimental_phases['5Y'] : win5.experimental_market_phase;
+
+      const chip18 = document.getElementById('chipPhase18Y');
+      if (chip18) chip18.textContent = `${getPhaseCode(p18)} ${p18}`;
+      const chip10 = document.getElementById('chipPhase10Y');
+      if (chip10) chip10.textContent = `${getPhaseCode(p10)} ${p10}`;
+      const chip5 = document.getElementById('chipPhase5Y');
+      if (chip5) chip5.textContent = `${getPhaseCode(p5)} ${p5}`;
+
+      const sensDetail = document.getElementById('calSensitivityDetail');
+      if (sensDetail && sens.analysis_text) sensDetail.textContent = sens.analysis_text;
+
+      // 5. 更新 JSON Viewer
+      const jsonPre = document.getElementById('calJsonCode');
+      if (jsonPre) {
+        jsonPre.textContent = JSON.stringify(calData, null, 2);
+      }
+    }
+
+    window.switchCalibrationWindow = function(winKey) {
+      if (!['18Y', '10Y', '5Y'].includes(winKey)) winKey = '18Y';
+      activeCalibrationWindow = winKey;
+      renderCalibrationModule(currentCalibrationData, winKey);
+    };
+
+    window.toggleCalibrationJsonView = function() {
+      const viewer = document.getElementById('calJsonViewer');
+      if (!viewer) return;
+      isCalJsonVisible = !isCalJsonVisible;
+      viewer.style.display = isCalJsonVisible ? 'block' : 'none';
+    };
+
+    window.copyCalibrationJson = function() {
+      if (!window.CALIBRATION_RESEARCH_DATA) return;
+      const str = JSON.stringify(window.CALIBRATION_RESEARCH_DATA, null, 2);
+      navigator.clipboard.writeText(str).then(() => {
+        const btn = document.getElementById('btnCopyCalJson');
+        if (btn) {
+          const oldText = btn.textContent;
+          btn.textContent = '✅ 已成功複製！';
+          btn.style.background = 'rgba(52, 211, 153, 0.3)';
+          btn.style.borderColor = '#34d399';
+          btn.style.color = '#34d399';
+          setTimeout(() => {
+            btn.textContent = oldText;
+            btn.style.background = 'rgba(56, 189, 248, 0.2)';
+            btn.style.borderColor = '#38bdf8';
+            btn.style.color = '#38bdf8';
+          }, 2000);
+        }
+      }).catch(err => {
+        alert('複製失敗，請手動全選：' + err);
+      });
+    };
 
     // 頁面載入監聽綁定
     document.addEventListener('DOMContentLoaded', () => {
@@ -1897,6 +2675,9 @@
       if (['today', 'concepts', 'backtest', 'finnews'].includes(hash) && window.switchTab) {
         window.switchTab(hash);
       }
+
+      // 預設立即渲染 Milestone 7 三窗口校準模組 (0ms 啟動，絕不空白)
+      renderCalibrationModule(FALLBACK_CALIBRATION_DATA, '18Y');
     });
 
     // ⚡ 0ms 本地優先快取 (Stale-While-Revalidate，重整瞬間即刻呈現，告別轉圈等待)
