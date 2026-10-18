@@ -2942,12 +2942,14 @@ function calculateCalibrationWindows(rawSheet, baseDateStr, latestValues) {
       }
       if (!dateStr || dateStr.length < 10) continue;
 
+      const twiiRaw = parseFloat(String(row[1]).replace(/,/g, '').trim());
       const vixRaw = parseFloat(String(row[2]).replace(/,/g, '').trim());
       const d60Raw = parseDistValue(row[5]);
       const d240Raw = parseDistValue(row[6]);
 
       cleanRows.push({
         date: dateStr,
+        twii: isNaN(twiiRaw) || twiiRaw <= 0 ? null : twiiRaw,
         dist60: isNaN(d60Raw) ? null : d60Raw,
         dist240: isNaN(d240Raw) ? null : d240Raw,
         vix: isNaN(vixRaw) || vixRaw <= 0 ? null : vixRaw
@@ -3023,9 +3025,12 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
       }
     };
 
-    // 沿用全站統一 classifyPhase 函式
+    // 沿用全站統一 classifyPhase 函式推算實驗性位階
     const expPhase = classifyPhase(curD60, expThresholds.dist60);
     experimentalPhases[wDef.key] = expPhase;
+
+    // 🛡️ 歷史下行風險與前瞻報酬驗證 (Phase Downside Risk & Forward Return Verification)
+    const phasePerformance = calculatePhaseForwardPerformance(slice, expThresholds.dist60);
 
     windowsResult[wDef.key] = {
       calibration_window: wDef.key,
@@ -3042,6 +3047,7 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
       },
       experimental_thresholds: expThresholds,
       experimental_market_phase: expPhase,
+      phase_performance: phasePerformance,
       calculation_timestamp: new Date().toISOString(),
       percentile_method: 'Linear Interpolation (PERCENTILE.INC)',
       data_quality_status: 'COMPLETE (100% 官方實體歷史數據，零未來偏誤)'
@@ -3169,6 +3175,133 @@ function calculateMetricStats(values, curVal, isRatio) {
 }
 
 /**
+ * 🛡️ 歷史下行風險與前瞻報酬驗證模組 (Phase Downside Risk & Forward Return Verification)
+ * 針對給定歷史切片與位階門檻，統計 T1~T5 出現後：
+ * 1. 未來 20 日 (1 個月) 與 60 日 (1 季) 的平均前瞻報酬率 (avgReturn)
+ * 2. 未來 20 日與 60 日的最大不利變動 (Max Drawdown / 下行風險)
+ * 3. 正報酬勝率 (winRate)
+ * 
+ * @param {Array} slice - 該窗口之歷史資料列 (index 0 為最新日，向後依序為歷史日)
+ * @param {Object} threshold - { p10, p25, p75, p90 }
+ */
+function calculatePhaseForwardPerformance(slice, threshold) {
+  const tiers = [
+    { key: 'T1', name: '極度恐慌', desc: '大盤超跌極致加碼區 (P10以下)' },
+    { key: 'T2', name: '恐慌', desc: '具良好風險報酬比之打折區 (P10~P25)' },
+    { key: 'T3', name: '順風/中性', desc: '常態多空通道 (P25~P75)' },
+    { key: 'T4', name: '過熱', desc: '乖離拉大之警戒高檔區 (P75~P90)' },
+    { key: 'T5', name: '狂熱', desc: '歷史極端過熱與修正風險區 (P90以上)' }
+  ];
+
+  const buckets = {};
+  tiers.forEach(function(t) {
+    buckets[t.name] = {
+      key: t.key,
+      name: t.name,
+      description: t.desc,
+      count: 0,
+      fwd20_returns: [],
+      fwd20_maes: [],
+      fwd60_returns: [],
+      fwd60_maes: []
+    };
+  });
+
+  const N = slice.length;
+  for (let i = 0; i < N; i++) {
+    const r = slice[i];
+    if (r.dist60 === null || isNaN(r.dist60) || !r.twii) continue;
+
+    const pName = classifyPhase(r.dist60, threshold);
+    const b = buckets[pName];
+    if (!b) continue;
+
+    b.count++;
+
+    // 前瞻 20 日 (index 0 為最新日，因此未來第 20 天在 index i - 20)
+    if (i >= 20) {
+      const pEntry = r.twii;
+      const pFwd20 = slice[i - 20].twii;
+      if (pEntry > 0 && pFwd20 > 0) {
+        const ret20 = (pFwd20 - pEntry) / pEntry;
+        let minDip20 = 0;
+        for (let k = 1; k <= 20; k++) {
+          const pSub = slice[i - k].twii;
+          if (pSub > 0) {
+            const dip = (pSub - pEntry) / pEntry;
+            if (dip < minDip20) minDip20 = dip;
+          }
+        }
+        b.fwd20_returns.push(ret20);
+        b.fwd20_maes.push(minDip20);
+      }
+    }
+
+    // 前瞻 60 日 (未來第 60 天在 index i - 60)
+    if (i >= 60) {
+      const pEntry = r.twii;
+      const pFwd60 = slice[i - 60].twii;
+      if (pEntry > 0 && pFwd60 > 0) {
+        const ret60 = (pFwd60 - pEntry) / pEntry;
+        let minDip60 = 0;
+        for (let k = 1; k <= 60; k++) {
+          const pSub = slice[i - k].twii;
+          if (pSub > 0) {
+            const dip = (pSub - pEntry) / pEntry;
+            if (dip < minDip60) minDip60 = dip;
+          }
+        }
+        b.fwd60_returns.push(ret60);
+        b.fwd60_maes.push(minDip60);
+      }
+    }
+  }
+
+  const result = {};
+  tiers.forEach(function(t) {
+    const b = buckets[t.name];
+    const n20 = b.fwd20_returns.length;
+    const n60 = b.fwd60_returns.length;
+
+    let sumRet20 = 0, sumMae20 = 0, win20 = 0;
+    for (let j = 0; j < n20; j++) {
+      sumRet20 += b.fwd20_returns[j];
+      sumMae20 += b.fwd20_maes[j];
+      if (b.fwd20_returns[j] > 0) win20++;
+    }
+
+    let sumRet60 = 0, sumMae60 = 0, win60 = 0;
+    for (let j = 0; j < n60; j++) {
+      sumRet60 += b.fwd60_returns[j];
+      sumMae60 += b.fwd60_maes[j];
+      if (b.fwd60_returns[j] > 0) win60++;
+    }
+
+    result[t.key] = {
+      tier_key: t.key,
+      phase_name: t.name,
+      description: t.desc,
+      sample_count: b.count,
+      sample_pct: N > 0 ? (b.count / N * 100).toFixed(1) + '%' : '0.0%',
+      fwd20: {
+        sample_count: n20,
+        avg_return: n20 > 0 ? sumRet20 / n20 : 0,
+        max_drawdown: n20 > 0 ? sumMae20 / n20 : 0,
+        win_rate: n20 > 0 ? win20 / n20 : 0
+      },
+      fwd60: {
+        sample_count: n60,
+        avg_return: n60 > 0 ? sumRet60 / n60 : 0,
+        max_drawdown: n60 > 0 ? sumMae60 / n60 : 0,
+        win_rate: n60 > 0 ? win60 / n60 : 0
+      }
+    };
+  });
+
+  return result;
+}
+
+/**
  * 計算相對於 18Y 基準之絕對差值 (Absolute Difference)
  */
 function calculateWindowDifferences(targetWin, base18Win) {
@@ -3191,6 +3324,29 @@ function calculateWindowDifferences(targetWin, base18Win) {
       };
     }
   }
+
+  // 各位階歷史前瞻表現與下行風險差值
+  if (targetWin.phase_performance && base18Win.phase_performance) {
+    res.phase_performance = {};
+    const tiers = ['T1', 'T2', 'T3', 'T4', 'T5'];
+    for (let k = 0; k < tiers.length; k++) {
+      const t = tiers[k];
+      const tp = targetWin.phase_performance[t];
+      const bp = base18Win.phase_performance[t];
+      if (tp && bp) {
+        res.phase_performance[t] = {
+          count_diff: tp.sample_count - bp.sample_count,
+          fwd20_ret_diff: tp.fwd20.avg_return - bp.fwd20.avg_return,
+          fwd20_mae_diff: tp.fwd20.max_drawdown - bp.fwd20.max_drawdown,
+          fwd20_win_diff: tp.fwd20.win_rate - bp.fwd20.win_rate,
+          fwd60_ret_diff: tp.fwd60.avg_return - bp.fwd60.avg_return,
+          fwd60_mae_diff: tp.fwd60.max_drawdown - bp.fwd60.max_drawdown,
+          fwd60_win_diff: tp.fwd60.win_rate - bp.fwd60.win_rate
+        };
+      }
+    }
+  }
+
   return res;
 }
 
@@ -3292,6 +3448,53 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
           vix: { p10: 12.39, p25: 14.01, p75: 22.37, p90: 29.51 }
         },
         experimental_market_phase: classifyPhase(curD60, { p10: -0.0458, p25: -0.0121, p75: 0.0421, p90: 0.0707 }),
+        phase_performance: {
+          "T1": {
+            tier_key: "T1",
+            phase_name: "極度恐慌",
+            description: "大盤超跌極致加碼區 (P10以下)",
+            sample_count: 430,
+            sample_pct: "9.9%",
+            fwd20: { sample_count: 430, avg_return: 0.0191, max_drawdown: -0.0425, win_rate: 0.6186 },
+            fwd60: { sample_count: 430, avg_return: 0.0486, max_drawdown: -0.0605, win_rate: 0.6721 }
+          },
+          "T2": {
+            tier_key: "T2",
+            phase_name: "恐慌",
+            description: "具良好風險報酬比之打折區 (P10~P25)",
+            sample_count: 642,
+            sample_pct: "14.8%",
+            fwd20: { sample_count: 640, avg_return: 0.0032, max_drawdown: -0.0365, win_rate: 0.6016 },
+            fwd60: { sample_count: 640, avg_return: 0.0225, max_drawdown: -0.0637, win_rate: 0.6719 }
+          },
+          "T3": {
+            tier_key: "T3",
+            phase_name: "順風/中性",
+            description: "常態多空通道 (P25~P75)",
+            sample_count: 2158,
+            sample_pct: "49.7%",
+            fwd20: { sample_count: 2152, avg_return: 0.0099, max_drawdown: -0.0243, win_rate: 0.6138 },
+            fwd60: { sample_count: 2152, avg_return: 0.0267, max_drawdown: -0.0468, win_rate: 0.6715 }
+          },
+          "T4": {
+            tier_key: "T4",
+            phase_name: "過熱",
+            description: "乖離拉大之警戒高檔區 (P75~P90)",
+            sample_count: 652,
+            sample_pct: "15.0%",
+            fwd20: { sample_count: 647, avg_return: 0.0089, max_drawdown: -0.0251, win_rate: 0.5981 },
+            fwd60: { sample_count: 647, avg_return: 0.0371, max_drawdown: -0.0473, win_rate: 0.6430 }
+          },
+          "T5": {
+            tier_key: "T5",
+            phase_name: "狂熱",
+            description: "歷史極端過熱與修正風險區 (P90以上)",
+            sample_count: 462,
+            sample_pct: "10.6%",
+            fwd20: { sample_count: 455, avg_return: 0.0300, max_drawdown: -0.0310, win_rate: 0.6835 },
+            fwd60: { sample_count: 415, avg_return: 0.0951, max_drawdown: -0.0438, win_rate: 0.7952 }
+          }
+        },
         calculation_timestamp: new Date().toISOString(),
         percentile_method: "Linear Interpolation (PERCENTILE.INC)",
         data_quality_status: "COMPLETE (100% 官方實體歷史數據，零未來偏誤)"
@@ -3381,6 +3584,53 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
           vix: { p10: 11.87, p25: 13.73, p75: 21.66, p90: 27.55 }
         },
         experimental_market_phase: classifyPhase(curD60, { p10: -0.0372, p25: -0.0083, p75: 0.0494, p90: 0.0818 }),
+        phase_performance: {
+          "T1": {
+            tier_key: "T1",
+            phase_name: "極度恐慌",
+            description: "大盤超跌極致加碼區 (P10以下)",
+            sample_count: 233,
+            sample_pct: "9.8%",
+            fwd20: { sample_count: 233, avg_return: 0.0261, max_drawdown: -0.0404, win_rate: 0.6395 },
+            fwd60: { sample_count: 233, avg_return: 0.0493, max_drawdown: -0.0669, win_rate: 0.6309 }
+          },
+          "T2": {
+            tier_key: "T2",
+            phase_name: "恐慌",
+            description: "具良好風險報酬比之打折區 (P10~P25)",
+            sample_count: 352,
+            sample_pct: "14.8%",
+            fwd20: { sample_count: 349, avg_return: 0.0008, max_drawdown: -0.0369, win_rate: 0.6218 },
+            fwd60: { sample_count: 349, avg_return: 0.0235, max_drawdown: -0.0622, win_rate: 0.6991 }
+          },
+          "T3": {
+            tier_key: "T3",
+            phase_name: "順風/中性",
+            description: "常態多空通道 (P25~P75)",
+            sample_count: 1172,
+            sample_pct: "49.3%",
+            fwd20: { sample_count: 1167, avg_return: 0.0114, max_drawdown: -0.0240, win_rate: 0.6153 },
+            fwd60: { sample_count: 1167, avg_return: 0.0323, max_drawdown: -0.0472, win_rate: 0.6710 }
+          },
+          "T4": {
+            tier_key: "T4",
+            phase_name: "過熱",
+            description: "乖離拉大之警戒高檔區 (P75~P90)",
+            sample_count: 360,
+            sample_pct: "15.2%",
+            fwd20: { sample_count: 354, avg_return: 0.0253, max_drawdown: -0.0209, win_rate: 0.7147 },
+            fwd60: { sample_count: 354, avg_return: 0.0700, max_drawdown: -0.0374, win_rate: 0.7825 }
+          },
+          "T5": {
+            tier_key: "T5",
+            phase_name: "狂熱",
+            description: "歷史極端過熱與修正風險區 (P90以上)",
+            sample_count: 259,
+            sample_pct: "10.9%",
+            fwd20: { sample_count: 253, avg_return: 0.0263, max_drawdown: -0.0317, win_rate: 0.6838 },
+            fwd60: { sample_count: 213, avg_return: 0.1121, max_drawdown: -0.0417, win_rate: 0.8451 }
+          }
+        },
         calculation_timestamp: new Date().toISOString(),
         percentile_method: "Linear Interpolation (PERCENTILE.INC)",
         data_quality_status: "COMPLETE (100% 官方實體歷史數據，零未來偏誤)"
@@ -3470,6 +3720,53 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
           vix: { p10: 13.50, p25: 15.34, p75: 21.95, p90: 27.20 }
         },
         experimental_market_phase: classifyPhase(curD60, { p10: -0.0474, p25: -0.0110, p75: 0.0607, p90: 0.0959 }),
+        phase_performance: {
+          "T1": {
+            tier_key: "T1",
+            phase_name: "極度恐慌",
+            description: "大盤超跌極致加碼區 (P10以下)",
+            sample_count: 112,
+            sample_pct: "9.7%",
+            fwd20: { sample_count: 112, avg_return: 0.0389, max_drawdown: -0.0368, win_rate: 0.6875 },
+            fwd60: { sample_count: 112, avg_return: 0.0447, max_drawdown: -0.0674, win_rate: 0.5446 }
+          },
+          "T2": {
+            tier_key: "T2",
+            phase_name: "恐慌",
+            description: "具良好風險報酬比之打折區 (P10~P25)",
+            sample_count: 167,
+            sample_pct: "14.4%",
+            fwd20: { sample_count: 165, avg_return: -0.0211, max_drawdown: -0.0565, win_rate: 0.4121 },
+            fwd60: { sample_count: 165, avg_return: -0.0081, max_drawdown: -0.0974, win_rate: 0.5515 }
+          },
+          "T3": {
+            tier_key: "T3",
+            phase_name: "順風/中性",
+            description: "常態多空通道 (P25~P75)",
+            sample_count: 567,
+            sample_pct: "49.0%",
+            fwd20: { sample_count: 558, avg_return: 0.0213, max_drawdown: -0.0236, win_rate: 0.6595 },
+            fwd60: { sample_count: 558, avg_return: 0.0492, max_drawdown: -0.0498, win_rate: 0.6720 }
+          },
+          "T4": {
+            tier_key: "T4",
+            phase_name: "過熱",
+            description: "乖離拉大之警戒高檔區 (P75~P90)",
+            sample_count: 184,
+            sample_pct: "15.9%",
+            fwd20: { sample_count: 180, avg_return: 0.0335, max_drawdown: -0.0219, win_rate: 0.7611 },
+            fwd60: { sample_count: 179, avg_return: 0.1057, max_drawdown: -0.0365, win_rate: 0.8156 }
+          },
+          "T5": {
+            tier_key: "T5",
+            phase_name: "狂熱",
+            description: "歷史極端過熱與修正風險區 (P90以上)",
+            sample_count: 128,
+            sample_pct: "11.1%",
+            fwd20: { sample_count: 123, avg_return: 0.0226, max_drawdown: -0.0409, win_rate: 0.6260 },
+            fwd60: { sample_count: 84, avg_return: 0.1530, max_drawdown: -0.0527, win_rate: 0.8571 }
+          }
+        },
         calculation_timestamp: new Date().toISOString(),
         percentile_method: "Linear Interpolation (PERCENTILE.INC)",
         data_quality_status: "COMPLETE (100% 官方實體歷史數據，零未來偏誤)"
