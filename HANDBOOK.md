@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.9.1)
+# HANDBOOK.md (v2.9.2)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -86,6 +86,11 @@
   - 18Y 歷史門檻 (`THRESHOLD_CONFIG`) 作為全站唯一決策來源，跨越 2008 金融海嘯、2011 歐債、2015 匯改、2020 疫情與 2022 升息循環，下行風險與勝率忠實反映跨多空週期的真實極端情境。
   - 10Y 與 5Y 窗口僅作為實驗室研究對照，絕不覆寫正式決策。
   - **量化實證結論**：5Y 窗口在近期牛市中狂熱區衝刺達 +15.5%，但在空頭年份 T2 (恐慌) 60 日下行回撤高達 -9.80% 且勝率偏低 (41.2%)。這客觀證明短期窗口存在嚴重的「牛市倖存者偏差」與「空頭防禦失效」，確保持續以 18Y 歷史為核心防禦底座的科學必要性。
+- **⏱️ 資料生命週期與時序純淨鐵則 (Data Lifecycle & Timing Purity)**:
+  - **RAW_HISTORY 純淨性**：`RAW_HISTORY` 永遠只保存台股正式收盤歷史資料，Row 3 永遠代表最近一次完整正式收盤日。盤前（07:30）與盤中嚴禁在此插列或預填佔位值，杜絕前日收盤被當作當日收盤重複計入之均線污染。
+  - **正式位階以完整收盤為唯一準據**：正式 T1–T5 位階、DCA 扣款與資金池加碼紀律永遠只以最近一次完整收盤的 `Dist60` 為準。盤中即時價格僅供觀察，絕不改變正式位階與長期扣款指引。
+  - **海外數據時序解耦**：07:30 晨間抓取之海外 VIX 與夜盤 EWT 存入獨立快取（`OVERSEAS_OBSERVATION_JSON`），標註美股實體交易日期（`vixTradeDate`、`ewtTradeDate`）。若遇美股休市或網路延遲超過閥值，強制標註 `isStale`，避免誤觸資金池 +2.5% 開盤防追高機制。
+  - **盤後安全原子提交 (commitDailyTradingRow)**：16:30 盤後結算採悲觀鎖定（LockService 30秒）、成交時間戳檢驗（`regularMarketTime >= 13:30:00`）、價格合理性防護閘門（單日漲跌 $\le 10.5\%$）、雙表（RAW_HISTORY 與 HISTORY_LOG）對稱插列、前日全列快照備份與公式自動健康度驗證；若遇異常自動執行補償復原（Rollback）。
 - **核心鐵則**: (1) 零擬真數據 (100% 官方實體行情)；(2) 零個人帳務/金流涉入；(3) 嚴格遵守 `DATA -> QUANT ENGINE -> SIGNAL -> RULE -> ACTION -> AI EXPLANATION` 階層；(4) 實驗性校準結果嚴格隔離，絕不覆寫正式 THRESHOLD_CONFIG 與正式 MARKET_STATE。
 
 ## ⑥ AI Agents & Kopitiam 人設 (升級版)
@@ -94,10 +99,10 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.9.1` (三窗口歷史下行風險與前瞻報酬驗證完工、位階風險報酬區隔矩陣、GAS @152、doGet < 2s)
+- **Current Version**: `v2.9.2` (時序解耦架構重構、盤前 07:30 純唯讀、盤後安全原子提交 commitDailyTradingRow、雙表自癒回滾、GAS @152 穩定運行)
 - **GAS Deployment**: `@152` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
-- **Data Status**: 行情對帳日 `2026-10-16`，回測基準日 `2026-10-01`。
+- **Data Status**: 行情對帳日 `2026-11-09`，回測基準日 `2026-10-01`。
 
 ## ⑧ Roadmap & Milestones
 - **Milestone 1~6.9 (COMPLETED)**:
@@ -117,7 +122,15 @@
     * 前端 MARKET LAB 呈現當前選定窗口 T1~T5 詳細前瞻風險表與三窗口橫向對比矩陣。
     * 量化核心實證：18Y 涵蓋海嘯、歐債、疫情與升息循環，具備最高等級跨週期穩健性；5Y 窗口在近期牛市中狂熱區衝刺達 +15.5%，但在空頭週期 T2 (恐慌) 最大回撤達 -9.80%，證實 18Y THRESHOLD_CONFIG 不可替代。
   - (9) **效能極致守護**：切換窗口零延遲運算，doGet 響應維持在 1.9 秒以內；GAS 部署升級至 `@152`。
-- **🚀 目前停止位置**: `v2.9.1` (Milestone 7 核心目標與前瞻風險驗證完工發布)
+- **Milestone 7.5 (v2.9.2 COMPLETED)**: ⏱️ **時序解耦架構重構、資料生命週期安全強化與實證稽核 (Data Lifecycle & Timing Architecture Hardening)**
+  - (1) **盤前 07:30 徹底唯讀化**：取消在 `RAW_HISTORY` 提早插入當日佔位列與複製前日價格之舊制，徹底消除盤中均線重複計算與歷史底座污染。
+  - (2) **海外市場觀測時序解耦 (模組 A)**：07:30 抓取之 VIX 與 EWT 存入 `ScriptProperties` 獨立觀測快取，標記美股實體交易日與 `isStale` 過期旗標，保護 `DASHBOARD!B12` 原始公式不被覆蓋，確保資金池 +2.5% 開盤防追高機制精確受控。
+  - (3) **盤後正式收盤安全原子提交 (模組 B - commitDailyTradingRow)**：
+    * 三道防線驗證：當日交易日校對、Yahoo Finance 成交時間戳實證（`regularMarketTime >= 13:30:00`）、指數單日漲跌合理性閘門（$\le 10.5\%$）。
+    * 雙表（`RAW_HISTORY` 與 `HISTORY_LOG`）對稱插列、悲觀鎖（`LockService` 30 秒）防並行。
+    * 全列快照備份（值、公式、格式），若公式計算異常自動執行補償復原（Compensating Rollback）或自癒對齊。
+  - (4) **GAS 生產環境與部署回滾規範**：確認線上 Production Deployment ID 鎖定，確立 `clasp deploy -i <id> -V <ver>` 秒級版本回滾標準（無需重新 push）。
+- **🚀 目前停止位置**: `v2.9.2` (時序解耦與資料生命週期安全架構收斂完成，準備作為後續功能之穩定基石)
 - **🎯 下一步施工目標 (Milestone 8 / v3.0.0)**:
   - **策略對決模擬器進階互動擴充**: 提供定期定額每月扣款與彈藥池投入比例之即時自選試算。
   - **行動裝置細節體驗與暗色調 Glassmorphism 微動態打磨**。
@@ -144,6 +157,7 @@
 | **2026-10-15** | `v2.8.18` | **未來重大事件永續動態滾動生成引擎與極速 2 秒響應重構**：(1) 排查並修復重大事件倒數日曆過期斷糧問題，徹底打破「靜態 8~9 月事件被過濾為空 -> fallback 依然為空 -> 陷入空陣列」之死循環；(2) 導入 `generateRollingUpcomingEvents()` 永續滾動生成引擎，整合 2026 Q4 ~ 2027 全年關鍵錨點事件庫（10/15 台積電法說會、10/29 美股科技巨頭 Q3 財報週、11/05 FOMC、11/06 非農、11/12 CPI、11/19 NVDA 財報、12/16 年終 FOMC、2027-01-14 台積電法說會）與未來 90 天總經循環自動生成算式，確保任何時候永遠保有 5~6 個合格重大事件，絕不斷糧；(3) 在 `getFinNewsCombinedPayload()` 中若有效事件少於 4 個自動現場補齊持久化，並在每日 16:30 盤後小羅值班加入事件自癒檢查；(4) 徹底剝離 `doGet` 強制刷新時同步阻塞執行 18 年回測的歷史效能包袱，API 響應時間自 40 秒壓縮至 **2 秒**；(5) 前端 `index.html` 增強事件載入 Fallback 與按鈕，版本升級至 `v2.8.18`；(6) 雲端 GAS 部署成功升級至 `@150`。 |
 | **2026-10-18** | `v2.9.0` | **Milestone 7 核心目標發布：三窗口歷史位階校準與比較實驗室 (18Y / 10Y / 5Y Calibration Lab)**：(1) 聚焦收斂 `Dist60`、`Dist240`、`VIX` 三大實體指標並剔除無 18 年歷史之夜盤；(2) 實現日曆年精準切片（18Y: 2008-10-16、10Y: 2016-10-16、5Y: 2021-10-16），統一採用標準線性插值法 (`PERCENTILE.INC`) 計算 P5~P99 分位數與各指標獨立樣本數；(3) 沿用全站統一 `classifyPhase` 函式推算實驗性位階，嚴格維持 `THRESHOLD_CONFIG` (18Y) 為 Single Source of Truth，絕不覆寫正式決策；(4) 前端實現 0ms 極速切換 UI，提供校準摘要卡、三窗口門檻橫向比較表（附相對 18Y 基準之絕對差值）與位階敏感度分析（解析近期牛市門檻平移對位階判定的影響）；(5) 全域暴露 `window.CALIBRATION_RESEARCH_DATA` 支援一鍵複製與後續回測研究；(6) GAS 部署升級至 `@151`，doGet 保持 < 2 秒極速響應。 |
 | **2026-10-18** | `v2.9.1` | **Milestone 7 延伸強化：三窗口歷史下行風險與前瞻報酬驗證完工 (Risk & Forward Return Verification)**：(1) 避免逐日動態重算，直接以 18Y、10Y、5Y 三窗口標準分位數門檻，分別統計各位階出現後未來 20 日 (1 個月) 與 60 日 (1 季) 的平均前瞻報酬率、最大不利變動 (Max Drawdown / 下行風險) 與正報酬勝率；(2) 後端 `Market_Engine_GAS.js` 實現 `calculatePhaseForwardPerformance`，單次遍歷執行耗時僅 14ms，由 300s API 快取保護，維持 doGet < 2s 極速響應；(3) 前端 `index.html` 發布當前選定窗口 T1~T5 詳細前瞻風險表與三窗口橫向對比矩陣，支援 0ms 切換即時響應；(4) 量化核心結論證實：18Y 具備最高等級跨週期穩健性；5Y 窗口在近期牛市中狂熱區衝刺達 +15.5%，但在空頭週期 T2 (恐慌) 最大回撤達 -9.80%，證實 18Y THRESHOLD_CONFIG 不可替代；(5) 雲端 GAS 部署升級至 `@152`。 |
+| **2026-11-09** | `v2.9.2` | **時序解耦架構重構、資料生命週期安全強化與實證稽核完工**：(1) 確立「正式 T1–T5 永遠以最近一次完整收盤為準」核心不可變原則；(2) 盤前 07:30 徹底唯讀化，移除 RAW_HISTORY 提早插列與佔位賦值，保持均線純淨；(3) 海外市場觀測存入 ScriptProperties 解耦快取，萃取美股交易日並建立 `isStale` 防追高保護；(4) 實作 `commitDailyTradingRow` 盤後安全原子提交機制，含成交時間戳檢驗（>= 13:30:00）、價格合理性防護閘門（<= 10.5%）、悲觀鎖（LockService 30s）、全列備份與失敗自動回滾自癒；(5) 確立 GAS Deployment ID 鎖定與秒級版本回滾規範。 |
 
 
 
