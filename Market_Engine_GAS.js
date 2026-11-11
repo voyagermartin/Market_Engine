@@ -1279,9 +1279,58 @@ function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, e
 }
 
 /**
+ * 格式化海外觀測評估結果，供盤後導航 Prompt 與備援文字一致呈現 5 種 statusCode
+ */
+function formatOverseasNavigationStatus_(metricEval, kind) {
+  const evalObj = (metricEval && typeof metricEval === 'object') ? metricEval : {};
+  const isEwt = (kind === 'ewt');
+  const label = isEwt ? 'EWT' : 'VIX';
+  const rawVal = isEwt ? evalObj.change : evalObj.value;
+  const hasValue = (evalObj.hasValue !== false)
+    && (isEwt
+      ? (typeof rawVal === 'number' && isFinite(rawVal))
+      : (typeof rawVal === 'number' && isFinite(rawVal) && rawVal > 0));
+  const valueStr = hasValue
+    ? (isEwt
+      ? ((rawVal >= 0 ? '+' : '') + (rawVal * 100).toFixed(2) + '%')
+      : Number(rawVal).toFixed(2))
+    : 'N/A';
+
+  const statusCode = evalObj.statusCode || (hasValue && evalObj.isUsable ? 'FRESH_VALID' : 'FETCH_FAILED_NO_DATA');
+  const isFreshValid = (statusCode === 'FRESH_VALID' && evalObj.isUsable === true && hasValue);
+
+  let displayText = (typeof evalObj.statusMessage === 'string' && evalObj.statusMessage.trim())
+    ? evalObj.statusMessage.trim()
+    : '';
+  if (!displayText) {
+    const tradeDate = evalObj.tradeDate ? String(evalObj.tradeDate).trim() : '';
+    if (statusCode === 'FRESH_VALID' && hasValue && tradeDate) {
+      displayText = `${valueStr} (美股交易日: ${tradeDate})`;
+    } else if (statusCode === 'FETCH_FAILED_WITH_CACHED' && hasValue) {
+      displayText = `本次更新失敗，保留最後成功取得資料（非最新行情）：${valueStr}` +
+        (tradeDate ? ` (原美股交易日: ${tradeDate})` : ' (缺少交易時間戳)');
+    } else if (statusCode === 'MISSING_TIMESTAMP' && hasValue) {
+      displayText = `${valueStr} (缺少交易時間戳，不作為有效訊號)`;
+    } else if (statusCode === 'STALE_DATA' && hasValue) {
+      displayText = `${valueStr} (資料已過期` + (tradeDate ? `，原美股交易日: ${tradeDate}` : '') + `，非當日有效更新)`;
+    } else {
+      displayText = `本次 ${label} 更新失敗，無有效資料 (N/A)`;
+    }
+  }
+
+  return {
+    statusCode: statusCode,
+    isFreshValid: isFreshValid,
+    hasValue: hasValue,
+    valueStr: valueStr,
+    displayText: displayText
+  };
+}
+
+/**
  * ☕ 智慧特調備援：小羅盤後文字生成器 (當 API 離線或金鑰未設定時保證小羅常駐)
  */
-function generateFallbackAfternoonText(dateStr, twiiClose, yesterdayClose, currentPhase, dist60, ewtChange, vix) {
+function generateFallbackAfternoonText(dateStr, twiiClose, yesterdayClose, currentPhase, dist60, ewtChange, vix, overseasStatus) {
   const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const ms = isMarketOpen(new Date());
 
@@ -1292,10 +1341,22 @@ function generateFallbackAfternoonText(dateStr, twiiClose, yesterdayClose, curre
 
   if (!twiiClose || twiiClose === '43,119.75') twiiClose = '46,164.72';
   if (!dist60 || dist60 === '-0.87%') dist60 = '+2.71%';
-  if (!vix) vix = '16.47';
+  if (ewtChange === null || ewtChange === undefined || String(ewtChange).trim() === '') ewtChange = 'N/A';
+  if (vix === null || vix === undefined || vix === 0 || String(vix).trim() === '') vix = 'N/A';
+
+  const ewtDisplay = (overseasStatus && overseasStatus.ewtText) ? overseasStatus.ewtText : ewtChange;
+  const vixDisplay = (overseasStatus && overseasStatus.vixText) ? overseasStatus.vixText : vix;
+  const hasOverseasWarning = Boolean(
+    (overseasStatus && overseasStatus.hasFailed)
+    || vix === 'N/A'
+    || ewtChange === 'N/A'
+  );
+  const marketSummaryLine = hasOverseasWarning
+    ? `【今天市場最大的變化】${dateNotice} 台股收盤 ${twiiClose} 點，位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}。海外觀測狀態如下（非當日有效觀測之保留值／過期／缺時間戳資料僅作參考，不視為今日最新行情）：VIX [${vixDisplay}]、夜盤 EWT [${ewtDisplay}]。`
+    : `【今天市場最大的變化】${dateNotice} 台股收盤 ${twiiClose} 點，位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}，VIX 為 ${vixDisplay}、夜盤 EWT 為 ${ewtDisplay}。`;
 
   return `☕ 小羅的盤後午茶時光\n\n` +
-    `【今天市場最大的變化】${dateNotice} 台股收盤 ${twiiClose} 點，位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}，VIX 為 ${vix}。\n\n` +
+    `${marketSummaryLine}\n\n` +
     `【為什麼會這樣？】大盤波動本是市場常態。理性看待群眾情緒，不因一時大漲而盲目追高，亦不因一時拉回而驚慌失措。\n\n` +
     `【市場畫面】今天的市場像是一條順流而下的河流，水流雖然各有急緩，但方向明確向上。\n\n` +
     `【關上螢幕，陪伴家人】盤後收盤了，請關掉螢幕與報價視窗。好好吃個晚餐，把寶貴的時間留給最愛的家人與自己。`;
@@ -1505,15 +1566,15 @@ function generateAfternoonNavigation() {
     holidayNotice = `【今日台股休市提醒】今日台股休市（原因：${marketStatus.reason}）。請勿分析當日成交量與當日買賣，請將重點聚焦在「夜盤EWT情緒」、「VIX國際風險」與「下個交易日觀察方向」。\n`;
   }
 
-  // 從 RAW_HISTORY 讀取最新 7 個交易日資料 (Row 3 為最新一天，Row 4 為昨天)
-  const rawData = rawSheet.getRange(3, 1, 7, 10).getValues(); 
+  // 台股正式收盤指標讀取自 RAW_HISTORY (不讀取 C3/J3 作為海外最新報價)
+  const rawData = rawSheet.getRange(3, 1, 7, 9).getValues();
   if (rawData.length < 1 || !rawData[0][0]) {
     Logger.log("RAW_HISTORY 資料不足");
     return;
   }
 
-  const today = rawData[0];     // [Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change]
-  const yesterday = (rawData.length > 1 && rawData[1]) ? rawData[1] : rawData[0]; 
+  const today = rawData[0];     // [Date, TWII, _, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta]
+  const yesterday = (rawData.length > 1 && rawData[1]) ? rawData[1] : rawData[0];
 
   const todayDateStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
   let dateStr = (today[0] instanceof Date) ? Utilities.formatDate(today[0], "Asia/Taipei", "yyyy-MM-dd") : String(today[0] || "");
@@ -1522,12 +1583,20 @@ function generateAfternoonNavigation() {
   }
   const twiiClose = (today[1] && today[1] > 0) ? today[1] : 46164.72;
   const yesterdayClose = (yesterday[1] && yesterday[1] > 0) ? yesterday[1] : twiiClose;
-  const vix = today[2] || 18.58;
   const dist60 = (Number(today[5]) * 100).toFixed(2) + "%";
   const dist240 = (Number(today[6]) * 100).toFixed(2) + "%";
   const ma60Slope = (Number(today[7]) * 100).toFixed(2) + "%";
   const dist60Delta = (Number(today[8]) * 100).toFixed(2) + "%";
-  const ewtChange = (Number(today[9]) * 100).toFixed(2) + "%";
+
+  // 海外最新觀測統一讀取並評估 ScriptProperties (與 API/前端一致使用 5 種 statusCode)
+  const overseasObs = getOverseasObservation_();
+  const overseasEval = evaluateOverseasObservation_(overseasObs);
+  const vixStatus = formatOverseasNavigationStatus_(overseasEval.vix, 'vix');
+  const ewtStatus = formatOverseasNavigationStatus_(overseasEval.ewt, 'ewt');
+  const hasOverseasNonFresh = !vixStatus.isFreshValid || !ewtStatus.isFreshValid;
+  const overseasStatusNotice = hasOverseasNonFresh
+    ? "【海外資料狀態提醒】標示「更新失敗」、「保留」、「缺少交易時間戳」或「資料已過期」之海外指標，代表非當日有效最新觀測；切勿將保留舊數值、N/A 或過期資料描述為今日最新海外行情。\n"
+    : "";
 
   // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
   const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
@@ -1542,17 +1611,17 @@ function generateAfternoonNavigation() {
   }
 
   const prompt = `
-${holidayNotice}【Market Engine V3 數據】
+${holidayNotice}${overseasStatusNotice}【Market Engine V3 數據】
 交易日期：${dateStr}
 今日加權收盤：${twiiClose}
-昨日加權收盤：${yesterday[1]}
+昨日加權收盤：${yesterdayClose}
 今日市場位階：${currentPhase}
 季線乖離率(Dist60)：${dist60}
 年線乖離率(Dist240)：${dist240}
 季線5日斜率(MA60 Slope)：${ma60Slope}
 5日乖離動能(Dist60 Delta)：${dist60Delta}
-VIX恐慌指數：${vix}
-夜盤EWT漲跌：${ewtChange}
+VIX恐慌指數：${vixStatus.displayText}
+夜盤EWT漲跌：${ewtStatus.displayText}
 
 【近 7 日市場軌跡】
 ${phaseTrack}
@@ -1592,7 +1661,20 @@ ${phaseTrack}
 
   let aiText = callGeminiAPIUniversal(prompt);
   if (!aiText) {
-    aiText = generateFallbackAfternoonText(dateStr, twiiClose, yesterday[1], currentPhase, dist60, ewtChange, vix);
+    aiText = generateFallbackAfternoonText(
+      dateStr,
+      twiiClose,
+      yesterdayClose,
+      currentPhase,
+      dist60,
+      ewtStatus.isFreshValid ? ewtStatus.valueStr : 'N/A',
+      vixStatus.isFreshValid ? vixStatus.valueStr : 'N/A',
+      {
+        ewtText: ewtStatus.displayText,
+        vixText: vixStatus.displayText,
+        hasFailed: hasOverseasNonFresh
+      }
+    );
     Logger.log("⚠️ 使用 Kopitiam 特調備援文字產生小羅午茶。");
   }
 
@@ -4487,7 +4569,12 @@ function getMarketEngineData(skipCache, options) {
         data.phase,
         data.dist60,
         ewtEval.isUsable ? data.ewtChange : 'N/A',
-        vixEval.isUsable ? data.vix : 'N/A'
+        vixEval.isUsable ? data.vix : 'N/A',
+        {
+          ewtText: ewtEval.statusMessage,
+          vixText: vixEval.statusMessage,
+          hasFailed: !vixEval.isUsable || !ewtEval.isUsable
+        }
       );
       try { dashboardSheet.getRange('B24').setValue(aiA); } catch (e) {}
     }
