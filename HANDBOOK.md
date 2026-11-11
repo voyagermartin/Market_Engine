@@ -43,12 +43,15 @@
   - `getFallbackCalibrationWindows(baseDateStr, latestValues)`: 離線與防護備援資料集。
 - **行情與歷史對接**:
   - `fetchRealMarketData()`: `UrlFetchApp.fetchAll` 並行擷取最新行情 + 300s 快取。
-  - `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`.
-  - `seedAugust2026HistoricalRows()`: 1-step 批次 `deleteRows()` 清空與 8 月 21 個歷史交易日無條件補全防錯。
+  - `extractOverseasTradeTimestamp_()`, `getOverseasObservation_()`, `evaluateOverseasObservation_()`, `evaluateOverseasMetric_()`, `getOverseasStatusTag_()`: 獨立擷取與評估 VIX/EWT 美股交易時間戳及 5 種資料有效性狀態（`FRESH_VALID`、`FETCH_FAILED_WITH_CACHED`、`FETCH_FAILED_NO_DATA`、`MISSING_TIMESTAMP`、`STALE_DATA`，含 7 天安全上限）。
+  - `fetchRealHistoricalMarketSeries()`, `fetchRealVIXHistoricalMarketSeries()`, `fetchRealEWTHistoricalMarketSeries()`, `generateMarketRows()`, `seedInitialData()`, `seedFullHistoricalData()`（歷史批次函式保留，暫不作日常自動觸發）。
+  - `seedAugust2026HistoricalRows()`, `seedAndFixWeekendMode()`, `healRawHistoryEwtData()`: 原歷史維護函式本體保留，但已於 `feature/data-lifecycle-hardening` 解除日常排程與 `doGet()` 自動連結，選單 `healRawHistoryEwtData()` 轉為安全暫停提示。
 - **初始化與後台對帳**:
-  - `setupMarketEngineV3()`, `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`.
+  - `setupMarketEngineV3()` / `setupSheet()`：全量重建 7 張分頁函式本體保留；一般選單入口已轉為安全暫停入口 `setupMarketEngineV3MenuNotice()`。
+  - `applyFormulasAndStyles()`：已解除對 `setupMarketEngineV3()` 的呼叫，改為安全暫停警告（0 寫入）。
+  - `applyRawHistoryFormulas()`, `buildLabBacktestSheet()`, `doGet()`：Web App 公開 `doGet()` 已封鎖寫入、快取清除與排程管理 `action`，僅保留公開唯讀 JSONP / JSON / HTML 查詢。
   - `updateMonthlyLabBacktest()`: 月度歷史回測計算與 4 大維度自我驗證，含 HISTORY_LOG 動態擴充與月初自癒排程。
-  - `checkAndAutoRunMonthlyLabBacktest()`: 自動偵測回測月份是否落後，於 16:30 盤後小羅值班與 `action=updateMonthly` 安全增量計算，徹底移出 `doGet` 阻塞鏈。
+  - `checkAndAutoRunMonthlyLabBacktest()`: 自動偵測回測月份是否落後，於 16:30 盤後小羅值班自動增量計算，徹底移出 `doGet` 阻塞鏈。
   - `updateTaiwanHolidaysCalendar()`: 月度 Google Calendar 假日同步。
 - **交易日與快取控管**:
   - `isMarketOpen()`: 0ms 本地 Hash 表 + `NON_MARKET_HOLIDAYS` 軍人節/教師節等非休市紀念日過濾。
@@ -89,8 +92,9 @@
 - **⏱️ 資料生命週期與時序純淨鐵則 (Data Lifecycle & Timing Purity)**:
   - **RAW_HISTORY 純淨性**：`RAW_HISTORY` 永遠只保存台股正式收盤歷史資料，Row 3 永遠代表最近一次完整正式收盤日。盤前（07:30）與盤中嚴禁在此插列或預填佔位值，杜絕前日收盤被當作當日收盤重複計入之均線污染。
   - **正式位階以完整收盤為唯一準據**：正式 T1–T5 位階、DCA 扣款與資金池加碼紀律永遠只以最近一次完整收盤的 `Dist60` 為準。盤中即時價格僅供觀察，絕不改變正式位階與長期扣款指引。
-  - **海外數據時序解耦**：07:30 晨間抓取之海外 VIX 與夜盤 EWT 存入獨立快取（`OVERSEAS_OBSERVATION_JSON`），標註美股實體交易日期（`vixTradeDate`、`ewtTradeDate`）。若遇美股休市或網路延遲超過閥值，強制標註 `isStale`，避免誤觸資金池 +2.5% 開盤防追高機制。
+  - **海外數據時序解耦**：早盤/盤中抓取之海外 VIX 與夜盤 EWT 存入獨立屬性（`OVERSEAS_OBSERVATION_JSON`），萃取美股交易時間戳並經 `evaluateOverseasObservation_()` 對 VIX 與 EWT 分別判定 5 種狀態（`FRESH_VALID`、`FETCH_FAILED_WITH_CACHED`、`FETCH_FAILED_NO_DATA`、`MISSING_TIMESTAMP`、`STALE_DATA`），徹底切斷與 `RAW_HISTORY!C3/J3` 及假行情數值（`18.58`/`19.99`/`+2.71%`/`-1.83%`）的依賴；僅 `FRESH_VALID` 可參與資金池 +2.5% 開盤防追高機制。
   - **盤後安全原子提交 (commitDailyTradingRow)**：16:30 盤後結算採悲觀鎖定（LockService 30秒）、成交時間戳檢驗（`regularMarketTime >= 13:30:00`）、價格合理性防護閘門（單日漲跌 $\le 10.5\%$）、雙表（RAW_HISTORY 與 HISTORY_LOG）對稱插列、前日全列快照備份與公式自動健康度驗證；若遇異常自動執行補償復原（Rollback）。
+  - **危險入口與公開端點最小權限隔離**：試算表全表初始化／歷史重建高風險選單（`setupMarketEngineV3MenuNotice`、`applyFormulasAndStyles`、`healRawHistoryEwtData`）轉為安全暫停提示；日常排程與 `doGet()` 解除 `seedAndFixWeekendMode()` 自動觸發；公開 `doGet()` 僅保留無 `action` 的 JSONP/JSON/HTML 唯讀介面，拒絕所有寫入、快取清除與排程控制 `action` 並移除 `TAIWAN_HOLIDAYS_JSON` 前置刪除副作用。
 - **核心鐵則**: (1) 零擬真數據 (100% 官方實體行情)；(2) 零個人帳務/金流涉入；(3) 嚴格遵守 `DATA -> QUANT ENGINE -> SIGNAL -> RULE -> ACTION -> AI EXPLANATION` 階層；(4) 實驗性校準結果嚴格隔離，絕不覆寫正式 THRESHOLD_CONFIG 與正式 MARKET_STATE。
 
 ## ⑥ AI Agents & Kopitiam 人設 (升級版)
@@ -99,7 +103,7 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.9.2` (時序解耦架構重構、盤前 07:30 純唯讀、盤後安全原子提交 commitDailyTradingRow、雙表自癒回滾、GAS @152 穩定運行)
+- **Current Version**: `v2.9.2`（正式線上 GAS `@152` 穩定運行；資料生命週期強固進度位於本地分支 `feature/data-lifecycle-hardening` `@ 21766e7`，完成 02B-1 ~ 02B-5.2，尚未 push/部署）
 - **GAS Deployment**: `@152` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 - **Data Status**: 行情對帳日 `2026-11-09`，回測基準日 `2026-10-01`。
@@ -130,7 +134,14 @@
     * 雙表（`RAW_HISTORY` 與 `HISTORY_LOG`）對稱插列、悲觀鎖（`LockService` 30 秒）防並行。
     * 全列快照備份（值、公式、格式），若公式計算異常自動執行補償復原（Compensating Rollback）或自癒對齊。
   - (4) **GAS 生產環境與部署回滾規範**：確認線上 Production Deployment ID 鎖定，確立 `clasp deploy -i <id> -V <ver>` 秒級版本回滾標準（無需重新 push）。
-- **🚀 目前停止位置**: `v2.9.2` (時序解耦與資料生命週期安全架構收斂完成，準備作為後續功能之穩定基石)
+- **Milestone 7.6 (`feature/data-lifecycle-hardening` IN PROGRESS｜本地已完成 02B-1 ~ 02B-5.2，尚未部署)**: 🔒 **海外觀測與前端解耦、歷史維護解綁與危險入口緊急隔離**
+  - (1) **02B-1 海外 API 解耦** (`17e63ae`~`798da60`)：`getMarketEngineData()` 改以 `evaluateOverseasObservation_(getOverseasObservation_())` 分別判定 VIX/EWT 五種狀態碼、保留 `parseDistValue()` `+0.10%` 解析修正、修正 `calculateMetricStats()` 於 `N === 0` 且無有效值時回傳 `null`、保留 7 天安全上限。
+  - (2) **02B-2 前端狀態呈現與假值移除** (`c376a00`)：[index.html](file:///f:/Projects/Market_Engine/index.html) 移除 `19.99`/`+2.71%`/`-1.83%` 假行情 fallback，改為載入中 `--` 與「資料暫不可用」，停止前端重算後端防追高／資金池／CD。
+  - (3) **02B-3 盤後導航解耦** (`e227f19`)：`generateAfternoonNavigation()` 與盤後 fallback 文字全面改用 `OVERSEAS_OBSERVATION_JSON` 五種狀態語意。
+  - (4) **02B-4 ~ 02B-5 歷史維護安全審查與解綁** (`366c92c`)：確認 `seedAndFixWeekendMode()` / `seedAugust2026HistoricalRows()` 高風險覆寫範圍，解除 `updateAfternoonMarketEngine()` 休市分支與 `doGet()` 對其自動呼叫，並將選單 `healRawHistoryEwtData()` 轉為安全暫停。
+  - (5) **02B-5.1 ~ 02B-5.2 全量初始化安全盤點與危險入口緊急隔離** (`21766e7`)：完成全部初始化／重建入口盤點；隔離 `applyFormulasAndStyles()` 與 Full Setup 選單入口（`setupMarketEngineV3MenuNotice()`）；公開 `doGet()` 拒絕所有寫入、快取清除與排程管理 `action` 並解除 `TAIWAN_HOLIDAYS_JSON` 前置刪除副作用，同時維持 GitHub Pages 公開 JSONP 唯讀相容。
+  - (6) **待辦 / 下一步安全清單**：盤點正式 GAS Deployment 設定（Deployments UI / Triggers / `SPREADSHEET_ID`）、檢視 `seedFullHistoricalData` 手動選單及 `getMarketEngineData()` 快取未命中時 `DASHBOARD`／`getFinNewsCombinedPayload()` 惰性回寫的純唯讀分離，並依驗證結果推進正式部署收斂。
+- **🚀 目前停止位置**: `feature/data-lifecycle-hardening` `@ 21766e7` (02B-1 ~ 02B-5.2 本地程式碼與隔離沙盒驗證完畢，等待後續審查與部署決策；正式線上仍維持 `v2.9.2` / `@152`)
 - **🎯 下一步施工目標 (Milestone 8 / v3.0.0)**:
   - **策略對決模擬器進階互動擴充**: 提供定期定額每月扣款與彈藥池投入比例之即時自選試算。
   - **行動裝置細節體驗與暗色調 Glassmorphism 微動態打磨**。
@@ -158,8 +169,4 @@
 | **2026-10-18** | `v2.9.0` | **Milestone 7 核心目標發布：三窗口歷史位階校準與比較實驗室 (18Y / 10Y / 5Y Calibration Lab)**：(1) 聚焦收斂 `Dist60`、`Dist240`、`VIX` 三大實體指標並剔除無 18 年歷史之夜盤；(2) 實現日曆年精準切片（18Y: 2008-10-16、10Y: 2016-10-16、5Y: 2021-10-16），統一採用標準線性插值法 (`PERCENTILE.INC`) 計算 P5~P99 分位數與各指標獨立樣本數；(3) 沿用全站統一 `classifyPhase` 函式推算實驗性位階，嚴格維持 `THRESHOLD_CONFIG` (18Y) 為 Single Source of Truth，絕不覆寫正式決策；(4) 前端實現 0ms 極速切換 UI，提供校準摘要卡、三窗口門檻橫向比較表（附相對 18Y 基準之絕對差值）與位階敏感度分析（解析近期牛市門檻平移對位階判定的影響）；(5) 全域暴露 `window.CALIBRATION_RESEARCH_DATA` 支援一鍵複製與後續回測研究；(6) GAS 部署升級至 `@151`，doGet 保持 < 2 秒極速響應。 |
 | **2026-10-18** | `v2.9.1` | **Milestone 7 延伸強化：三窗口歷史下行風險與前瞻報酬驗證完工 (Risk & Forward Return Verification)**：(1) 避免逐日動態重算，直接以 18Y、10Y、5Y 三窗口標準分位數門檻，分別統計各位階出現後未來 20 日 (1 個月) 與 60 日 (1 季) 的平均前瞻報酬率、最大不利變動 (Max Drawdown / 下行風險) 與正報酬勝率；(2) 後端 `Market_Engine_GAS.js` 實現 `calculatePhaseForwardPerformance`，單次遍歷執行耗時僅 14ms，由 300s API 快取保護，維持 doGet < 2s 極速響應；(3) 前端 `index.html` 發布當前選定窗口 T1~T5 詳細前瞻風險表與三窗口橫向對比矩陣，支援 0ms 切換即時響應；(4) 量化核心結論證實：18Y 具備最高等級跨週期穩健性；5Y 窗口在近期牛市中狂熱區衝刺達 +15.5%，但在空頭週期 T2 (恐慌) 最大回撤達 -9.80%，證實 18Y THRESHOLD_CONFIG 不可替代；(5) 雲端 GAS 部署升級至 `@152`。 |
 | **2026-11-09** | `v2.9.2` | **時序解耦架構重構、資料生命週期安全強化與實證稽核完工**：(1) 確立「正式 T1–T5 永遠以最近一次完整收盤為準」核心不可變原則；(2) 盤前 07:30 徹底唯讀化，移除 RAW_HISTORY 提早插列與佔位賦值，保持均線純淨；(3) 海外市場觀測存入 ScriptProperties 解耦快取，萃取美股交易日並建立 `isStale` 防追高保護；(4) 實作 `commitDailyTradingRow` 盤後安全原子提交機制，含成交時間戳檢驗（>= 13:30:00）、價格合理性防護閘門（<= 10.5%）、悲觀鎖（LockService 30s）、全列備份與失敗自動回滾自癒；(5) 確立 GAS Deployment ID 鎖定與秒級版本回滾規範。 |
-
-
-
-
-
+| **2026-11-11** | `v2.9.2` (`feature/data-lifecycle-hardening`) | **海外行情全鏈解耦、歷史維護解綁與危險入口緊急隔離 (02B-1 ~ 02B-5.2，本地驗證完畢尚未上線)**：(1) 02B-1 (`17e63ae`~`798da60`)：`getMarketEngineData()` 海外 VIX/EWT 全面改讀 `OVERSEAS_OBSERVATION_JSON` 與獨立五態評估（`FRESH_VALID` / `FETCH_FAILED_WITH_CACHED` / `FETCH_FAILED_NO_DATA` / `MISSING_TIMESTAMP` / `STALE_DATA`），保留 `parseDistValue()` `+0.10%` 解析修正與 `N===0 && curVal===null` 邊界處理；(2) 02B-2 (`c376a00`)：`index.html` 移除 `19.99` / `+2.71%` / `-1.83%` 假行情 fallback，禁止前端重算策略與 CD；(3) 02B-3 (`e227f19`)：`generateAfternoonNavigation()` 與盤後 fallback 解耦 `RAW_HISTORY!C3/J3`；(4) 02B-4~02B-5 (`366c92c`)：解除 `updateAfternoonMarketEngine()` 與 `doGet()` 對 `seedAndFixWeekendMode()` 的自動觸發，選單 `healRawHistoryEwtData()` 轉安全暫停；(5) 02B-5.1~02B-5.2 (`21766e7`)：隔離 `applyFormulasAndStyles()` 與 Full Setup 選單，公開 `doGet()` 封鎖全部寫入／清快取／排程控制 `action` 並移除 `TAIWAN_HOLIDAYS_JSON` 前置刪除副作用，完整保留公開 JSONP 唯讀相容。 |
