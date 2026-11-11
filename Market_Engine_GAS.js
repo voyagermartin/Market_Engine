@@ -1251,7 +1251,7 @@ function callGeminiAPIUniversal(prompt, systemInstruction) {
 /**
  * ☕ 智慧特調備援：老巴盤前文字生成器 (當 API 離線或金鑰未設定時保證老巴常駐)
  */
-function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, ewtChange, vix) {
+function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, ewtChange, vix, overseasStatus) {
   const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const ms = isMarketOpen(new Date());
 
@@ -1265,9 +1265,15 @@ function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, e
   if (ewtChange === null || ewtChange === undefined || String(ewtChange).trim() === '') ewtChange = 'N/A';
   if (vix === null || vix === undefined || String(vix).trim() === '') vix = 'N/A';
 
+  const ewtDisplay = (overseasStatus && overseasStatus.ewtText) ? overseasStatus.ewtText : ewtChange;
+  const vixDisplay = (overseasStatus && overseasStatus.vixText) ? overseasStatus.vixText : vix;
+  const overseasVarLine = (overseasStatus && overseasStatus.hasFailed)
+    ? `【今日最大的變數】本日部分海外觀測更新失敗（以下僅顯示各指標實際抓取狀態與原交易日，請勿將保留舊數值視為最新行情）：夜盤 EWT [${ewtDisplay}]、VIX [${vixDisplay}]。`
+    : `【今日最大的變數】盤前留意海外夜盤 EWT 動能 (${ewtDisplay}) 與 VIX 指數 (${vixDisplay})，關注整體市場氣象變化。`;
+
   return `☀️ 老巴的盤前早餐時間\n\n` +
     `【市場位置】${dateNotice} 台股收盤 ${twiiClose} 點，當前位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}。\n\n` +
-    `【今日最大的變數】盤前留意海外夜盤 EWT 動能 (${ewtChange}) 與 VIX 指數 (${vix})，關注整體市場氣象變化。\n\n` +
+    `${overseasVarLine}\n\n` +
     `【專注本業與生活】農場作物的成長需要時間，投資也是如此。大盤位階與指標顯示正常律動，不必頻繁盯盤。\n\n` +
     `【老巴早餐的一句話】「研究市場，是為了最後不再被市場牽著走。」安心做好本業工作，喝杯咖啡，美好的一天出發吧！☕`;
 }
@@ -1335,13 +1341,61 @@ function generateMorningNavigation() {
 
   // 海外最新觀測讀取自 ScriptProperties (與 RAW_HISTORY 完全解耦)
   const overseasObs = getOverseasObservation_();
-  const hasValidVix = !!(overseasObs && overseasObs.vix && typeof overseasObs.vix.value === "number" && isFinite(overseasObs.vix.value) && overseasObs.vix.value > 0);
-  const hasValidEwt = !!(overseasObs && overseasObs.ewt && typeof overseasObs.ewt.change === "number" && isFinite(overseasObs.ewt.change));
+  const vixObs = (overseasObs && overseasObs.vix) ? overseasObs.vix : null;
+  const ewtObs = (overseasObs && overseasObs.ewt) ? overseasObs.ewt : null;
+  const hasVixValue = !!(vixObs && typeof vixObs.value === "number" && isFinite(vixObs.value) && vixObs.value > 0);
+  const hasEwtValue = !!(ewtObs && typeof ewtObs.change === "number" && isFinite(ewtObs.change));
 
-  const vix = hasValidVix ? String(overseasObs.vix.value) : "N/A";
-  const vixTradeDateNote = (hasValidVix && overseasObs.vix.tradeDate) ? ` (美股交易日: ${overseasObs.vix.tradeDate})` : "";
-  const ewtChange = hasValidEwt ? ((overseasObs.ewt.change >= 0 ? "+" : "") + (overseasObs.ewt.change * 100).toFixed(2) + "%") : "N/A";
-  const ewtTradeDateNote = (hasValidEwt && overseasObs.ewt.tradeDate) ? ` (美股交易日: ${overseasObs.ewt.tradeDate})` : "";
+  // 統一格式化海外觀測狀態，嚴格區分「本次成功」、「本次失敗但保留舊資料」與「缺少交易時間戳」
+  const formatOverseasStatus = function(obsItem, hasValue, formattedValue) {
+    const isFetchOk = !!(obsItem && obsItem.lastFetchOk === true);
+    const tradeDate = (obsItem && obsItem.tradeDate) ? String(obsItem.tradeDate).trim() : "";
+
+    let displayText;
+    if (isFetchOk && hasValue) {
+      const dateNote = tradeDate ? `美股交易日: ${tradeDate}` : "已有行情數值，但缺少交易時間戳";
+      displayText = `${formattedValue} (${dateNote})`;
+    } else if (!isFetchOk && hasValue) {
+      const dateNote = tradeDate ? `原美股交易日: ${tradeDate}` : "已有行情數值，但缺少交易時間戳";
+      displayText = `本次更新失敗，保留最後成功取得資料（非最新行情）：${formattedValue} (${dateNote})`;
+    } else if (!isFetchOk) {
+      displayText = "本次更新失敗，無有效資料 (N/A)";
+    } else {
+      displayText = "N/A（無有效行情數值）";
+    }
+
+    return {
+      isFetchOk: isFetchOk,
+      hasValue: hasValue,
+      isFreshValid: isFetchOk && hasValue,
+      valueStr: hasValue ? formattedValue : "N/A",
+      displayText: displayText
+    };
+  };
+
+  const vixStatus = formatOverseasStatus(vixObs, hasVixValue, hasVixValue ? String(vixObs.value) : "N/A");
+  const ewtStatus = formatOverseasStatus(
+    ewtObs,
+    hasEwtValue,
+    hasEwtValue ? ((ewtObs.change >= 0 ? "+" : "") + (ewtObs.change * 100).toFixed(2) + "%") : "N/A"
+  );
+
+  // 僅在本次 EWT 抓取成功且數值有效時，才呼叫 calculateEwtReadiness 作為本次開盤判斷
+  let ewtReadinessGuide;
+  if (ewtStatus.isFreshValid) {
+    ewtReadinessGuide = (calculateEwtReadiness(ewtStatus.valueStr) || {}).guide || "";
+  } else if (ewtStatus.hasValue) {
+    ewtReadinessGuide = "⚠️ 本次海外 EWT 更新失敗，保留之最後成功數值僅供歷史參考，不作為本次開盤有效行情判斷。";
+  } else if (!ewtStatus.isFetchOk) {
+    ewtReadinessGuide = "⚠️ 本次海外 EWT 更新失敗且無有效資料，無法提供本次夜盤開盤動能判斷。";
+  } else {
+    ewtReadinessGuide = "ℹ️ 本次未取得有效 EWT 漲跌幅數值，暫無夜盤開盤心理準備指引。";
+  }
+
+  const hasOverseasFailure = !vixStatus.isFetchOk || !ewtStatus.isFetchOk;
+  const overseasFailureNotice = hasOverseasFailure
+    ? "【海外資料狀態提醒】標示「本次更新失敗」之海外指標，代表本次抓取未能更新成功；保留顯示者僅為最後成功取得的歷史紀錄與其原交易日期，切勿將該舊數值描述為今日或最新海外行情。\n"
+    : "";
 
   // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
   const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
@@ -1356,7 +1410,7 @@ function generateMorningNavigation() {
   }
 
   const prompt = `
-${holidayNotice}【市場環境資訊】
+${holidayNotice}${overseasFailureNotice}【市場環境資訊】
 交易日期：${dateStr}
 加權指數收盤：${twiiClose}
 今日市場位階：${currentPhase}
@@ -1364,9 +1418,9 @@ ${holidayNotice}【市場環境資訊】
 年線乖離率(Dist240)：${dist240}
 季線5日斜率(MA60 Slope)：${ma60Slope}
 5日乖離動能(Dist60 Delta)：${dist60Delta}
-夜盤(EWT漲跌幅)：${ewtChange}${ewtTradeDateNote}
-EWT開盤心理準備指引：${(calculateEwtReadiness(ewtChange) || {}).guide || ''}
-VIX恐慌指數：${vix}${vixTradeDateNote}
+夜盤(EWT漲跌幅)：${ewtStatus.displayText}
+EWT開盤心理準備指引：${ewtReadinessGuide}
+VIX恐慌指數：${vixStatus.displayText}
 
 【近7日市場航跡】
 ${phaseTrack}
@@ -1405,7 +1459,19 @@ ${phaseTrack}
 
   let aiText = callGeminiAPIUniversal(prompt);
   if (!aiText) {
-    aiText = generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, ewtChange, vix);
+    aiText = generateFallbackMorningText(
+      dateStr,
+      twiiClose,
+      currentPhase,
+      dist60,
+      ewtStatus.valueStr,
+      vixStatus.valueStr,
+      {
+        ewtText: ewtStatus.displayText,
+        vixText: vixStatus.displayText,
+        hasFailed: hasOverseasFailure
+      }
+    );
     Logger.log("⚠️ 使用 Kopitiam 特調備援文字產生老巴早餐。");
   }
 
