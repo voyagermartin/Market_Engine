@@ -2038,6 +2038,189 @@ function saveOverseasObservation_(realData) {
 }
 
 /**
+ * 解析 yyyy-MM-dd 字串為 UTC 日數整數，避免時區與夏令時差干擾天數比較
+ */
+function parseIsoDateUtcDays_(dateStr) {
+  if (typeof dateStr !== 'string') return NaN;
+  const m = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return NaN;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
+    return NaN;
+  }
+  return Math.floor(dt.getTime() / 86400000);
+}
+
+/**
+ * 尋找台北時區下，小於等於 refDate 的最近一個台股開盤日 (yyyy-MM-dd)
+ */
+function findLastTaiwanTradingDateStr_(refDate) {
+  const base = (refDate instanceof Date && !isNaN(refDate.getTime())) ? refDate : new Date();
+  const baseStr = Utilities.formatDate(base, 'Asia/Taipei', 'yyyy-MM-dd');
+  const baseDays = parseIsoDateUtcDays_(baseStr);
+  if (isNaN(baseDays)) return baseStr;
+
+  for (let offset = 0; offset <= 20; offset++) {
+    const candidateUtc = new Date((baseDays - offset) * 86400000);
+    const candidateStr = Utilities.formatDate(candidateUtc, 'UTC', 'yyyy-MM-dd');
+    const candidateTaipei = new Date(candidateStr + 'T12:00:00+08:00');
+    const st = isMarketOpen(candidateTaipei);
+    if (st && st.isOpen) {
+      return candidateStr;
+    }
+  }
+  return baseStr;
+}
+
+/**
+ * 獨立評估單一海外觀測指標 (VIX 或 EWT) 之有效性與狀態代碼
+ * - 嚴格區分 lastFetchOk / 數值有效 / 交易時間戳 / fetchedAt 屬於當前台股交易日窗口 / 未過期
+ * - 絕不以 fetchedAt 冒充 tradeDate / tradeTime / exchangeTimezone
+ */
+function evaluateOverseasMetric_(rawItem, kind, nowDate) {
+  const item = (rawItem && typeof rawItem === 'object') ? rawItem : {};
+  const isEwt = (kind === 'ewt');
+  const label = isEwt ? 'EWT' : 'VIX';
+  const now = (nowDate instanceof Date && !isNaN(nowDate.getTime())) ? nowDate : new Date();
+  const todayDateStr = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd');
+  const todayMarket = isMarketOpen(now);
+  const requiredSinceDateStr = todayMarket.isOpen ? todayDateStr : findLastTaiwanTradingDateStr_(now);
+
+  const lastFetchOk = (item.lastFetchOk === true);
+  const rawVal = isEwt ? item.change : item.value;
+  const hasValue = isEwt
+    ? (typeof rawVal === 'number' && isFinite(rawVal))
+    : (typeof rawVal === 'number' && isFinite(rawVal) && rawVal > 0);
+  const numericVal = hasValue ? rawVal : null;
+
+  const tradeDate = (typeof item.tradeDate === 'string' && !isNaN(parseIsoDateUtcDays_(item.tradeDate)))
+    ? item.tradeDate.trim()
+    : null;
+  const tradeTime = (typeof item.tradeTime === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(item.tradeTime.trim()))
+    ? item.tradeTime.trim()
+    : null;
+  const exchangeTimezone = (typeof item.exchangeTimezone === 'string' && item.exchangeTimezone.trim().length > 0)
+    ? item.exchangeTimezone.trim()
+    : null;
+  const hasTradeTimestamp = Boolean(tradeDate && tradeTime && exchangeTimezone);
+
+  const fetchedAt = (typeof item.fetchedAt === 'string' && item.fetchedAt.trim().length > 0)
+    ? item.fetchedAt.trim()
+    : null;
+  const fetchedDateMatch = fetchedAt ? fetchedAt.match(/^(\d{4}-\d{2}-\d{2})/) : null;
+  const fetchedDateStr = (fetchedDateMatch && !isNaN(parseIsoDateUtcDays_(fetchedDateMatch[1])))
+    ? fetchedDateMatch[1]
+    : null;
+
+  const isFetchDayValid = Boolean(
+    fetchedDateStr
+    && requiredSinceDateStr
+    && fetchedDateStr >= requiredSinceDateStr
+    && fetchedDateStr <= todayDateStr
+  );
+
+  // 7 天僅為異常資料的最後一道安全上限，並非正常行情有效期限，也不是 VIX / EWT 各自美股預期交易日與休市行事曆之替代方案
+  let isTradeDateExpired = false;
+  if (hasTradeTimestamp) {
+    const todayDays = parseIsoDateUtcDays_(todayDateStr);
+    const tradeDays = parseIsoDateUtcDays_(tradeDate);
+    if (isNaN(tradeDays) || tradeDays > todayDays || (todayDays - tradeDays) > 7) {
+      isTradeDateExpired = true;
+    }
+  }
+
+  let statusCode;
+  let isStale;
+  let isUsable;
+  let statusMessage;
+
+  const formattedVal = hasValue
+    ? (isEwt
+      ? ((numericVal >= 0 ? '+' : '') + (numericVal * 100).toFixed(2) + '%')
+      : Number(numericVal).toFixed(2))
+    : 'N/A';
+
+  if (!lastFetchOk && hasValue) {
+    statusCode = 'FETCH_FAILED_WITH_CACHED';
+    isStale = true;
+    isUsable = false;
+    statusMessage = `本次更新失敗，保留最後成功取得資料（非最新行情）：${formattedVal}` +
+      (tradeDate ? ` (原美股交易日: ${tradeDate})` : ' (缺少交易時間戳)');
+  } else if (!lastFetchOk || !hasValue) {
+    statusCode = 'FETCH_FAILED_NO_DATA';
+    isStale = true;
+    isUsable = false;
+    statusMessage = `本次 ${label} 更新失敗，無有效資料 (N/A)`;
+  } else if (!hasTradeTimestamp) {
+    statusCode = 'MISSING_TIMESTAMP';
+    isStale = true;
+    isUsable = false;
+    statusMessage = `${formattedVal} (缺少交易時間戳，不作為有效訊號)`;
+  } else if (!isFetchDayValid || isTradeDateExpired) {
+    statusCode = 'STALE_DATA';
+    isStale = true;
+    isUsable = false;
+    statusMessage = `${formattedVal} (資料已過期，原美股交易日: ${tradeDate}，非當日有效更新)`;
+  } else {
+    statusCode = 'FRESH_VALID';
+    isStale = false;
+    isUsable = true;
+    statusMessage = `${formattedVal} (美股交易日: ${tradeDate})`;
+  }
+
+  const baseResult = {
+    tradeDate: tradeDate,
+    tradeTime: tradeTime,
+    exchangeTimezone: exchangeTimezone,
+    fetchedAt: fetchedAt,
+    lastFetchOk: lastFetchOk,
+    hasValue: hasValue,
+    hasTradeTimestamp: hasTradeTimestamp,
+    isStale: isStale,
+    isUsable: isUsable,
+    statusCode: statusCode,
+    statusMessage: statusMessage
+  };
+
+  if (isEwt) {
+    return Object.assign({
+      change: numericVal,
+      antiChasingBlocked: Boolean(isUsable && numericVal >= 0.025)
+    }, baseResult);
+  }
+  return Object.assign({
+    value: numericVal
+  }, baseResult);
+}
+
+/**
+ * 評估 ScriptProperties 中之海外市場觀測結構 (VIX 與 EWT 分別判斷)
+ */
+function evaluateOverseasObservation_(obs, nowDate) {
+  const safeObs = (obs && typeof obs === 'object') ? obs : createEmptyOverseasObservation_();
+  const vixEval = evaluateOverseasMetric_(safeObs.vix, 'vix', nowDate);
+  const ewtEval = evaluateOverseasMetric_(safeObs.ewt, 'ewt', nowDate);
+
+  let derivedFetchStatus = 'FAILED';
+  if (vixEval.lastFetchOk && ewtEval.lastFetchOk && vixEval.hasValue && ewtEval.hasValue) {
+    derivedFetchStatus = 'OK';
+  } else if ((vixEval.lastFetchOk && vixEval.hasValue) || (ewtEval.lastFetchOk && ewtEval.hasValue)) {
+    derivedFetchStatus = 'PARTIAL';
+  }
+
+  return {
+    schemaVersion: safeObs.schemaVersion || 1,
+    lastAttemptAt: safeObs.lastAttemptAt || null,
+    lastFetchStatus: safeObs.lastFetchStatus || derivedFetchStatus,
+    vix: vixEval,
+    ewt: ewtEval
+  };
+}
+
+/**
  * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
  * ⚡ 早盤嚴格唯讀隔離：絕不插列或寫入 RAW_HISTORY / HISTORY_LOG，海外觀測改存 ScriptProperties
  */
@@ -2247,15 +2430,38 @@ function doGet(e) {
 }
 
 /**
- * 精準解析與校正 EWT 夜盤狀態燈號標籤
- * 支援 -3.95%, -0.0395, +1.83% 等所有極致格式
+ * 依據海外觀測評估結果，產生明確的狀態燈號標籤
  */
-function calculateEwtStatus(ewtValStr) {
-  if (!ewtValStr || ewtValStr === 'N/A' || ewtValStr === '') return '➡️ 夜盤平穩';
-  let val = parseFloat(String(ewtValStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
-  if (isNaN(val)) return '➡️ 夜盤平穩';
-  if (Math.abs(val) > 0.15) {
-    val = val / 100;
+function getOverseasStatusTag_(metricEval, kind) {
+  const isEwt = (kind === 'ewt');
+  if (!metricEval || typeof metricEval !== 'object') {
+    return isEwt ? '⚠️ 無有效資料 (N/A)' : '⚠️ 無有效資料';
+  }
+  switch (metricEval.statusCode) {
+    case 'FETCH_FAILED_WITH_CACHED':
+      return '⚠️ 更新失敗 (保留舊值參考)';
+    case 'FETCH_FAILED_NO_DATA':
+      return '⚠️ 更新失敗 (無有效資料)';
+    case 'MISSING_TIMESTAMP':
+      return '⚠️ 缺少交易時間戳 (僅供參考)';
+    case 'STALE_DATA':
+      return '⚠️ 資料已過期 (非當日有效)';
+    default:
+      return isEwt ? '➡️ 夜盤平穩' : '✅ 平穩';
+  }
+}
+
+/**
+ * 精準解析與校正 EWT 夜盤狀態燈號標籤
+ * 支援 -3.95%, -0.0395, +1.83% 等所有格式；若傳入 ewtEval 且不可用，回傳明確狀態而非誤判平穩
+ */
+function calculateEwtStatus(ewtValStr, ewtEval) {
+  if (ewtEval && !ewtEval.isUsable) {
+    return getOverseasStatusTag_(ewtEval, 'ewt');
+  }
+  const val = parseDistValue(ewtValStr);
+  if (isNaN(val)) {
+    return ewtEval ? getOverseasStatusTag_(ewtEval, 'ewt') : '⚠️ 無有效資料 (N/A)';
   }
   if (val <= -0.015) return '🚨 夜盤急殺';
   if (val <= -0.005) return '⚠️ 夜盤回檔';
@@ -2267,21 +2473,29 @@ function calculateEwtStatus(ewtValStr) {
 /**
  * ⚡ v2.5.0 EWT 開盤心理準備卡 (純開盤心理防禦，非點數預估)
  */
-function calculateEwtReadiness(ewtValStr) {
-  if (!ewtValStr || ewtValStr === 'N/A' || ewtValStr === '') {
-    return {
-      status: '➡️ 夜盤平穩',
-      guide: '☕ 開盤心理準備：海外市場平靜，開盤預計平穩，請按既定策略執行。'
-    };
+function calculateEwtReadiness(ewtValStr, ewtEval) {
+  if (ewtEval && !ewtEval.isUsable) {
+    const statusTag = getOverseasStatusTag_(ewtEval, 'ewt');
+    let guide;
+    if (ewtEval.statusCode === 'FETCH_FAILED_WITH_CACHED') {
+      guide = '⚠️ 本次海外 EWT 更新失敗，保留之最後成功數值僅供歷史參考，不作為本次開盤有效行情判斷。';
+    } else if (ewtEval.statusCode === 'FETCH_FAILED_NO_DATA') {
+      guide = '⚠️ 本次海外 EWT 更新失敗且無有效資料，無法提供本次夜盤開盤動能判斷。';
+    } else if (ewtEval.statusCode === 'MISSING_TIMESTAMP') {
+      guide = '⚠️ 本次海外 EWT 缺少交易所交易時間戳，保留數值僅供參考，不作為本次開盤有效行情判斷。';
+    } else {
+      guide = '⚠️ 海外 EWT 觀測資料已過期（非當日有效更新），僅供歷史參考，不作為本次開盤有效行情判斷。';
+    }
+    return { status: statusTag, guide: guide };
   }
-  let val = parseFloat(String(ewtValStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
+
+  const val = parseDistValue(ewtValStr);
   if (isNaN(val)) {
     return {
-      status: '➡️ 夜盤平穩',
-      guide: '☕ 開盤心理準備：海外市場平靜，開盤預計平穩，請按既定策略執行。'
+      status: '⚠️ 無有效資料 (N/A)',
+      guide: 'ℹ️ 本次未取得有效 EWT 漲跌幅數值，暫無夜盤開盤心理準備指引。'
     };
   }
-  if (Math.abs(val) > 0.15) val = val / 100;
 
   if (val <= -0.015) {
     return {
@@ -2590,7 +2804,7 @@ function calculatePhaseDurationAndRelief(currentPhase, ss, thresholdConfig, last
 /**
  * 🧊 v2.5.0「階梯式資金池開火 + 3天 CD 冷卻期」 (Powder Allocation & CD Logic)
  */
-function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ewtChange, ss) {
+function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ewtChange, ss, ewtEval) {
   let baseAllocation = '0%';
   if (currentPhase === '極度恐慌') {
     baseAllocation = '動用資金池 20%';
@@ -2670,14 +2884,20 @@ function calculatePowderAndCdStatus(currentPhase, currentDist60Val, ewtChange, s
     if (cdStatus.inCD) {
       dcaPowderGuide = `🧊 資金池加碼冷卻中 (建議 CD 剩餘 ${cdStatus.cdDaysLeft} 天)`;
     } else {
-      const ewtVal = parseDistValue(ewtChange);
       const prefix = cdStatus.isUnlockedEarly ? '⚡ CD 提前解鎖 (大盤深跌觸發) | ' : '';
-      
-      if (!isNaN(ewtVal) && ewtVal >= 0.025) {
-        dcaPowderGuide = `${prefix}⚠️ 開盤激情強彈 (${ewtChange})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
+      const alloc = (currentPhase === '極度恐慌' ? '20%' : '10%');
+      const hasEwtEval = Boolean(ewtEval && typeof ewtEval === 'object');
+      const ewtUsable = hasEwtEval ? Boolean(ewtEval.isUsable) : !isNaN(parseDistValue(ewtChange));
+
+      if (!ewtUsable) {
+        dcaPowderGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼（⚠️ 海外 EWT 資料不足或未更新，本次未套用開盤防追高濾網）`;
       } else {
-        const alloc = (currentPhase === '極度恐慌' ? '20%' : '10%');
-        dcaPowderGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
+        const ewtVal = hasEwtEval ? ewtEval.change : parseDistValue(ewtChange);
+        if (typeof ewtVal === 'number' && !isNaN(ewtVal) && ewtVal >= 0.025) {
+          dcaPowderGuide = `${prefix}⚠️ 開盤激情強彈 (${ewtChange})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
+        } else {
+          dcaPowderGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
+        }
       }
     }
   }
@@ -3166,7 +3386,11 @@ function calculateCalibrationWindows(rawSheet, baseDateStr, latestValues) {
 function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
   const curD60 = latestValues && !isNaN(latestValues.dist60) ? latestValues.dist60 : 0.0481;
   const curD240 = latestValues && !isNaN(latestValues.dist240) ? latestValues.dist240 : 0.5520;
-  const curVix = latestValues && !isNaN(latestValues.vix) ? latestValues.vix : 19.99;
+  const hasLatestVix = !!(latestValues && typeof latestValues.vix === 'number' && isFinite(latestValues.vix) && latestValues.vix > 0);
+  const curVix = hasLatestVix ? latestValues.vix : null;
+  const vixStatusCode = (latestValues && latestValues.vixStatusCode)
+    ? latestValues.vixStatusCode
+    : (hasLatestVix ? 'FRESH_VALID' : 'NO_VALID_OBSERVATION');
 
   // 基準日對齊：若未傳入則使用第一筆有效日期
   const effectiveBaseDate = baseDateStr || (rows.length > 0 ? rows[0].date : '2026-10-16');
@@ -3236,7 +3460,12 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
       metrics: {
         dist60: Object.assign({ metric_name: 'Dist60 (季線乖離率)', current_value: curD60 }, statsD60),
         dist240: Object.assign({ metric_name: 'Dist240 (年線乖離率)', current_value: curD240 }, statsD240),
-        vix: Object.assign({ metric_name: 'VIX (恐慌指數)', current_value: curVix }, statsVix)
+        vix: Object.assign({
+          metric_name: 'VIX (恐慌指數)',
+          current_value: curVix,
+          observation_available: hasLatestVix,
+          observation_status: vixStatusCode
+        }, statsVix)
       },
       experimental_thresholds: expThresholds,
       experimental_market_phase: expPhase,
@@ -3277,6 +3506,11 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
       dist240: curD240,
       vix: curVix
     },
+    vix_observation_status: {
+      available: hasLatestVix,
+      statusCode: vixStatusCode,
+      statusMessage: (latestValues && latestValues.vixStatusMessage) || (hasLatestVix ? '有效最新觀測' : '目前沒有有效 VIX 觀測')
+    },
     windows: windowsResult,
     differences_vs_18y: diffs,
     sensitivity_analysis: {
@@ -3297,6 +3531,7 @@ function calculateMetricStats(values, curVal, isRatio) {
   const valid = values.filter(function(v) { return v !== null && !isNaN(v); }).sort(function(a, b) { return a - b; });
   const N = valid.length;
   if (N === 0) {
+    const hasFiniteCur = (typeof curVal === 'number' && isFinite(curVal));
     return {
       sample_count: 0,
       min: 0,
@@ -3305,7 +3540,7 @@ function calculateMetricStats(values, curVal, isRatio) {
       median: 0,
       std: 0,
       percentiles: { p5: 0, p10: 0, p20: 0, p25: 0, p50: 0, p75: 0, p80: 0, p90: 0, p95: 0, p99: 0 },
-      current_percentile_rank: 50
+      current_percentile_rank: hasFiniteCur ? 50 : null
     };
   }
 
@@ -3340,8 +3575,8 @@ function calculateMetricStats(values, curVal, isRatio) {
     p99: getP(0.99)
   };
 
-  let rank = 50;
-  if (curVal !== undefined && !isNaN(curVal)) {
+  let rank = null;
+  if (typeof curVal === 'number' && isFinite(curVal)) {
     if (curVal <= min) rank = 0.1;
     else if (curVal >= max) rank = 99.9;
     else {
@@ -3513,7 +3748,9 @@ function calculateWindowDifferences(targetWin, base18Win) {
         abs_diff_p50: tStats.percentiles.p50 - bStats.percentiles.p50,
         abs_diff_p75: tStats.percentiles.p75 - bStats.percentiles.p75,
         abs_diff_p90: tStats.percentiles.p90 - bStats.percentiles.p90,
-        rank_diff: tStats.current_percentile_rank - bStats.current_percentile_rank
+        rank_diff: (typeof tStats.current_percentile_rank === 'number' && typeof bStats.current_percentile_rank === 'number')
+          ? (tStats.current_percentile_rank - bStats.current_percentile_rank)
+          : null
       };
     }
   }
@@ -3550,11 +3787,20 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
   const dStr = baseDateStr || '2026-10-16';
   const curD60 = latestValues && !isNaN(latestValues.dist60) ? latestValues.dist60 : 0.0481;
   const curD240 = latestValues && !isNaN(latestValues.dist240) ? latestValues.dist240 : 0.5520;
-  const curVix = latestValues && !isNaN(latestValues.vix) ? latestValues.vix : 19.99;
+  const hasLatestVix = !!(latestValues && typeof latestValues.vix === 'number' && isFinite(latestValues.vix) && latestValues.vix > 0);
+  const curVix = hasLatestVix ? latestValues.vix : null;
+  const vixStatusCode = (latestValues && latestValues.vixStatusCode)
+    ? latestValues.vixStatusCode
+    : (hasLatestVix ? 'FRESH_VALID' : 'NO_VALID_OBSERVATION');
 
   return {
     base_date: dStr,
     current_values: { dist60: curD60, dist240: curD240, vix: curVix },
+    vix_observation_status: {
+      available: hasLatestVix,
+      statusCode: vixStatusCode,
+      statusMessage: (latestValues && latestValues.vixStatusMessage) || (hasLatestVix ? '有效最新觀測' : '目前沒有有效 VIX 觀測')
+    },
     windows: {
       "18Y": {
         calibration_window: "18Y",
@@ -3614,6 +3860,8 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
           vix: {
             metric_name: "VIX (恐慌指數)",
             current_value: curVix,
+            observation_available: hasLatestVix,
+            observation_status: vixStatusCode,
             sample_count: 4204,
             min: 9.14,
             max: 82.69,
@@ -3632,7 +3880,7 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
               p95: 35.76,
               p99: 57.08
             },
-            current_percentile_rank: 66.10
+            current_percentile_rank: hasLatestVix ? 66.10 : null
           }
         },
         experimental_thresholds: {
@@ -3750,6 +3998,8 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
           vix: {
             metric_name: "VIX (恐慌指數)",
             current_value: curVix,
+            observation_available: hasLatestVix,
+            observation_status: vixStatusCode,
             sample_count: 2299,
             min: 9.14,
             max: 82.69,
@@ -3768,7 +4018,7 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
               p95: 31.06,
               p99: 43.86
             },
-            current_percentile_rank: 68.34
+            current_percentile_rank: hasLatestVix ? 68.34 : null
           }
         },
         experimental_thresholds: {
@@ -3886,6 +4136,8 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
           vix: {
             metric_name: "VIX (恐慌指數)",
             current_value: curVix,
+            observation_available: hasLatestVix,
+            observation_status: vixStatusCode,
             sample_count: 1118,
             min: 11.86,
             max: 52.33,
@@ -3904,7 +4156,7 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
               p95: 30.18,
               p99: 33.61
             },
-            current_percentile_rank: 65.95
+            current_percentile_rank: hasLatestVix ? 65.95 : null
           }
         },
         experimental_thresholds: {
@@ -3969,12 +4221,12 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
       "10Y": {
         dist60: { sample_count_diff: -1968, abs_diff_p25: 0.0038, abs_diff_p50: 0.0035, abs_diff_p75: 0.0073, abs_diff_p90: 0.0111, rank_diff: -5.22 },
         dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 },
-        vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: 2.24 }
+        vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: hasLatestVix ? 2.24 : null }
       },
       "5Y": {
         dist60: { sample_count_diff: -3186, abs_diff_p25: 0.0011, abs_diff_p50: 0.0123, abs_diff_p75: 0.0186, abs_diff_p90: 0.0252, rank_diff: -13.01 },
         dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 },
-        vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: -0.15 }
+        vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: hasLatestVix ? -0.15 : null }
       }
     },
     sensitivity_analysis: {
@@ -3995,14 +4247,16 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
 /**
  * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
-function getMarketEngineData(skipCache) {
+function getMarketEngineData(skipCache, options) {
+  const now = (options && options.now instanceof Date && !isNaN(options.now.getTime())) ? options.now : new Date();
+  const todayDateStr = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd');
   const cache = CacheService.getScriptCache();
   if (!skipCache) {
     const cachedApi = cache.get("MARKET_ENGINE_DATA_API_CACHE");
     if (cachedApi) {
       try {
         const parsed = JSON.parse(cachedApi);
-        if (parsed && parsed.date && parsed.phase) {
+        if (parsed && parsed.date && parsed.phase && parsed.overseasObservation && parsed.todayDate === todayDateStr) {
           return parsed;
         }
       } catch (e) {}
@@ -4014,17 +4268,12 @@ function getMarketEngineData(skipCache) {
   const dashboardSheet = ss ? ss.getSheetByName('DASHBOARD') : null;
   const backtestSheet = ss ? ss.getSheetByName('LAB_BACKTEST') : null;
 
-  const todayDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
-  const dayOfWeek = parseInt(Utilities.formatDate(new Date(), 'Asia/Taipei', 'u'), 10); // 1 = Mon, ..., 6 = Sat, 7 = Sun
+  const dayOfWeek = parseInt(Utilities.formatDate(now, 'Asia/Taipei', 'u'), 10); // 1 = Mon, ..., 6 = Sat, 7 = Sun
   const isWeekend = (dayOfWeek === 6 || dayOfWeek === 7);
 
-  // 0. 解耦：分別尋找「台股成交價日期 (lastStockDataDate)」、「夜盤 EWT 日期 (lastEwtDataDate)」與「VIX 日期 (lastVixDataDate)」
+  // 0. 台股正式收盤數據讀取自 RAW_HISTORY (VIX 與 EWT 已解耦至 ScriptProperties OVERSEAS_OBSERVATION_JSON)
   let lastStockDataDate = '2026-09-02';
-  let lastEwtDataDate = todayDateStr;
-  let lastVixDataDate = todayDateStr;
   let stockRowValues = null;
-  let ewtRowValues = null;
-  let vixRowValues = null;
 
   if (rawSheet && rawSheet.getLastRow() >= 3) {
     const numRows = Math.min(30, rawSheet.getLastRow() - 2);
@@ -4043,33 +4292,21 @@ function getMarketEngineData(skipCache) {
         }
       }
     }
-
-    // (B) 尋找最後一筆有 EWT_Change 數據的資料列
-    for (let i = 0; i < grid.length; i++) {
-      const dStr = grid[i][0];
-      const ewtVal = grid[i][9];
-      if (dStr && ewtVal && ewtVal.trim() !== '' && ewtVal !== 'N/A' && ewtVal !== '#N/A') {
-        lastEwtDataDate = dStr;
-        ewtRowValues = grid[i];
-        break;
-      }
-    }
-
-    // (C) 尋找最後一筆有 VIX 數據的資料列 (美股最新已收盤實體數據解耦)
-    for (let i = 0; i < grid.length; i++) {
-      const dStr = grid[i][0];
-      const vixVal = grid[i][2];
-      if (dStr && vixVal && vixVal.trim() !== '' && vixVal !== 'N/A' && vixVal !== '#N/A') {
-        lastVixDataDate = dStr;
-        vixRowValues = grid[i];
-        break;
-      }
-    }
   }
 
+  // 0.5 讀取並獨立評估海外最新觀測 (VIX 與 EWT 分別判斷)
+  const overseasRaw = getOverseasObservation_();
+  const overseasEval = evaluateOverseasObservation_(overseasRaw, now);
+  const vixEval = overseasEval.vix;
+  const ewtEval = overseasEval.ewt;
+  const vixDisplayVal = vixEval.hasValue ? Number(vixEval.value).toFixed(2) : 'N/A';
+  const ewtDisplayVal = ewtEval.hasValue
+    ? ((ewtEval.change >= 0 ? '+' : '') + (ewtEval.change * 100).toFixed(2) + '%')
+    : 'N/A';
+
   // 1. 使用 Asia/Taipei 台北時區精準判定時分與值班狀態
-  const currentHourStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'HH');
-  const currentMinStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'mm');
+  const currentHourStr = Utilities.formatDate(now, 'Asia/Taipei', 'HH');
+  const currentMinStr = Utilities.formatDate(now, 'Asia/Taipei', 'mm');
   const timeInMins = parseInt(currentHourStr, 10) * 60 + parseInt(currentMinStr, 10);
   
   // 07:30 (450分) 至 16:30 (990分) 為盤前老巴值班；其餘時間為盤後小羅值班
@@ -4077,7 +4314,7 @@ function getMarketEngineData(skipCache) {
   const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '☕ 盤後模式 (16:30 小羅午茶值班)';
 
   const liveHealth = fetchRealMarketData();
-  const status = isMarketOpen(new Date());
+  const status = isMarketOpen(now);
   const marketStatusPayload = {
     isOpen: status.isOpen,
     reason: status.reason,
@@ -4085,23 +4322,37 @@ function getMarketEngineData(skipCache) {
     healthStatus: liveHealth.healthStatus
   };
 
+  let vixStatusTag;
+  if (vixEval.isUsable) {
+    if (vixEval.value >= 30) vixStatusTag = '🚨 恐慌爆發';
+    else if (vixEval.value >= 20) vixStatusTag = '⚠️ 警戒';
+    else vixStatusTag = '✅ 平穩';
+  } else {
+    vixStatusTag = getOverseasStatusTag_(vixEval, 'vix');
+  }
+
+  const ewtStatusTag = calculateEwtStatus(ewtDisplayVal, ewtEval);
+  const ewtReadiness = calculateEwtReadiness(ewtDisplayVal, ewtEval);
+
   const data = {
     date: lastStockDataDate,
     lastDataDate: lastStockDataDate,
     lastStockDataDate: lastStockDataDate,
-    lastEwtDataDate: lastEwtDataDate,
-    lastVixDataDate: lastVixDataDate,
+    lastEwtDataDate: ewtEval.tradeDate,
+    lastVixDataDate: vixEval.tradeDate,
     todayDate: todayDateStr,
-    ewtDate: lastEwtDataDate,
-    vixDate: lastVixDataDate,
+    ewtDate: ewtEval.tradeDate,
+    vixDate: vixEval.tradeDate,
     isWeekend: isWeekend,
     twii: '46,164.72',
     dist60: '+2.84%',
     dist240: '+29.31%',
-    vix: '18.58',
+    vix: vixDisplayVal,
     ma60Slope: '+0.25%',
     dist60Delta: '-0.15%',
-    ewtChange: '+2.71%',
+    ewtChange: ewtDisplayVal,
+    overseasObservation: overseasEval,
+    ewtReadinessGuide: ewtReadiness.guide,
     phase: '順風/中性',
     actionGuide: '股市很健康！行情走勢很正常，按原本的節奏安心持有即可！',
     navMode: navMode,
@@ -4120,10 +4371,11 @@ function getMarketEngineData(skipCache) {
     metricsStatus: {
       dist60: '🛒 價格低於季線，中短期出現撿便宜的好時機！',
       dist240: '🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！',
-      vix: '✅ 平穩',
+      vix: vixStatusTag,
       ma60Slope: '📈 強勢走升',
       dist60Delta: '➡️ 動能平穩',
-      ewtChange: '➡️ 夜盤平穩'
+      ewtChange: ewtStatusTag,
+      ewtReadinessGuide: ewtReadiness.guide
     },
     backtest: []
   };
@@ -4138,21 +4390,6 @@ function getMarketEngineData(skipCache) {
     data.dist240 = stockRowValues[6];
     data.ma60Slope = stockRowValues[7];
     data.dist60Delta = stockRowValues[8];
-  }
-
-  // 解耦寫入 (2)：夜盤數據讀取自 lastEwtDataDate 列
-  if (ewtRowValues) {
-    data.lastEwtDataDate = lastEwtDataDate;
-    data.ewtDate = lastEwtDataDate;
-    data.ewtChange = ewtRowValues[9];
-    data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
-  }
-
-  // 解耦寫入 (3)：VIX 恐慌指數讀取自 lastVixDataDate 列 (美股最新已收盤實體數據)
-  if (vixRowValues) {
-    data.lastVixDataDate = lastVixDataDate;
-    data.vixDate = lastVixDataDate;
-    data.vix = vixRowValues[2];
   }
 
   // 週末 Weekend Mode 重構覆寫
@@ -4227,11 +4464,31 @@ function getMarketEngineData(skipCache) {
     const isDefaultOrErrorAfternoon = isStaleA || aiA.includes('準備中') || aiA.includes('如何啟用') || aiA.includes('沒來咖啡館') || aiA.includes('資料加載') || aiA.includes('未設定') || aiA.includes('暫時離開');
 
     if (isDefaultOrErrorMorning) {
-      aiM = generateFallbackMorningText(lastStockDataDate, data.twii, data.phase, data.dist60, data.ewtChange, data.vix);
+      aiM = generateFallbackMorningText(
+        lastStockDataDate,
+        data.twii,
+        data.phase,
+        data.dist60,
+        ewtEval.isUsable ? data.ewtChange : 'N/A',
+        vixEval.isUsable ? data.vix : 'N/A',
+        {
+          ewtText: ewtEval.statusMessage,
+          vixText: vixEval.statusMessage,
+          hasFailed: !vixEval.isUsable || !ewtEval.isUsable
+        }
+      );
       try { dashboardSheet.getRange('B23').setValue(aiM); } catch (e) {}
     }
     if (isDefaultOrErrorAfternoon) {
-      aiA = generateFallbackAfternoonText(lastStockDataDate, data.twii, data.twii, data.phase, data.dist60, data.ewtChange, data.vix);
+      aiA = generateFallbackAfternoonText(
+        lastStockDataDate,
+        data.twii,
+        data.twii,
+        data.phase,
+        data.dist60,
+        ewtEval.isUsable ? data.ewtChange : 'N/A',
+        vixEval.isUsable ? data.vix : 'N/A'
+      );
       try { dashboardSheet.getRange('B24').setValue(aiA); } catch (e) {}
     }
 
@@ -4242,10 +4499,8 @@ function getMarketEngineData(skipCache) {
 
     const sDist60 = dashboardSheet.getRange('D7').getDisplayValue();
     const sDist240 = dashboardSheet.getRange('D8').getDisplayValue();
-    const sVix = dashboardSheet.getRange('D9').getDisplayValue();
     const sSlope = dashboardSheet.getRange('D10').getDisplayValue();
     const sDelta = dashboardSheet.getRange('D11').getDisplayValue();
-    const sEwt = dashboardSheet.getRange('D12').getDisplayValue();
 
     // 1. 季線乖離率 (Dist60)
     if (data.dist60 && data.dist60 !== 'N/A') {
@@ -4265,26 +4520,6 @@ function getMarketEngineData(skipCache) {
           ? '💎 價格低於年線，長線超級大特價機會來臨！' 
           : '🚀 價格穩在年線之上，長線多頭趨勢依然很穩健！';
       }
-    }
-
-    // 3. VIX 恐慌指數
-    if (data.vix && data.vix !== 'N/A') {
-      const vixVal = parseFloat(String(data.vix).replace('%', '').trim());
-      if (!isNaN(vixVal)) {
-        if (vixVal >= 30) data.metricsStatus.vix = '🚨 恐慌爆發';
-        else if (vixVal >= 20) data.metricsStatus.vix = '⚠️ 警戒';
-        else data.metricsStatus.vix = '✅ 平穩';
-      }
-    }
-
-    // 4. 夜盤/EWT漲跌幅與開盤心理準備
-    if (data.ewtChange && data.ewtChange !== 'N/A') {
-      data.metricsStatus.ewtChange = calculateEwtStatus(data.ewtChange);
-    }
-    const ewtReadiness = calculateEwtReadiness(data.ewtChange);
-    data.ewtReadinessGuide = ewtReadiness.guide;
-    if (data.metricsStatus) {
-      data.metricsStatus.ewtReadinessGuide = ewtReadiness.guide;
     }
 
     if (sSlope) data.metricsStatus.ma60Slope = sSlope;
@@ -4322,26 +4557,27 @@ function getMarketEngineData(skipCache) {
       data.phaseTransitionText = `${data.phase} (持續 1 天)`;
     }
 
-    // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)
-    try {
-      const d60ValForCd = parseDistValue(data.dist60);
-      const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, data.ewtChange, ss);
-      data.powderAllocation = powderCdInfo.powderAllocation;
-      data.cdStatus = powderCdInfo.cdStatus;
-      data.dcaRegularGuide = powderCdInfo.dcaRegularGuide;
-      data.dcaPowderGuide = powderCdInfo.dcaPowderGuide;
-      data.dcaGuide = powderCdInfo.dcaGuide;
-    } catch (e) {
-      Logger.log('CD calc error: ' + e.message);
-    }
+  }
 
-    // 7. v2.5.1 純數據位階理性分析 (Phase Analysis - 無須 AI API)
-    try {
-      const d60ValForAnalysis = parseDistValue(data.dist60);
-      data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, thresholdConfig, data.phase, data.date);
-    } catch (e) {
-      Logger.log('Phase analysis calc error: ' + e.message);
-    }
+  // 6. v2.5.0 階梯式資金池開火 + 3 天 CD 冷卻期 (Powder Allocation & CD Logic)
+  try {
+    const d60ValForCd = parseDistValue(data.dist60);
+    const powderCdInfo = calculatePowderAndCdStatus(data.phase, d60ValForCd, data.ewtChange, ss, ewtEval);
+    data.powderAllocation = powderCdInfo.powderAllocation;
+    data.cdStatus = powderCdInfo.cdStatus;
+    data.dcaRegularGuide = powderCdInfo.dcaRegularGuide;
+    data.dcaPowderGuide = powderCdInfo.dcaPowderGuide;
+    data.dcaGuide = powderCdInfo.dcaGuide;
+  } catch (e) {
+    Logger.log('CD calc error: ' + e.message);
+  }
+
+  // 7. v2.5.1 純數據位階理性分析 (Phase Analysis - 無須 AI API)
+  try {
+    const d60ValForAnalysis = parseDistValue(data.dist60);
+    data.phaseAnalysis = calculatePhaseAnalysis(d60ValForAnalysis, thresholdConfig, data.phase, data.date);
+  } catch (e) {
+    Logger.log('Phase analysis calc error: ' + e.message);
   }
 
   if (backtestSheet) {
@@ -4370,8 +4606,19 @@ function getMarketEngineData(skipCache) {
   if (isWeekend) {
     data.actionGuide = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${data.date} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;
     data.dcaRegularGuide = '🟢 週末休市中 (下週一照常執行紀律)';
-    const ewtStr = data.ewtChange ? (String(data.ewtChange).includes('%') ? data.ewtChange : (Number(data.ewtChange) * 100).toFixed(2) + '%') : '+2.71%';
-    data.dcaPowderGuide = `🟢 美股週五結算 (${ewtStr}) 繼承至下週一發酵！開盤若強彈防追高，建議觀望至盤中平穩再評估`;
+    if (ewtEval.isUsable) {
+      const ewtFormatted = (ewtEval.change >= 0 ? '+' : '') + (ewtEval.change * 100).toFixed(2) + '%';
+      if (ewtEval.antiChasingBlocked) {
+        data.dcaPowderGuide = `🟢 美股週五結算 (${ewtFormatted}) 繼承至下週一發酵！開盤若強彈防追高，建議觀望至盤中平穩再評估`;
+      } else {
+        data.dcaPowderGuide = `🟢 週末休市中，前次美股結算 EWT 為 ${ewtFormatted} (下週一開盤前再依最新觀測評估)`;
+      }
+    } else if (ewtEval.hasValue) {
+      const cachedFormatted = (ewtEval.change >= 0 ? '+' : '') + (ewtEval.change * 100).toFixed(2) + '%';
+      data.dcaPowderGuide = `🟢 週末休市中 (${ewtEval.statusCode}：保留舊值 ${cachedFormatted} 僅供參考，不觸發防追高；下週一盤前再重新觀測)`;
+    } else {
+      data.dcaPowderGuide = `🟢 週末休市中 (目前無有效 EWT 海外觀測：${ewtEval.statusCode}，不觸發防追高；下週一照常執行紀律)`;
+    }
     data.dcaGuide = data.dcaPowderGuide;
   }
 
@@ -4390,19 +4637,18 @@ function getMarketEngineData(skipCache) {
   }
 
   // 🔬 載入 Milestone 7 (v2.9.0) 三窗口歷史位階校準與比較模組 (18Y / 10Y / 5Y Calibration Lab)
+  const calibrationCurrentMetrics = {
+    dist60: d60,
+    dist240: d240,
+    vix: vixEval.isUsable ? vixEval.value : null,
+    vixStatusCode: vixEval.statusCode,
+    vixStatusMessage: vixEval.statusMessage
+  };
   try {
-    data.calibrationWindows = calculateCalibrationWindows(rawSheet, lastStockDataDate, {
-      dist60: d60,
-      dist240: d240,
-      vix: parseFloat(String(data.vix).replace('%', '').trim())
-    });
+    data.calibrationWindows = calculateCalibrationWindows(rawSheet, lastStockDataDate, calibrationCurrentMetrics);
   } catch (e) {
     Logger.log('Calibration windows payload error: ' + e.message);
-    data.calibrationWindows = getFallbackCalibrationWindows(lastStockDataDate, {
-      dist60: d60,
-      dist240: d240,
-      vix: parseFloat(String(data.vix).replace('%', '').trim())
-    });
+    data.calibrationWindows = getFallbackCalibrationWindows(lastStockDataDate, calibrationCurrentMetrics);
   }
 
   try {
