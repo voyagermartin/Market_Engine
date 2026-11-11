@@ -1262,7 +1262,8 @@ function generateFallbackMorningText(dateStr, twiiClose, currentPhase, dist60, e
 
   if (!twiiClose || twiiClose === '43,119.75') twiiClose = '46,164.72';
   if (!dist60 || dist60 === '-0.87%') dist60 = '+2.71%';
-  if (!vix) vix = '16.47';
+  if (ewtChange === null || ewtChange === undefined || String(ewtChange).trim() === '') ewtChange = 'N/A';
+  if (vix === null || vix === undefined || String(vix).trim() === '') vix = 'N/A';
 
   return `☀️ 老巴的盤前早餐時間\n\n` +
     `【市場位置】${dateNotice} 台股收盤 ${twiiClose} 點，當前位階處於「${currentPhase}」區間，季線偏離度為 ${dist60}。\n\n` +
@@ -1301,9 +1302,8 @@ function generateMorningNavigation() {
   const ss = getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName("RAW_HISTORY") : null;
   const dashSheet = ss ? ss.getSheetByName("DASHBOARD") : null;
-  const historyLogSheet = ss ? ss.getSheetByName("HISTORY_LOG") : null;
 
-  if (!rawSheet || !dashSheet || !historyLogSheet) {
+  if (!rawSheet || !dashSheet) {
     Logger.log("⚠️ 分頁未完整建置");
     return;
   }
@@ -1314,26 +1314,34 @@ function generateMorningNavigation() {
     holidayNotice = `【今日台股休市提醒】今日台股休市（原因：${marketStatus.reason}）。請勿分析當日成交量與盤中買賣行為，請將重點聚焦在「夜盤EWT情緒」、「VIX國際風險」與「下個交易日觀察方向」。\n`;
   }
 
-  // 從 RAW_HISTORY 讀取最新 7 個交易日資料 (Row 3 為最新一天)
-  const rawData = rawSheet.getRange(3, 1, 7, 10).getValues(); 
+  // 台股正式收盤指標讀取自 RAW_HISTORY (不讀取 C3/J3 作為海外最新報價)
+  const rawData = rawSheet.getRange(3, 1, 7, 9).getValues();
   if (rawData.length < 1 || !rawData[0][0]) {
     Logger.log("RAW_HISTORY 資料不足");
     return;
   }
 
-  const today = rawData[0];     // [Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change]
+  const today = rawData[0];     // [Date, TWII, _, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta]
   const todayDateStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
   let dateStr = (today[0] instanceof Date) ? Utilities.formatDate(today[0], "Asia/Taipei", "yyyy-MM-dd") : String(today[0] || "");
   if (!dateStr || dateStr < "2026-09-01") {
     dateStr = todayDateStr;
   }
   const twiiClose = (today[1] && today[1] > 0) ? today[1] : 46164.72;
-  const vix = today[2] || 18.58;
   const dist60 = (Number(today[5]) * 100).toFixed(2) + "%";
   const dist240 = (Number(today[6]) * 100).toFixed(2) + "%";
   const ma60Slope = (Number(today[7]) * 100).toFixed(2) + "%";
   const dist60Delta = (Number(today[8]) * 100).toFixed(2) + "%";
-  const ewtChange = (Number(today[9]) * 100).toFixed(2) + "%";
+
+  // 海外最新觀測讀取自 ScriptProperties (與 RAW_HISTORY 完全解耦)
+  const overseasObs = getOverseasObservation_();
+  const hasValidVix = !!(overseasObs && overseasObs.vix && typeof overseasObs.vix.value === "number" && isFinite(overseasObs.vix.value) && overseasObs.vix.value > 0);
+  const hasValidEwt = !!(overseasObs && overseasObs.ewt && typeof overseasObs.ewt.change === "number" && isFinite(overseasObs.ewt.change));
+
+  const vix = hasValidVix ? String(overseasObs.vix.value) : "N/A";
+  const vixTradeDateNote = (hasValidVix && overseasObs.vix.tradeDate) ? ` (美股交易日: ${overseasObs.vix.tradeDate})` : "";
+  const ewtChange = hasValidEwt ? ((overseasObs.ewt.change >= 0 ? "+" : "") + (overseasObs.ewt.change * 100).toFixed(2) + "%") : "N/A";
+  const ewtTradeDateNote = (hasValidEwt && overseasObs.ewt.tradeDate) ? ` (美股交易日: ${overseasObs.ewt.tradeDate})` : "";
 
   // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
   const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
@@ -1356,9 +1364,9 @@ ${holidayNotice}【市場環境資訊】
 年線乖離率(Dist240)：${dist240}
 季線5日斜率(MA60 Slope)：${ma60Slope}
 5日乖離動能(Dist60 Delta)：${dist60Delta}
-夜盤(EWT漲跌幅)：${ewtChange}
+夜盤(EWT漲跌幅)：${ewtChange}${ewtTradeDateNote}
 EWT開盤心理準備指引：${(calculateEwtReadiness(ewtChange) || {}).guide || ''}
-VIX恐慌指數：${vix}
+VIX恐慌指數：${vix}${vixTradeDateNote}
 
 【近7日市場航跡】
 ${phaseTrack}
@@ -1401,23 +1409,8 @@ ${phaseTrack}
     Logger.log("⚠️ 使用 Kopitiam 特調備援文字產生老巴早餐。");
   }
 
-  // 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)
+  // 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)，早盤絕不寫入 HISTORY_LOG
   dashSheet.getRange("B23").setValue(aiText);
-
-  // 檢查 Row 3 的日期是否為今日，若非今日（代表休市日或未新增）則不備份到 HISTORY_LOG
-  const logDateVal = historyLogSheet.getRange(3, 1).getValue();
-  let logDateStr = "";
-  if (logDateVal instanceof Date) {
-    logDateStr = Utilities.formatDate(logDateVal, "Asia/Taipei", "yyyy-MM-dd");
-  }
-  const todayStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
-
-  if (logDateStr === todayStr) {
-    historyLogSheet.getRange(3, 10).setValue(aiText);
-    Logger.log("老巴早餐成功生成並備份至 HISTORY_LOG！");
-  } else {
-    Logger.log("今日非交易日或未新增今日資料列，老巴早餐僅寫入 DASHBOARD，跳過備份 HISTORY_LOG。");
-  }
 
   try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (e) {}
 }
@@ -1612,7 +1605,14 @@ function fetchRealMarketData() {
   if (cachedJson) {
     try {
       const cachedData = JSON.parse(cachedJson);
-      if (cachedData && (cachedData.twii || cachedData.healthStatus)) {
+      const hasTimestampSchema = !!(cachedData
+        && Object.prototype.hasOwnProperty.call(cachedData, 'vixTradeDate')
+        && Object.prototype.hasOwnProperty.call(cachedData, 'vixTradeTime')
+        && Object.prototype.hasOwnProperty.call(cachedData, 'vixExchangeTimezone')
+        && Object.prototype.hasOwnProperty.call(cachedData, 'ewtTradeDate')
+        && Object.prototype.hasOwnProperty.call(cachedData, 'ewtTradeTime')
+        && Object.prototype.hasOwnProperty.call(cachedData, 'ewtExchangeTimezone'));
+      if (cachedData && hasTimestampSchema && (cachedData.twii || cachedData.healthStatus)) {
         return cachedData;
       }
     } catch (e) {}
@@ -1864,68 +1864,132 @@ function healRawHistoryEwtData() {
 }
 
 /**
- * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
+ * 建立空的海外市場觀測結構 (VIX 與 EWT 獨立保存，區分抓取時間與行情交易時間)
  */
-function updateMorningMarketEngine() {
-  const ss = getSpreadsheet();
-  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  if (!rawSheet) return;
+function createEmptyOverseasObservation_() {
+  return {
+    schemaVersion: 1,
+    lastAttemptAt: null,
+    lastFetchStatus: 'FAILED',
+    vix: {
+      value: null,
+      tradeDate: null,
+      tradeTime: null,
+      exchangeTimezone: null,
+      fetchedAt: null,
+      lastFetchOk: false
+    },
+    ewt: {
+      change: null,
+      tradeDate: null,
+      tradeTime: null,
+      exchangeTimezone: null,
+      fetchedAt: null,
+      lastFetchOk: false
+    }
+  };
+}
+
+/**
+ * 自 ScriptProperties 安全讀取海外市場觀測資料 (OVERSEAS_OBSERVATION_JSON)
+ */
+function getOverseasObservation_() {
+  const base = createEmptyOverseasObservation_();
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('OVERSEAS_OBSERVATION_JSON');
+    if (!raw) return base;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return base;
+
+    return {
+      schemaVersion: parsed.schemaVersion || 1,
+      lastAttemptAt: parsed.lastAttemptAt || null,
+      lastFetchStatus: parsed.lastFetchStatus || 'FAILED',
+      vix: Object.assign({}, base.vix, (parsed.vix && typeof parsed.vix === 'object') ? parsed.vix : {}),
+      ewt: Object.assign({}, base.ewt, (parsed.ewt && typeof parsed.ewt === 'object') ? parsed.ewt : {})
+    };
+  } catch (e) {
+    Logger.log('[Overseas Observation Warning] 讀取失敗，回退空結構: ' + e.message);
+    return base;
+  }
+}
+
+/**
+ * 將最新海外市場觀測資料合併持久化至 ScriptProperties (OVERSEAS_OBSERVATION_JSON)
+ * - 單一商品失敗不得覆蓋另一商品或先前的有效資料
+ * - lastFetchOk 嚴格表示本次抓取結果；tradeDate/tradeTime 嚴格來自商品時間戳，絕不以 fetchedAt 冒充
+ */
+function saveOverseasObservation_(realData) {
+  const obs = getOverseasObservation_();
+  const attemptAt = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+  const data = (realData && typeof realData === 'object') ? realData : {};
+
+  const vixValid = (typeof data.vix === 'number' && isFinite(data.vix) && data.vix > 0);
+  const ewtValid = (typeof data.ewtChange === 'number' && isFinite(data.ewtChange));
+
+  if (vixValid) {
+    obs.vix = {
+      value: data.vix,
+      tradeDate: data.vixTradeDate || null,
+      tradeTime: data.vixTradeTime || null,
+      exchangeTimezone: data.vixExchangeTimezone || null,
+      fetchedAt: attemptAt,
+      lastFetchOk: true
+    };
+  } else {
+    obs.vix.lastFetchOk = false;
+  }
+
+  if (ewtValid) {
+    obs.ewt = {
+      change: data.ewtChange,
+      tradeDate: data.ewtTradeDate || null,
+      tradeTime: data.ewtTradeTime || null,
+      exchangeTimezone: data.ewtExchangeTimezone || null,
+      fetchedAt: attemptAt,
+      lastFetchOk: true
+    };
+  } else {
+    obs.ewt.lastFetchOk = false;
+  }
+
+  obs.schemaVersion = 1;
+  obs.lastAttemptAt = attemptAt;
+  if (vixValid && ewtValid) {
+    obs.lastFetchStatus = 'OK';
+  } else if (vixValid || ewtValid) {
+    obs.lastFetchStatus = 'PARTIAL';
+  } else {
+    obs.lastFetchStatus = 'FAILED';
+  }
 
   try {
-    seedAndFixWeekendMode();
-  } catch (e) {}
-
-  const status = isMarketOpen(new Date());
-  if (!status.isOpen) {
-    Logger.log(`[Morning Update] 今日台股休市 (${status.reason})，更新最新夜盤/VIX並生成 AI 導航。`);
-    try {
-      const realData = fetchRealMarketData();
-      if (realData.ewtChange !== null) rawSheet.getRange(3, 10).setValue(realData.ewtChange);
-      if (realData.vix !== null) rawSheet.getRange(3, 3).setValue(realData.vix);
-    } catch (e) {}
-    generateMorningNavigation();
-    try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (e) {}
-    return;
+    PropertiesService.getScriptProperties().setProperty('OVERSEAS_OBSERVATION_JSON', JSON.stringify(obs));
+  } catch (e) {
+    Logger.log('[Overseas Observation Error] 寫入 ScriptProperties 失敗: ' + e.message);
   }
+  return obs;
+}
 
-  // 檢查今日數據是否已存在於 Row 3
+/**
+ * 盤前更新 (每日 07:30 Asia/Taipei - 老巴早餐時間值班)
+ * ⚡ 早盤嚴格唯讀隔離：絕不插列或寫入 RAW_HISTORY / HISTORY_LOG，海外觀測改存 ScriptProperties
+ */
+function updateMorningMarketEngine() {
   const today = new Date();
   const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
-  const lastDateCell = rawSheet.getRange(3, 1).getValue();
-  const lastDateStr = (lastDateCell instanceof Date) ? Utilities.formatDate(lastDateCell, 'Asia/Taipei', 'yyyy-MM-dd') : '';
+  const status = isMarketOpen(today);
 
-  if (todayStr !== lastDateStr) {
-    // 插入新的一行於第 3 列 (維持倒序)
-    rawSheet.insertRowBefore(3);
-    // 寫入日期
-    rawSheet.getRange(3, 1).setValue(today);
-    
-    // 繼承前一日 (Row 4) 的數據作為今日初始占位值
-    const prevTwii = rawSheet.getRange(4, 2).getValue() || 46164.72;
-    const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
-    rawSheet.getRange(3, 2, 1, 2).setValues([[prevTwii, prevVix]]);
-  }
-
-  // 抓取夜盤 EWT 真實變動與最新 VIX
+  // 無論台股開盤或休市，皆抓取最新海外 VIX / EWT 並持久化至 ScriptProperties
   const realData = fetchRealMarketData();
-  const newEwtChange = (realData.ewtChange !== null) ? realData.ewtChange : 0.0271;
-  rawSheet.getRange(3, 10).setValue(newEwtChange);
+  const obs = saveOverseasObservation_(realData);
 
-  // 盤前即時更新最新已收盤之 VIX，防止判讀誤解
-  if (realData.vix !== null) {
-    rawSheet.getRange(3, 3).setValue(realData.vix);
-  }
-
-  // 重新按實體資料列數更新批次公式 (自動算 MA60 & MA240)
-  const totalRows = Math.max(3, rawSheet.getLastRow());
-  applyRawHistoryFormulas(rawSheet, 3, totalRows);
-
-  // 自動觸發老巴盤前 AI 導航生成
+  // 生成老巴盤前 AI 導航 (僅寫入 DASHBOARD!B23，不寫入 HISTORY_LOG)
   generateMorningNavigation();
 
   try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (e) {}
   SpreadsheetApp.flush();
-  Logger.log('Morning Market Engine update (07:30 - 老巴早餐值班) completed for ' + todayStr);
+  Logger.log(`Morning Market Engine update (07:30 唯讀隔離) completed for ${todayStr} | Open: ${status.isOpen} (${status.reason}) | Overseas: ${obs.lastFetchStatus}`);
 }
 
 /**
@@ -2068,7 +2132,6 @@ function doGet(e) {
     try { PropertiesService.getScriptProperties().deleteProperty('TAIWAN_HOLIDAYS_JSON'); } catch (err) {}
     act = e.parameter.action;
     if (act === 'updateMorning') {
-      try { seedAndFixWeekendMode(); } catch (e) {}
       updateMorningMarketEngine();
     } else if (act === 'updateAfternoon') {
       try { seedAndFixWeekendMode(); } catch (e) {}
