@@ -2005,10 +2005,15 @@ function seedAugust2026HistoricalRows(rawSheet) {
 }
 
 /**
- * 舊版相容別名
+ * 舊版手動修復入口 (目前已基於資料安全暫停執行，待正式資料庫檢查完成)
  */
 function healRawHistoryEwtData() {
-  seedAndFixWeekendMode();
+  const msg = '⚠️ [安全暫停] 此功能涉及 RAW_HISTORY 歷史資料刪除、插入、覆寫及全表排序，目前已暫停使用，未對試算表執行任何寫入。請待正式資料庫檢查完成後再決定後續處置。';
+  Logger.log(msg);
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch (e) {}
+  return { executed: false, paused: true, message: msg };
 }
 
 /**
@@ -2334,12 +2339,7 @@ function updateAfternoonMarketEngine() {
 
   const status = isMarketOpen(new Date());
   if (!status.isOpen) {
-    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，執行休市維護並生成休市 AI 導航。`);
-    try {
-      seedAndFixWeekendMode();
-    } catch (e) {
-      Logger.log('[Afternoon Update] 休市維護失敗: ' + e.message);
-    }
+    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，略過歷史資料維護，僅生成休市 AI 導航。`);
     generateAfternoonNavigation();
     return;
   }
@@ -2465,7 +2465,6 @@ function doGet(e) {
     if (act === 'updateMorning') {
       updateMorningMarketEngine();
     } else if (act === 'updateAfternoon') {
-      try { seedAndFixWeekendMode(); } catch (e) {}
       updateAfternoonMarketEngine();
     } else if (act === 'createTriggers') {
       createDailyTrigger();
