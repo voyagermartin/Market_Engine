@@ -1570,6 +1570,39 @@ function updateDailyMarketEngine() {
 }
 
 /**
+ * 從 Yahoo Finance chart meta 安全擷取交易日期、報價時間與交易所時區。
+ * @param {Object|null} meta Yahoo Finance chart.result[0].meta 物件
+ * @return {{tradeDate: string|null, tradeTime: string|null, exchangeTimezone: string|null}}
+ */
+function extractOverseasTradeTimestamp_(meta) {
+  const empty = { tradeDate: null, tradeTime: null, exchangeTimezone: null };
+  if (!meta) return empty;
+
+  const rawEpochSec = meta.regularMarketTime;
+  const tz = (typeof meta.exchangeTimezoneName === 'string') ? meta.exchangeTimezoneName.trim() : '';
+  if (typeof rawEpochSec !== 'number' || !isFinite(rawEpochSec) || rawEpochSec <= 0 || !tz) {
+    return empty;
+  }
+
+  // Yahoo Finance regularMarketTime 為 Unix Epoch 秒數，轉換為毫秒只乘一次 1000
+  const tradeDateObj = new Date(rawEpochSec * 1000);
+  if (isNaN(tradeDateObj.getTime())) {
+    return empty;
+  }
+
+  try {
+    return {
+      tradeDate: Utilities.formatDate(tradeDateObj, tz, 'yyyy-MM-dd'),
+      tradeTime: Utilities.formatDate(tradeDateObj, tz, 'HH:mm:ss'),
+      exchangeTimezone: tz
+    };
+  } catch (e) {
+    Logger.log('[Market Engine Timezone Warning] 無法解析交易所時區 (' + tz + '): ' + e.message);
+    return empty;
+  }
+}
+
+/**
  * 即時金融行情對接器：從官方/國際金融 API (Yahoo Finance / GOOGLEFINANCE) 讀取真實市場行情
  * (替代所有歷史模擬亂數，含交易時間戳防呆與健康狀態指標)
  */
@@ -1589,6 +1622,12 @@ function fetchRealMarketData() {
   let vix = null;
   let ewtChange = null;
   let regularMarketTime = null;
+  let vixTradeDate = null;
+  let vixTradeTime = null;
+  let vixExchangeTimezone = null;
+  let ewtTradeDate = null;
+  let ewtTradeTime = null;
+  let ewtExchangeTimezone = null;
   let healthStatus = "🟢 行情即時連線";
 
   const requests = [
@@ -1618,8 +1657,14 @@ function fetchRealMarketData() {
     if (responses[1] && responses[1].getResponseCode() === 200) {
       const json = JSON.parse(responses[1].getContentText());
       const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
-      if (meta && meta.regularMarketPrice && meta.regularMarketPrice > 0) {
-        vix = Math.round(meta.regularMarketPrice * 100) / 100;
+      if (meta) {
+        if (meta.regularMarketPrice && meta.regularMarketPrice > 0) {
+          vix = Math.round(meta.regularMarketPrice * 100) / 100;
+        }
+        const vixTs = extractOverseasTradeTimestamp_(meta);
+        vixTradeDate = vixTs.tradeDate;
+        vixTradeTime = vixTs.tradeTime;
+        vixExchangeTimezone = vixTs.exchangeTimezone;
       }
     }
 
@@ -1627,9 +1672,15 @@ function fetchRealMarketData() {
     if (responses[2] && responses[2].getResponseCode() === 200) {
       const json = JSON.parse(responses[2].getContentText());
       const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
-      if (meta && meta.regularMarketPrice && meta.chartPreviousClose && meta.chartPreviousClose > 0) {
-        const change = (meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose;
-        ewtChange = Math.round(change * 10000) / 10000;
+      if (meta) {
+        if (meta.regularMarketPrice && meta.chartPreviousClose && meta.chartPreviousClose > 0) {
+          const change = (meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose;
+          ewtChange = Math.round(change * 10000) / 10000;
+        }
+        const ewtTs = extractOverseasTradeTimestamp_(meta);
+        ewtTradeDate = ewtTs.tradeDate;
+        ewtTradeTime = ewtTs.tradeTime;
+        ewtExchangeTimezone = ewtTs.exchangeTimezone;
       }
     }
   } catch (e) {
@@ -1659,7 +1710,20 @@ function fetchRealMarketData() {
     healthStatus = `⚠️ 網路連線延遲 (暫用前日盤後價)`;
   }
 
-  const payload = { twii, vix, ewtChange, regularMarketTime, healthStatus, timeStr };
+  const payload = {
+    twii,
+    vix,
+    ewtChange,
+    regularMarketTime,
+    vixTradeDate,
+    vixTradeTime,
+    vixExchangeTimezone,
+    ewtTradeDate,
+    ewtTradeTime,
+    ewtExchangeTimezone,
+    healthStatus,
+    timeStr
+  };
   try {
     cache.put("REAL_MARKET_DATA_CACHE", JSON.stringify(payload), 180);
   } catch (e) {}
