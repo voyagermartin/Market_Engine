@@ -1184,8 +1184,8 @@
                 <span id="calRankVix" style="font-size: 12px; color: #fbbf24; font-weight: 700; background: rgba(251, 191, 36, 0.15); padding: 2px 8px; border-radius: 6px;">P--</span>
               </div>
               <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
-                <span id="calCurValVix" style="font-size: 1.55rem; font-weight: 800; color: #f8fafc; font-family: 'Outfit', sans-serif;">0.00</span>
-                <span style="font-size: 12px; color: #94a3b8;">最新實體值</span>
+                <span id="calCurValVix" style="font-size: 1.55rem; font-weight: 800; color: #f8fafc; font-family: 'Outfit', sans-serif;">--</span>
+                <span id="calCurValVixLabel" style="font-size: 12px; color: #94a3b8;">資料載入中</span>
               </div>
               <div style="font-size: 12px; color: #cbd5e1; line-height: 1.7; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px;">
                 <div style="display: flex; justify-content: space-between;">
@@ -1643,6 +1643,169 @@
       });
     }
 
+    const OVERSEAS_STATUS_META = {
+      FRESH_VALID: {
+        isUsable: true,
+        isCachedReference: false,
+        vixTagFallback: '✅ 有效觀測',
+        ewtTagFallback: '➡️ 有效觀測'
+      },
+      FETCH_FAILED_WITH_CACHED: {
+        isUsable: false,
+        isCachedReference: true,
+        vixTagFallback: '⚠️ 更新失敗（保留最後成功資料，非最新行情）',
+        ewtTagFallback: '⚠️ 更新失敗（保留最後成功資料，非最新行情）'
+      },
+      FETCH_FAILED_NO_DATA: {
+        isUsable: false,
+        isCachedReference: false,
+        vixTagFallback: '⚠️ 資料暫不可用（更新失敗且無有效資料）',
+        ewtTagFallback: '⚠️ 資料暫不可用（更新失敗且無有效資料）'
+      },
+      MISSING_TIMESTAMP: {
+        isUsable: false,
+        isCachedReference: true,
+        vixTagFallback: '⚠️ 缺少交易時間戳（僅供參考，非最新有效行情）',
+        ewtTagFallback: '⚠️ 缺少交易時間戳（僅供參考，非最新有效行情）'
+      },
+      STALE_DATA: {
+        isUsable: false,
+        isCachedReference: true,
+        vixTagFallback: '⚠️ 資料已過期（保留舊值僅供參考，非當日有效）',
+        ewtTagFallback: '⚠️ 資料已過期（保留舊值僅供參考，非當日有效）'
+      },
+      LEGACY_UNVERIFIED: {
+        isUsable: false,
+        isCachedReference: true,
+        vixTagFallback: '⚠️ 舊版快取（未驗證新鮮度，非最新有效行情）',
+        ewtTagFallback: '⚠️ 舊版快取（未驗證新鮮度，非最新有效行情）'
+      }
+    };
+
+    function isValidIsoDateStr(val) {
+      return typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim());
+    }
+
+    function resolveOverseasMetricState(data, kind) {
+      const isEwt = (kind === 'ewt');
+      const obsRoot = (data && data.overseasObservation && typeof data.overseasObservation === 'object')
+        ? data.overseasObservation
+        : null;
+      const obsItem = (obsRoot && obsRoot[kind] && typeof obsRoot[kind] === 'object')
+        ? obsRoot[kind]
+        : null;
+
+      const topDisplay = data ? (isEwt ? data.ewtChange : data.vix) : null;
+      const topDisplayValid = (typeof topDisplay === 'string' || typeof topDisplay === 'number')
+        && String(topDisplay).trim() !== ''
+        && String(topDisplay).trim() !== 'N/A'
+        && String(topDisplay).trim() !== '#N/A';
+
+      if (!obsItem) {
+        const legacyDateRaw = data
+          ? (isEwt ? (data.lastEwtDataDate || data.ewtDate) : (data.lastVixDataDate || data.vixDate))
+          : null;
+        const legacyDate = isValidIsoDateStr(legacyDateRaw) ? legacyDateRaw.trim() : null;
+        const statusCode = topDisplayValid ? 'LEGACY_UNVERIFIED' : 'FETCH_FAILED_NO_DATA';
+        return {
+          kind,
+          hasObservationObject: false,
+          statusCode,
+          isUsable: false,
+          isCachedReference: topDisplayValid,
+          hasValue: topDisplayValid,
+          displayValue: topDisplayValid ? String(topDisplay).trim() : 'N/A',
+          tradeDate: legacyDate,
+          tradeTime: null,
+          exchangeTimezone: null,
+          fetchedAt: null,
+          statusMessage: topDisplayValid
+            ? `舊版快取保留資料（非最新有效行情）${legacyDate ? '，原交易日: ' + legacyDate : ''}`
+            : '資料暫不可用（無有效海外觀測）',
+          tagFallback: OVERSEAS_STATUS_META[statusCode][isEwt ? 'ewtTagFallback' : 'vixTagFallback']
+        };
+      }
+
+      const rawNum = isEwt ? obsItem.change : obsItem.value;
+      const hasNumericVal = (typeof rawNum === 'number' && isFinite(rawNum) && (isEwt || rawNum > 0));
+      const tradeDate = isValidIsoDateStr(obsItem.tradeDate) ? obsItem.tradeDate.trim() : null;
+      const tradeTime = (typeof obsItem.tradeTime === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(obsItem.tradeTime.trim()))
+        ? obsItem.tradeTime.trim()
+        : null;
+      const exchangeTimezone = (typeof obsItem.exchangeTimezone === 'string' && obsItem.exchangeTimezone.trim() !== '')
+        ? obsItem.exchangeTimezone.trim()
+        : null;
+      const hasTradeTimestamp = Boolean(tradeDate && tradeTime && exchangeTimezone)
+        && (obsItem.hasTradeTimestamp !== false);
+
+      let statusCode = (typeof obsItem.statusCode === 'string' && OVERSEAS_STATUS_META[obsItem.statusCode])
+        ? obsItem.statusCode
+        : null;
+
+      if (!statusCode) {
+        if (obsItem.lastFetchOk !== true && hasNumericVal) statusCode = 'FETCH_FAILED_WITH_CACHED';
+        else if (obsItem.lastFetchOk !== true || !hasNumericVal) statusCode = 'FETCH_FAILED_NO_DATA';
+        else if (!hasTradeTimestamp) statusCode = 'MISSING_TIMESTAMP';
+        else if (obsItem.isStale === true || obsItem.isUsable === false) statusCode = 'STALE_DATA';
+        else statusCode = 'FRESH_VALID';
+      } else if (statusCode === 'FRESH_VALID') {
+        if (obsItem.lastFetchOk === false || !hasNumericVal) {
+          statusCode = hasNumericVal ? 'FETCH_FAILED_WITH_CACHED' : 'FETCH_FAILED_NO_DATA';
+        } else if (!hasTradeTimestamp) {
+          statusCode = 'MISSING_TIMESTAMP';
+        } else if (obsItem.isUsable === false || obsItem.isStale === true) {
+          statusCode = 'STALE_DATA';
+        }
+      }
+
+      const meta = OVERSEAS_STATUS_META[statusCode] || OVERSEAS_STATUS_META.FETCH_FAILED_NO_DATA;
+      let displayValue = 'N/A';
+      if (hasNumericVal) {
+        displayValue = isEwt
+          ? ((rawNum >= 0 ? '+' : '') + (rawNum * 100).toFixed(2) + '%')
+          : Number(rawNum).toFixed(2);
+      } else if (statusCode !== 'FETCH_FAILED_NO_DATA' && topDisplayValid) {
+        displayValue = String(topDisplay).trim();
+      }
+
+      const safeTradeDate = (statusCode === 'MISSING_TIMESTAMP' || statusCode === 'FETCH_FAILED_NO_DATA')
+        ? null
+        : tradeDate;
+
+      const defaultStatusMsg = (() => {
+        if (statusCode === 'FRESH_VALID') return `${displayValue} (美股交易日: ${safeTradeDate})`;
+        if (statusCode === 'FETCH_FAILED_WITH_CACHED') {
+          return `保留最後成功資料 ${displayValue}（非最新行情${safeTradeDate ? '，原美股交易日: ' + safeTradeDate : ''}）`;
+        }
+        if (statusCode === 'MISSING_TIMESTAMP') {
+          return `${displayValue}（缺少交易時間戳，僅供參考，不作為有效行情）`;
+        }
+        if (statusCode === 'STALE_DATA') {
+          return `保留舊資料 ${displayValue}（已過期，非當日有效${safeTradeDate ? '，原美股交易日: ' + safeTradeDate : ''}）`;
+        }
+        return '資料暫不可用（無有效資料）';
+      })();
+
+      return {
+        kind,
+        hasObservationObject: true,
+        statusCode,
+        isUsable: meta.isUsable,
+        isCachedReference: meta.isCachedReference,
+        hasValue: (displayValue !== 'N/A'),
+        displayValue,
+        tradeDate: safeTradeDate,
+        tradeTime,
+        exchangeTimezone,
+        fetchedAt: (typeof obsItem.fetchedAt === 'string' && obsItem.fetchedAt.trim() !== '') ? obsItem.fetchedAt.trim() : null,
+        antiChasingBlocked: Boolean(isEwt && meta.isUsable && obsItem.antiChasingBlocked === true),
+        statusMessage: (typeof obsItem.statusMessage === 'string' && obsItem.statusMessage.trim() !== '')
+          ? obsItem.statusMessage.trim()
+          : defaultStatusMsg,
+        tagFallback: meta[isEwt ? 'ewtTagFallback' : 'vixTagFallback']
+      };
+    }
+
     function updateDOM(data) {
       if (!data) return;
 
@@ -1656,8 +1819,8 @@
           todayDate = lastStockDate;
         }
       }
-      const lastEwtDate = data.lastEwtDataDate || data.ewtDate || todayDate;
-      const lastVixDate = data.lastVixDataDate || data.vixDate || lastEwtDate || todayDate;
+      const vixState = resolveOverseasMetricState(data, 'vix');
+      const ewtState = resolveOverseasMetricState(data, 'ewt');
 
       const formatMmDd = (dStr) => {
         if (!dStr) return '';
@@ -1667,7 +1830,7 @@
         }
         return dStr;
       };
-      const vixMmDd = formatMmDd(lastVixDate);
+      const vixMmDd = formatMmDd(vixState.tradeDate);
 
       if (lastStockDate) {
         document.getElementById('dataDate').textContent = `收盤: ${lastStockDate} | 今日: ${todayDate}`;
@@ -1687,30 +1850,6 @@
         if (tempTitleEl) {
           tempTitleEl.textContent = `☕ ${lastStockDate} 收盤位階`;
         }
-        const vixTitleEl = document.getElementById('vixCardTitle');
-        if (vixTitleEl) {
-          if (isWeekend) {
-            vixTitleEl.textContent = `VIX 恐慌指數 (${vixMmDd} 清晨收盤 / 美股週五結算)`;
-          } else {
-            vixTitleEl.textContent = `VIX 恐慌指數`;
-          }
-        }
-        const vixConceptTitleEl = document.getElementById('vixConceptTitle');
-        if (vixConceptTitleEl) {
-          if (isWeekend) {
-            vixConceptTitleEl.textContent = `🌡️ VIX 市場體溫計 (${vixMmDd} 清晨收盤 / 美股週五結算)`;
-          } else {
-            vixConceptTitleEl.textContent = `🌡️ VIX (恐慌指數)`;
-          }
-        }
-        const ewtTitleEl = document.getElementById('ewtCardTitle');
-        if (ewtTitleEl) {
-          if (isWeekend) {
-            ewtTitleEl.textContent = `🌙 ${lastEwtDate} 夜盤最終收盤 (美股週五結算)`;
-          } else {
-            ewtTitleEl.textContent = `🌙 ${lastEwtDate} 夜盤動能 (EWT Change)`;
-          }
-        }
         const regHeaderEl = document.getElementById('dcaRegularHeader');
         if (regHeaderEl) {
           regHeaderEl.textContent = `📅 常態定期定額（對照 ${lastStockDate} 收盤位階）`;
@@ -1718,6 +1857,47 @@
         const pwdHeaderEl = document.getElementById('dcaPowderHeader');
         if (pwdHeaderEl) {
           pwdHeaderEl.textContent = `💣 資金池手動加碼（對照 ${lastStockDate} 收盤位階 ＋ 昨夜 EWT 動能）`;
+        }
+      }
+
+      const vixTitleEl = document.getElementById('vixCardTitle');
+      if (vixTitleEl) {
+        if (vixState.statusCode === 'FRESH_VALID' && vixState.tradeDate) {
+          vixTitleEl.textContent = isWeekend
+            ? `VIX 恐慌指數 (沿用 ${vixMmDd} 美股交易日)`
+            : `VIX 恐慌指數 (美股交易日: ${vixState.tradeDate})`;
+        } else if (vixState.statusCode === 'FETCH_FAILED_WITH_CACHED' || vixState.statusCode === 'STALE_DATA' || vixState.statusCode === 'LEGACY_UNVERIFIED') {
+          vixTitleEl.textContent = `VIX 恐慌指數 (非最新｜最後成功交易日: ${vixState.tradeDate || '不明'})`;
+        } else if (vixState.statusCode === 'MISSING_TIMESTAMP') {
+          vixTitleEl.textContent = `VIX 恐慌指數 (缺少交易時間戳｜非最新有效行情)`;
+        } else {
+          vixTitleEl.textContent = `VIX 恐慌指數 (無有效海外觀測)`;
+        }
+      }
+      const vixConceptTitleEl = document.getElementById('vixConceptTitle');
+      if (vixConceptTitleEl) {
+        if (vixState.statusCode === 'FRESH_VALID' && vixState.tradeDate) {
+          vixConceptTitleEl.textContent = isWeekend
+            ? `🌡️ VIX 市場體溫計 (沿用 ${vixMmDd} 美股交易日)`
+            : `🌡️ VIX (恐慌指數｜${vixState.tradeDate})`;
+        } else if (vixState.hasValue) {
+          vixConceptTitleEl.textContent = `🌡️ VIX 市場體溫計 (最後成功資料｜非最新)`;
+        } else {
+          vixConceptTitleEl.textContent = `🌡️ VIX (恐慌指數｜資料暫不可用)`;
+        }
+      }
+      const ewtTitleEl = document.getElementById('ewtCardTitle');
+      if (ewtTitleEl) {
+        if (ewtState.statusCode === 'FRESH_VALID' && ewtState.tradeDate) {
+          ewtTitleEl.textContent = isWeekend
+            ? `🌙 夜盤/EWT動能 (沿用美股交易日: ${ewtState.tradeDate})`
+            : `🌙 ${ewtState.tradeDate} 夜盤動能 (EWT Change)`;
+        } else if (ewtState.statusCode === 'FETCH_FAILED_WITH_CACHED' || ewtState.statusCode === 'STALE_DATA' || ewtState.statusCode === 'LEGACY_UNVERIFIED') {
+          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (非最新｜最後成功交易日: ${ewtState.tradeDate || '不明'})`;
+        } else if (ewtState.statusCode === 'MISSING_TIMESTAMP') {
+          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (缺少交易時間戳｜非最新有效行情)`;
+        } else {
+          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (無有效海外觀測)`;
         }
       }
       
@@ -1780,53 +1960,20 @@
       }
       if (data.phaseReliefGuide) document.getElementById('phaseReliefGuide').textContent = data.phaseReliefGuide;
 
-      if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') document.getElementById('actionGuide').textContent = data.actionGuide;
-      // Resolve dual guides with frontend fallback for cached/older deployments
-      let regGuide = data.dcaRegularGuide;
-      let pwdGuide = data.dcaPowderGuide;
-
-      if (isWeekend) {
-        regGuide = '🟢 週末休市中 (下週一照常執行紀律)';
-        const ewtDisplay = data.ewtChange || '+2.71%';
-        pwdGuide = `🟢 美股週五結算 (${ewtDisplay}) 繼承至下週一發酵！開盤若強彈防追高，建議觀望至盤中平穩再評估`;
-        const actEl = document.getElementById('actionGuide');
-        if (actEl) {
-          actEl.textContent = `今日台股休市。本週市場經歷歷史級劇烈拉回與報復性強彈，當前位階處於打折區 (${lastStockDate} 收盤偏離度)。週末請安心休息，下週一盤前 07:30 我們再進行開盤觀測！`;
-        }
-      } else {
-        if (!regGuide || regGuide === 'N/A' || regGuide === '資料加載中...') {
-          if (data.phase === '過熱' || data.phase === '狂熱') {
-            regGuide = '🛑 暫停定期定額';
-          } else {
-            regGuide = '🚀 明天照常自動扣款';
-          }
-        }
-
-        if (!pwdGuide || pwdGuide === 'N/A' || pwdGuide === '資料加載中...') {
-          if (data.dcaGuide && data.dcaGuide.includes('冷卻中')) {
-            const match = data.dcaGuide.match(/CD 剩餘 (\d+) 天/);
-            const days = match ? match[1] : 'X';
-            pwdGuide = `🧊 資金池加碼冷卻中 (建議 CD 剩餘 ${days} 天)`;
-          } else if (data.phase === '極度恐慌' || data.phase === '恐慌') {
-            let isExcited = false;
-            if (data.ewtChange && data.ewtChange !== 'N/A') {
-              const ewtVal = parseFloat(String(data.ewtChange).replace('%', '').replace('+', '').trim());
-              if (!isNaN(ewtVal) && ewtVal >= 2.5) {
-                isExcited = true;
-              }
-            }
-            const prefix = (data.dcaGuide && data.dcaGuide.includes('提前解鎖')) ? '⚡ CD 提前解鎖 (大盤深跌觸發) | ' : '';
-            if (isExcited) {
-              pwdGuide = `${prefix}⚠️ 開盤激情強彈 (${data.ewtChange || '大漲'})！資金池請觀望延後，切勿早盤追高，留待盤中平穩或尾盤再行評估`;
-            } else {
-              const alloc = (data.phase === '極度恐慌' ? '20%' : '10%');
-              pwdGuide = `${prefix}🚀 可動用資金池 ${alloc} 手動加碼`;
-            }
-          } else {
-            pwdGuide = '🟢 備戰狀態，按兵不動 (資金池 0%)';
-          }
-        }
+      if (data.actionGuide && data.actionGuide !== 'N/A' && data.actionGuide !== '資料加載中...') {
+        document.getElementById('actionGuide').textContent = data.actionGuide;
       }
+
+      // 嚴格採用後端回傳之常態定期定額與資金池建議；不於前端重算 +2.5% 防追高、CD 或覆寫週末指引
+      const isGuideMissing = (val) => (!val || val === 'N/A' || val === '資料加載中...');
+      const regGuide = !isGuideMissing(data.dcaRegularGuide)
+        ? data.dcaRegularGuide
+        : (isWeekend ? '🟢 週末休市中' : '⚠️ 資料暫不可用（請以後端更新為準）');
+      const pwdGuide = !isGuideMissing(data.dcaPowderGuide)
+        ? data.dcaPowderGuide
+        : (!isGuideMissing(data.dcaGuide)
+          ? data.dcaGuide
+          : (isWeekend ? '🟢 週末休市中（無後端資金池指引）' : '⚠️ 資金池狀態暫不可用（未於前端重算）'));
 
       const regEl = document.getElementById('dcaRegularGuide');
       if (regEl) {
@@ -1896,8 +2043,8 @@
       let title = isMorning ? '🍔 老巴的盤前早餐時間' : '☕ 小羅的盤後午茶時光';
       let badge = isMorning ? '盤前 07:30 值班 (老巴)' : '盤後 16:30 值班 (小羅)';
       let story = isMorning 
-        ? (data.aiMorningStory || '[老巴的盤前早餐時間] 早上好！夜盤 EWT 跌了 1.83%，開盤可能回檔撿便宜，保持冷靜分批觀察即可！')
-        : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 蓋章收盤！加權指數收在 43,634.19 點，季線乖離 -0.92% 屬於便宜區，長線勝率非常高！');
+        ? (data.aiMorningStory || '[老巴的盤前早餐時間] 早上好！正在連線確認今日盤前位階與海外觀測狀態，請保持既定投資紀律與冷靜觀察！☕')
+        : (data.aiAfternoonStory || '[小羅的盤後午茶時光] 正在彙整最近一次台股收盤位階與歷史分佈校準數據，請稍候片刻！☕');
       let border = isMorning ? '#818cf8' : '#c084fc';
       let titleColor = isMorning ? '#a5b4fc' : '#e9d5ff';
 
@@ -1922,10 +2069,18 @@
       }
       if (data.dist60 && data.dist60 !== 'N/A') document.getElementById('valDist60').textContent = data.dist60;
       if (data.dist240 && data.dist240 !== 'N/A') document.getElementById('valDist240').textContent = data.dist240;
-      if (data.vix && data.vix !== 'N/A') document.getElementById('valVix').textContent = data.vix;
+      const valVixEl = document.getElementById('valVix');
+      if (valVixEl) {
+        valVixEl.textContent = vixState.displayValue;
+        valVixEl.style.color = vixState.isUsable ? '' : (vixState.isCachedReference ? '#fbbf24' : '#9ca3af');
+      }
       if (data.ma60Slope && data.ma60Slope !== 'N/A') document.getElementById('valMa60Slope').textContent = data.ma60Slope;
       if (data.dist60Delta && data.dist60Delta !== 'N/A') document.getElementById('valDist60Delta').textContent = data.dist60Delta;
-      if (data.ewtChange && data.ewtChange !== 'N/A') document.getElementById('valEwtChange').textContent = data.ewtChange;
+      const valEwtEl = document.getElementById('valEwtChange');
+      if (valEwtEl) {
+        valEwtEl.textContent = ewtState.displayValue;
+        valEwtEl.style.color = ewtState.isUsable ? '' : (ewtState.isCachedReference ? '#fbbf24' : '#9ca3af');
+      }
 
       // 季線 5日斜率 (大盤底氣) 白話文翻譯與標籤更新
       if (data.ma60Slope && data.ma60Slope !== 'N/A') {
@@ -2001,61 +2156,75 @@
             }
           }
         }
-        const elVix = document.getElementById('tagVix');
-        if (elVix && data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A') {
-          const vixStatusText = data.metricsStatus.vix;
-          elVix.textContent = vixStatusText;
-          if (vixStatusText.includes('恐慌') || vixStatusText.includes('🚨')) {
-            elVix.style.color = '#f87171';
-            elVix.style.background = 'rgba(248, 113, 113, 0.12)';
-            elVix.style.border = '1px solid rgba(248, 113, 113, 0.25)';
-          } else if (vixStatusText.includes('警戒') || vixStatusText.includes('⚠️')) {
-            elVix.style.color = '#fbbf24';
-            elVix.style.background = 'rgba(251, 191, 36, 0.12)';
-            elVix.style.border = '1px solid rgba(251, 191, 36, 0.25)';
-          } else {
-            elVix.style.color = '#34d399';
-            elVix.style.background = 'rgba(52, 211, 153, 0.12)';
-            elVix.style.border = '1px solid rgba(52, 211, 153, 0.25)';
-          }
-        }
-        const rawEwtStr = (data.ewtChange && data.ewtChange !== 'N/A') ? data.ewtChange : null;
-        let ewtStatusText = (data.metricsStatus && data.metricsStatus.ewtChange) ? data.metricsStatus.ewtChange : '➡️ 夜盤平穩';
-        if (rawEwtStr) {
-          let val = parseFloat(String(rawEwtStr).replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').trim());
-          if (!isNaN(val)) {
-            if (Math.abs(val) > 0.15) val = val / 100;
-            if (val <= -0.015) ewtStatusText = '🚨 夜盤急殺';
-            else if (val <= -0.005) ewtStatusText = '⚠️ 夜盤回檔';
-            else if (val >= 0.015) ewtStatusText = '🚀 夜盤大漲';
-            else if (val >= 0.005) ewtStatusText = '📈 夜盤偏強';
-            else ewtStatusText = '➡️ 夜盤平穩';
-          }
-        }
+      }
 
-        const elEwt = document.getElementById('tagEwtChange');
-        if (elEwt) {
-          elEwt.textContent = ewtStatusText;
-          if (ewtStatusText.includes('急殺') || ewtStatusText.includes('暴跌') || ewtStatusText.includes('回檔') || ewtStatusText.includes('🚨') || ewtStatusText.includes('⚠️')) {
-            elEwt.style.color = '#f87171';
-            elEwt.style.background = 'rgba(248, 113, 113, 0.12)';
-            elEwt.style.borderColor = 'rgba(248, 113, 113, 0.25)';
-          } else if (ewtStatusText.includes('大漲') || ewtStatusText.includes('偏強') || ewtStatusText.includes('強勢') || ewtStatusText.includes('🚀') || ewtStatusText.includes('📈')) {
-            elEwt.style.color = '#34d399';
-            elEwt.style.background = 'rgba(52, 211, 153, 0.12)';
-            elEwt.style.borderColor = 'rgba(52, 211, 153, 0.25)';
-          } else {
-            elEwt.style.color = '#fbbf24';
-            elEwt.style.background = 'rgba(251, 191, 36, 0.08)';
-            elEwt.style.borderColor = 'rgba(251, 191, 36, 0.2)';
-          }
+      const elVix = document.getElementById('tagVix');
+      if (elVix) {
+        let vixStatusText;
+        if (vixState.isUsable) {
+          vixStatusText = (data.metricsStatus && data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A')
+            ? data.metricsStatus.vix
+            : vixState.tagFallback;
+        } else {
+          vixStatusText = vixState.tagFallback;
         }
+        elVix.textContent = vixStatusText;
+        if (!vixState.isUsable) {
+          elVix.style.color = vixState.isCachedReference ? '#fbbf24' : '#9ca3af';
+          elVix.style.background = vixState.isCachedReference ? 'rgba(251, 191, 36, 0.12)' : 'rgba(156, 163, 175, 0.12)';
+          elVix.style.border = vixState.isCachedReference ? '1px solid rgba(251, 191, 36, 0.25)' : '1px solid rgba(156, 163, 175, 0.25)';
+        } else if (vixStatusText.includes('恐慌') || vixStatusText.includes('🚨')) {
+          elVix.style.color = '#f87171';
+          elVix.style.background = 'rgba(248, 113, 113, 0.12)';
+          elVix.style.border = '1px solid rgba(248, 113, 113, 0.25)';
+        } else if (vixStatusText.includes('警戒') || vixStatusText.includes('⚠️')) {
+          elVix.style.color = '#fbbf24';
+          elVix.style.background = 'rgba(251, 191, 36, 0.12)';
+          elVix.style.border = '1px solid rgba(251, 191, 36, 0.25)';
+        } else {
+          elVix.style.color = '#34d399';
+          elVix.style.background = 'rgba(52, 211, 153, 0.12)';
+          elVix.style.border = '1px solid rgba(52, 211, 153, 0.25)';
+        }
+      }
 
-        if (data.ewtReadinessGuide || (data.metricsStatus && data.metricsStatus.ewtReadinessGuide)) {
-          const elReadiness = document.getElementById('noteEwtReadiness');
-          if (elReadiness) {
-            elReadiness.textContent = data.ewtReadinessGuide || data.metricsStatus.ewtReadinessGuide;
-          }
+      const elEwt = document.getElementById('tagEwtChange');
+      if (elEwt) {
+        let ewtStatusText;
+        if (ewtState.isUsable) {
+          ewtStatusText = (data.metricsStatus && data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A')
+            ? data.metricsStatus.ewtChange
+            : ewtState.tagFallback;
+        } else {
+          ewtStatusText = ewtState.tagFallback;
+        }
+        elEwt.textContent = ewtStatusText;
+        if (!ewtState.isUsable) {
+          elEwt.style.color = ewtState.isCachedReference ? '#fbbf24' : '#9ca3af';
+          elEwt.style.background = ewtState.isCachedReference ? 'rgba(251, 191, 36, 0.12)' : 'rgba(156, 163, 175, 0.12)';
+          elEwt.style.borderColor = ewtState.isCachedReference ? 'rgba(251, 191, 36, 0.25)' : 'rgba(156, 163, 175, 0.25)';
+        } else if (ewtStatusText.includes('急殺') || ewtStatusText.includes('暴跌') || ewtStatusText.includes('回檔') || ewtStatusText.includes('🚨') || ewtStatusText.includes('⚠️')) {
+          elEwt.style.color = '#f87171';
+          elEwt.style.background = 'rgba(248, 113, 113, 0.12)';
+          elEwt.style.borderColor = 'rgba(248, 113, 113, 0.25)';
+        } else if (ewtStatusText.includes('大漲') || ewtStatusText.includes('偏強') || ewtStatusText.includes('強勢') || ewtStatusText.includes('🚀') || ewtStatusText.includes('📈')) {
+          elEwt.style.color = '#34d399';
+          elEwt.style.background = 'rgba(52, 211, 153, 0.12)';
+          elEwt.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+        } else {
+          elEwt.style.color = '#fbbf24';
+          elEwt.style.background = 'rgba(251, 191, 36, 0.08)';
+          elEwt.style.borderColor = 'rgba(251, 191, 36, 0.2)';
+        }
+      }
+
+      const elReadiness = document.getElementById('noteEwtReadiness');
+      if (elReadiness) {
+        const backendGuide = data.ewtReadinessGuide || (data.metricsStatus && data.metricsStatus.ewtReadinessGuide);
+        if (ewtState.hasObservationObject && ewtState.isUsable && backendGuide) {
+          elReadiness.textContent = backendGuide;
+        } else {
+          elReadiness.textContent = `${ewtState.isUsable ? 'ℹ️' : '⚠️'} ${ewtState.statusMessage}`;
         }
       }
 
@@ -2240,9 +2409,9 @@
 
         // 🔬 Milestone 7 三窗口歷史位階校準模組渲染
         if (data.calibrationWindows) {
-          renderCalibrationModule(data.calibrationWindows, activeCalibrationWindow);
+          renderCalibrationModule(data.calibrationWindows, activeCalibrationWindow, vixState);
         } else {
-          renderCalibrationModule(FALLBACK_CALIBRATION_DATA, activeCalibrationWindow);
+          renderCalibrationModule(FALLBACK_CALIBRATION_DATA, activeCalibrationWindow, vixState);
         }
       }
 
@@ -2250,13 +2419,19 @@
     // 🔬 Milestone 7: 三窗口歷史位階校準與比較模組 (18Y / 10Y / 5Y Calibration Lab)
     // ==========================================
     let currentCalibrationData = null;
+    let currentVixObsState = null;
     let activeCalibrationWindow = '18Y';
     let isCalJsonVisible = false;
 
     // 預設備援三窗口校準數據 (零延遲即時呈現，防呆防空白)
     const FALLBACK_CALIBRATION_DATA = {
       base_date: "2026-10-16",
-      current_values: { dist60: 0.0481, dist240: 0.5520, vix: 19.99 },
+      current_values: { dist60: 0.0481, dist240: 0.5520, vix: null },
+      vix_observation_status: {
+        available: false,
+        statusCode: "LOADING",
+        statusMessage: "資料載入中"
+      },
       windows: {
         "18Y": {
           calibration_window: "18Y",
@@ -2285,11 +2460,13 @@
             },
             vix: {
               metric_name: "VIX (恐慌指數)",
-              current_value: 19.99,
+              current_value: null,
+              observation_available: false,
+              observation_status: "LOADING",
               sample_count: 4204,
               min: 9.14, max: 82.69, mean: 19.66, median: 17.17, std: 8.82,
               percentiles: { p5: 11.49, p10: 12.39, p20: 13.45, p25: 14.01, p50: 17.17, p75: 22.37, p80: 24.14, p90: 29.51, p95: 35.76, p99: 57.08 },
-              current_percentile_rank: 66.10
+              current_percentile_rank: null
             }
           },
           experimental_thresholds: {
@@ -2376,11 +2553,13 @@
             },
             vix: {
               metric_name: "VIX (恐慌指數)",
-              current_value: 19.99,
+              current_value: null,
+              observation_available: false,
+              observation_status: "LOADING",
               sample_count: 2299,
               min: 9.14, max: 82.69, mean: 18.68, median: 16.98, std: 7.38,
               percentiles: { p5: 10.65, p10: 11.87, p20: 13.12, p25: 13.73, p50: 16.98, p75: 21.66, p80: 23.02, p90: 27.55, p95: 31.06, p99: 43.86 },
-              current_percentile_rank: 68.34
+              current_percentile_rank: null
             }
           },
           experimental_thresholds: {
@@ -2467,11 +2646,13 @@
             },
             vix: {
               metric_name: "VIX (恐慌指數)",
-              current_value: 19.99,
+              current_value: null,
+              observation_available: false,
+              observation_status: "LOADING",
               sample_count: 1118,
               min: 11.86, max: 52.33, mean: 19.22, median: 17.80, std: 5.36,
               percentiles: { p5: 12.91, p10: 13.50, p20: 14.75, p25: 15.34, p50: 17.80, p75: 21.95, p80: 23.51, p90: 27.20, p95: 30.18, p99: 33.61 },
-              current_percentile_rank: 65.95
+              current_percentile_rank: null
             }
           },
           experimental_thresholds: {
@@ -2536,12 +2717,12 @@
         "10Y": {
           dist60: { sample_count_diff: -1968, abs_diff_p25: 0.0038, abs_diff_p50: 0.0035, abs_diff_p75: 0.0073, abs_diff_p90: 0.0111, rank_diff: -5.22 },
           dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 },
-          vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: 2.24 }
+          vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: null }
         },
         "5Y": {
           dist60: { sample_count_diff: -3186, abs_diff_p25: 0.0011, abs_diff_p50: 0.0123, abs_diff_p75: 0.0186, abs_diff_p90: 0.0252, rank_diff: -13.01 },
           dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 },
-          vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: -0.15 }
+          vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: null }
         }
       },
       sensitivity_analysis: {
@@ -2582,9 +2763,21 @@
       return `<span style="background: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 12px; font-family: monospace;">${str}</span>`;
     }
 
-    function renderCalibrationModule(calData, selectedWinKey) {
+    function formatCalNum(val) {
+      if (val === undefined || val === null || val === '' || isNaN(Number(val)) || !isFinite(Number(val))) return '--';
+      return Number(val).toFixed(2);
+    }
+
+    function formatCalRank(val) {
+      if (val === undefined || val === null || val === '' || isNaN(Number(val)) || !isFinite(Number(val))) return null;
+      return `P${Number(val).toFixed(1)}`;
+    }
+
+    function renderCalibrationModule(calData, selectedWinKey, vixState) {
       if (!calData || !calData.windows) calData = FALLBACK_CALIBRATION_DATA;
       currentCalibrationData = calData;
+      if (vixState !== undefined) currentVixObsState = vixState;
+      const effectiveVixState = (vixState !== undefined) ? vixState : currentVixObsState;
       activeCalibrationWindow = selectedWinKey || '18Y';
 
       // 暴露全域回測研究物件接口
@@ -2616,10 +2809,10 @@
       if (baseDateEl) baseDateEl.textContent = curWin.base_date;
 
       // Dist60 卡
-      const d60 = curWin.metrics.dist60;
+      const d60 = curWin.metrics && curWin.metrics.dist60;
       if (d60) {
         const rankEl = document.getElementById('calRankDist60');
-        if (rankEl) rankEl.textContent = `P${d60.current_percentile_rank.toFixed(1)}`;
+        if (rankEl) rankEl.textContent = formatCalRank(d60.current_percentile_rank) || 'P--';
         const valEl = document.getElementById('calCurValDist60');
         if (valEl) valEl.textContent = formatCalPct(d60.current_value);
         const p1025 = document.getElementById('calP10P25Dist60');
@@ -2631,10 +2824,10 @@
       }
 
       // Dist240 卡
-      const d240 = curWin.metrics.dist240;
+      const d240 = curWin.metrics && curWin.metrics.dist240;
       if (d240) {
         const rankEl = document.getElementById('calRankDist240');
-        if (rankEl) rankEl.textContent = `P${d240.current_percentile_rank.toFixed(1)}`;
+        if (rankEl) rankEl.textContent = formatCalRank(d240.current_percentile_rank) || 'P--';
         const valEl = document.getElementById('calCurValDist240');
         if (valEl) valEl.textContent = formatCalPct(d240.current_value);
         const p1025 = document.getElementById('calP10P25Dist240');
@@ -2645,19 +2838,50 @@
         if (p90) p90.textContent = formatCalPct(d240.percentiles.p90);
       }
 
-      // VIX 卡
-      const vix = curWin.metrics.vix;
+      // VIX 卡 (嚴禁將 null 轉成 0.00 或 0%；無有效最新 VIX 時仍正常顯示歷史分位數)
+      const vix = curWin.metrics && curWin.metrics.vix;
       if (vix) {
+        const vixObsMeta = calData.vix_observation_status || {};
+        const isLoadingVix = (vixObsMeta.statusCode === 'LOADING' || vix.observation_status === 'LOADING');
+        const hasFiniteVixVal = (vix.current_value !== null && vix.current_value !== undefined && vix.current_value !== '' && isFinite(Number(vix.current_value)));
+        const hasFiniteVixRank = (vix.current_percentile_rank !== null && vix.current_percentile_rank !== undefined && vix.current_percentile_rank !== '' && isFinite(Number(vix.current_percentile_rank)));
+        const obsAllowedByMeta = (vixObsMeta.available !== false) && (vix.observation_available !== false);
+        const obsAllowedByTopLevel = (!effectiveVixState || effectiveVixState.isUsable === true || effectiveVixState.hasObservationObject === false);
+        const showCurrentVix = hasFiniteVixVal && obsAllowedByMeta && obsAllowedByTopLevel;
+
         const rankEl = document.getElementById('calRankVix');
-        if (rankEl) rankEl.textContent = `P${vix.current_percentile_rank.toFixed(1)}`;
+        if (rankEl) {
+          if (isLoadingVix) {
+            rankEl.textContent = '資料載入中';
+          } else if (showCurrentVix && hasFiniteVixRank) {
+            rankEl.textContent = formatCalRank(vix.current_percentile_rank);
+          } else {
+            rankEl.textContent = '資料暫不可用';
+          }
+        }
         const valEl = document.getElementById('calCurValVix');
-        if (valEl) valEl.textContent = Number(vix.current_value).toFixed(2);
+        const valLabelEl = document.getElementById('calCurValVixLabel');
+        if (valEl) {
+          if (isLoadingVix) {
+            valEl.textContent = '--';
+            valEl.style.color = '#94a3b8';
+            if (valLabelEl) valLabelEl.textContent = '資料載入中';
+          } else if (showCurrentVix) {
+            valEl.textContent = formatCalNum(vix.current_value);
+            valEl.style.color = '#f8fafc';
+            if (valLabelEl) valLabelEl.textContent = '最新實體值';
+          } else {
+            valEl.textContent = '資料暫不可用';
+            valEl.style.color = '#9ca3af';
+            if (valLabelEl) valLabelEl.textContent = '無有效最新觀測（保留歷史統計）';
+          }
+        }
         const p1025 = document.getElementById('calP10P25Vix');
-        if (p1025) p1025.textContent = `${vix.percentiles.p10.toFixed(2)} / ${vix.percentiles.p25.toFixed(2)}`;
+        if (p1025 && vix.percentiles) p1025.textContent = `${formatCalNum(vix.percentiles.p10)} / ${formatCalNum(vix.percentiles.p25)}`;
         const p5075 = document.getElementById('calP50P75Vix');
-        if (p5075) p5075.textContent = `${vix.percentiles.p50.toFixed(2)} / ${vix.percentiles.p75.toFixed(2)}`;
+        if (p5075 && vix.percentiles) p5075.textContent = `${formatCalNum(vix.percentiles.p50)} / ${formatCalNum(vix.percentiles.p75)}`;
         const p90 = document.getElementById('calP90Vix');
-        if (p90) p90.textContent = vix.percentiles.p90.toFixed(2);
+        if (p90 && vix.percentiles) p90.textContent = formatCalNum(vix.percentiles.p90);
       }
 
       // 實驗性位階標籤
@@ -2778,33 +3002,33 @@
               VIX<br><span style="font-size: 11px; color: #94a3b8; font-weight: normal;">恐慌指數</span>
             </td>
             <td>P25 (平穩分位)</td>
-            <td style="font-family: monospace; font-weight: 600;">${mvix_18.p25.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${mvix_10.p25.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${mvix_5.p25.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_18.p25)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_10.p25)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_5.p25)}</td>
             <td>${formatCalDiffNum(dvix_10.abs_diff_p25)}</td>
             <td>${formatCalDiffNum(dvix_5.abs_diff_p25)}</td>
           </tr>
           <tr>
             <td>P50 (中位數)</td>
-            <td style="font-family: monospace; font-weight: 600;">${mvix_18.p50.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${mvix_10.p50.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${mvix_5.p50.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_18.p50)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_10.p50)}</td>
+            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_5.p50)}</td>
             <td>${formatCalDiffNum(dvix_10.abs_diff_p50)}</td>
             <td>${formatCalDiffNum(dvix_5.abs_diff_p50)}</td>
           </tr>
           <tr>
             <td style="color: #fbbf24; font-weight: 700;">P75 (警戒分位)</td>
-            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${mvix_18.p75.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${mvix_10.p75.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${mvix_5.p75.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${formatCalNum(mvix_18.p75)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${formatCalNum(mvix_10.p75)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${formatCalNum(mvix_5.p75)}</td>
             <td>${formatCalDiffNum(dvix_10.abs_diff_p75)}</td>
             <td>${formatCalDiffNum(dvix_5.abs_diff_p75)}</td>
           </tr>
           <tr>
             <td style="color: #f87171; font-weight: 700;">P90 (海嘯恐慌)</td>
-            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${mvix_18.p90.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${mvix_10.p90.toFixed(2)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${mvix_5.p90.toFixed(2)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalNum(mvix_18.p90)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalNum(mvix_10.p90)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalNum(mvix_5.p90)}</td>
             <td>${formatCalDiffNum(dvix_10.abs_diff_p90)}</td>
             <td>${formatCalDiffNum(dvix_5.abs_diff_p90)}</td>
           </tr>
@@ -3079,7 +3303,7 @@
     window.switchCalibrationWindow = function(winKey) {
       if (!['18Y', '10Y', '5Y'].includes(winKey)) winKey = '18Y';
       activeCalibrationWindow = winKey;
-      renderCalibrationModule(currentCalibrationData, winKey);
+      renderCalibrationModule(currentCalibrationData, winKey, currentVixObsState);
     };
 
     window.toggleCalibrationJsonView = function() {
