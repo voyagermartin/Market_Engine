@@ -10,7 +10,7 @@
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('🚀 Market Engine V3')
-    .addItem('建置/初始化所有分頁 (Full Setup)', 'setupMarketEngineV3')
+    .addItem('⛔ 建置/初始化所有分頁 (Full Setup｜已安全暫停)', 'setupMarketEngineV3MenuNotice')
     .addSeparator()
     .addItem('⏰ 安裝全套自動觸發器 (07:30 & 16:30 每日更新 + 週二 18:00 Fin-News + 每月 1 日對帳)', 'createDailyTrigger')
     .addItem('🌅 執行盤前更新測試 (07:30 Morning 老巴早餐值班)', 'updateMorningMarketEngine')
@@ -28,7 +28,7 @@ function onOpen() {
     .addSeparator()
     .addItem('🚀 擴展載入 2008~2026 18年完整歷史數據', 'seedFullHistoricalData')
     .addItem('📅 執行月度歷史回測與自我驗證 (updateMonthlyLabBacktest)', 'updateMonthlyLabBacktest')
-    .addItem('更新/套用計算公式與樣式', 'applyFormulasAndStyles')
+    .addItem('⛔ 更新/套用計算公式與樣式 (已安全暫停)', 'applyFormulasAndStyles')
     .addToUi();
 }
 
@@ -235,6 +235,18 @@ function testMarketOpenStatus() {
   }
 
   SpreadsheetApp.getUi().alert(`📅 今日交易日狀態測驗 (${dateStr}):\n\n• 開盤狀態: ${status.isOpen ? '🟢 正常交易日' : '☕ 今日休市'}\n• 判定原因: ${status.reason}\n\n🔑 讀取金鑰資訊:\n• 當前金鑰: ${keyInfo}\n\n🤖 Gemini AI 多模型自我檢測:\n${apiStatus}${modelListStr}`);
+}
+
+/**
+ * Full Setup 選單安全暫停入口（避免一般使用者從試算表選單誤觸全量清空與重建）
+ */
+function setupMarketEngineV3MenuNotice() {
+  const msg = '⚠️ [安全暫停] 「建置/初始化所有分頁 (Full Setup / setupMarketEngineV3)」會清空並重建全部七張分頁（包含 RAW_HISTORY、HISTORY_LOG 與 DECISION_LOG）。目前基於正式資料安全已從選單暫停執行，本次沒有修改任何試算表資料。';
+  Logger.log(msg);
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch (e) {}
+  return { executed: false, paused: true, message: msg };
 }
 
 /**
@@ -2452,51 +2464,67 @@ function createDailyTrigger() {
 // ==========================================
 
 /**
+ * 公開 HTTP GET 禁止觸發的寫入／管理 action 清單與說明
+ */
+const BLOCKED_PUBLIC_GET_ACTIONS_ = {
+  seedData: '全量歷史資料初始化／覆寫 (seedFullHistoricalData)',
+  createTriggers: '系統排程觸發器重建 (createDailyTrigger)',
+  updateMorning: '盤前排程更新與寫入 (updateMorningMarketEngine)',
+  updateAfternoon: '盤後排程更新與寫入 (updateAfternoonMarketEngine)',
+  updateMonthly: '月度回測重建與驗證 (updateMonthlyLabBacktest)',
+  updateBacktest: '月度回測重建與驗證 (updateMonthlyLabBacktest)',
+  checkCrash: '大跌緊急防禦重算與寫入 (checkCrashEmergencyDefense)',
+  updateCrash: '大跌緊急防禦重算與寫入 (checkCrashEmergencyDefense)',
+  updateEvents: '重大事件雷達重建與寫入 (fetchUpcomingMarketEvents)',
+  fetchEvents: '重大事件雷達重建與寫入 (fetchUpcomingMarketEvents)',
+  clearCache: '伺服器 API 快取清除 (CacheService.remove)'
+};
+
+/**
  * Web App 入口 (HTTP GET)
- * 支援 JSON, JSONP 跨域與 HTML 頁面渲染
+ * 僅提供公開唯讀 JSON / JSONP / HTML 查詢；所有寫入、快取清除與排程管理 action 一律拒絕。
  */
 function doGet(e) {
-  let forceRefresh = false;
-  let act = '';
-  if (e && e.parameter && e.parameter.action) {
-    forceRefresh = true;
-    try { PropertiesService.getScriptProperties().deleteProperty('TAIWAN_HOLIDAYS_JSON'); } catch (err) {}
-    act = e.parameter.action;
-    if (act === 'updateMorning') {
-      updateMorningMarketEngine();
-    } else if (act === 'updateAfternoon') {
-      updateAfternoonMarketEngine();
-    } else if (act === 'createTriggers') {
-      createDailyTrigger();
-    } else if (act === 'updateMonthly' || act === 'updateBacktest') {
-      updateMonthlyLabBacktest();
-    } else if (act === 'checkCrash' || act === 'updateCrash') {
-      checkCrashEmergencyDefense();
-    } else if (act === 'updateEvents' || act === 'fetchEvents') {
-      fetchUpcomingMarketEvents();
-    } else if (act === 'seedData') {
-      seedFullHistoricalData();
-    } else if (act === 'clearCache') {
-      try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (err) {}
+  const params = (e && e.parameter) ? e.parameter : {};
+  const act = (params.action !== undefined && params.action !== null)
+    ? String(params.action).trim()
+    : '';
+
+  if (act !== '') {
+    const isKnownBlocked = Object.prototype.hasOwnProperty.call(BLOCKED_PUBLIC_GET_ACTIONS_, act);
+    const actionDesc = isKnownBlocked ? BLOCKED_PUBLIC_GET_ACTIONS_[act] : '未開放的公開 action 操作';
+    const rejectPayload = {
+      ok: false,
+      rejected: true,
+      disabled: true,
+      status: 'FORBIDDEN_PUBLIC_ACTION',
+      action: act,
+      category: isKnownBlocked ? 'WRITE_OR_ADMIN_ACTION' : 'UNSUPPORTED_ACTION',
+      error: `⚠️ [安全隔離] 公開 HTTP GET 已拒絕執行 "${act}"（${actionDesc}）。目前僅開放公開唯讀資料查詢與 JSONP 介面；本次未修改任何試算表、ScriptProperties、Cache 或排程。`,
+      message: `Public HTTP GET action "${act}" is disabled for data lifecycle security.`
+    };
+    Logger.log('[doGet Security] Rejected public action: ' + act);
+
+    if (params.callback) {
+      const jsonpReject = params.callback + '(' + JSON.stringify(rejectPayload) + ');';
+      return ContentService.createTextOutput(jsonpReject)
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
     }
+    return ContentService.createTextOutput(JSON.stringify(rejectPayload))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ⚡ 若明確請求清除快取或特定動作，已在上方依 action 執行完畢，避免在一般 HTTP GET 中同步阻塞 18 年歷史回測
-  if (forceRefresh && act === 'clearCache') {
-    try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (e) {}
-  }
-
-  const data = getMarketEngineData(forceRefresh);
+  const data = getMarketEngineData(false);
 
   // 1. JSONP 模式 (避開所有跨域 CORS 與重定向問題)
-  if (e && e.parameter && e.parameter.callback) {
-    const jsonpOutput = e.parameter.callback + '(' + JSON.stringify(data) + ');';
+  if (params.callback) {
+    const jsonpOutput = params.callback + '(' + JSON.stringify(data) + ');';
     return ContentService.createTextOutput(jsonpOutput)
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
 
   // 2. 純 JSON API 模式
-  if (e && e.parameter && (e.parameter.format === 'json' || e.parameter.type === 'json' || e.parameter.action)) {
+  if (params.format === 'json' || params.type === 'json') {
     return ContentService.createTextOutput(JSON.stringify(data))
       .setMimeType(ContentService.MimeType.JSON);
   }
@@ -4745,10 +4773,16 @@ function getMarketEngineData(skipCache, options) {
 }
 
 /**
- * 快捷重新套用公式與樣式
+ * 舊版「更新/套用計算公式與樣式」入口 (目前已基於資料安全暫停執行)
+ * 原實作會直接呼叫 setupMarketEngineV3() 全量清空並重建全部七張分頁。
  */
 function applyFormulasAndStyles() {
-  setupMarketEngineV3();
+  const msg = '⚠️ [安全暫停] 「更新/套用計算公式與樣式 (applyFormulasAndStyles)」原功能實際上會呼叫 setupMarketEngineV3() 全量初始化並清空七張分頁，目前基於資料安全暫停使用，本次沒有修改任何試算表資料。';
+  Logger.log(msg);
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch (e) {}
+  return { executed: false, paused: true, message: msg };
 }
 
 /**
