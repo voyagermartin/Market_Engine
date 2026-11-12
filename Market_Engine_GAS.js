@@ -2514,7 +2514,22 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  const data = getMarketEngineData(false);
+  let data = null;
+  let lock = null;
+  let hasLock = false;
+  try {
+    if (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
+      lock = LockService.getScriptLock();
+      if (lock && typeof lock.tryLock === 'function') {
+        hasLock = lock.tryLock(1500);
+      }
+    }
+    data = getMarketEngineData(false, { readOnly: true });
+  } finally {
+    if (hasLock && lock && typeof lock.releaseLock === 'function') {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
 
   // 1. JSONP 模式 (避開所有跨域 CORS 與重定向問題)
   if (params.callback) {
@@ -4357,6 +4372,7 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
  * 抓取 Market Engine 全站數據 API (Asia/Taipei 時區與休市日連動)
  */
 function getMarketEngineData(skipCache, options) {
+  const isReadOnly = Boolean(options && options.readOnly);
   const now = (options && options.now instanceof Date && !isNaN(options.now.getTime())) ? options.now : new Date();
   const todayDateStr = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd');
   const cache = CacheService.getScriptCache();
@@ -4547,14 +4563,16 @@ function getMarketEngineData(skipCache, options) {
 
   // 2. 抓取 DASHBOARD 今日位階、DCA 扣款卡與 AI 顧問
   if (dashboardSheet) {
-    // ⚡ 自我修復：若 B7 為空或出現 #REF!，代表公式參照漂移，立即自動重構 DASHBOARD
-    const b7Check = dashboardSheet.getRange('B7').getDisplayValue();
-    if (!b7Check || b7Check.includes('#REF') || b7Check === '') {
-      try {
-        buildDashboardSheet(dashboardSheet);
-        SpreadsheetApp.flush();
-      } catch (errHealing) {
-        Logger.log('Self-healing DASHBOARD error: ' + errHealing.message);
+    // ⚡ 自我修復：若 B7 為空或出現 #REF!，代表公式參照漂移，僅於非唯讀模式重構 DASHBOARD
+    if (!isReadOnly) {
+      const b7Check = dashboardSheet.getRange('B7').getDisplayValue();
+      if (!b7Check || b7Check.includes('#REF') || b7Check === '') {
+        try {
+          buildDashboardSheet(dashboardSheet);
+          SpreadsheetApp.flush();
+        } catch (errHealing) {
+          Logger.log('Self-healing DASHBOARD error: ' + errHealing.message);
+        }
       }
     }
 
@@ -4586,7 +4604,9 @@ function getMarketEngineData(skipCache, options) {
           hasFailed: !vixEval.isUsable || !ewtEval.isUsable
         }
       );
-      try { dashboardSheet.getRange('B23').setValue(aiM); } catch (e) {}
+      if (!isReadOnly) {
+        try { dashboardSheet.getRange('B23').setValue(aiM); } catch (e) {}
+      }
     }
     if (isDefaultOrErrorAfternoon) {
       aiA = generateFallbackAfternoonText(
@@ -4603,7 +4623,9 @@ function getMarketEngineData(skipCache, options) {
           hasFailed: !vixEval.isUsable || !ewtEval.isUsable
         }
       );
-      try { dashboardSheet.getRange('B24').setValue(aiA); } catch (e) {}
+      if (!isReadOnly) {
+        try { dashboardSheet.getRange('B24').setValue(aiA); } catch (e) {}
+      }
     }
 
     if (dca && dca !== '' && dca !== 'N/A') data.dcaGuide = dca;
@@ -4655,12 +4677,14 @@ function getMarketEngineData(skipCache, options) {
       data.phaseDurationText = reliefInfo.phaseDurationText;
       data.phaseReliefGuide = reliefInfo.phaseReliefGuide;
 
-      // ⚡ 同步回寫 DASHBOARD Sheet B17 轉折脈絡格
-      try {
-        if (dashboardSheet && reliefInfo.phaseTransitionText) {
-          dashboardSheet.getRange('B17').setValue(reliefInfo.phaseTransitionText);
-        }
-      } catch (e) {}
+      // ⚡ 同步回寫 DASHBOARD Sheet B17 轉折脈絡格（唯讀模式僅計算記憶體回傳）
+      if (!isReadOnly) {
+        try {
+          if (dashboardSheet && reliefInfo.phaseTransitionText) {
+            dashboardSheet.getRange('B17').setValue(reliefInfo.phaseTransitionText);
+          }
+        } catch (e) {}
+      }
     } catch (e) {
       Logger.log('Relief calc error: ' + e.message);
       data.phaseDurationText = `🛒 ${data.date} 位階：${data.phase}`;
@@ -4738,7 +4762,7 @@ function getMarketEngineData(skipCache, options) {
 
   // 📰 載入 FIN-NEWS 週中雷達與大跌緊急防禦數據
   try {
-    data.finNews = getFinNewsCombinedPayload();
+    data.finNews = getFinNewsCombinedPayload(isReadOnly ? { readOnly: true, now: now } : undefined);
   } catch (e) {
     Logger.log('FinNews payload error: ' + e.message);
   }
@@ -5341,9 +5365,221 @@ function fetchUpcomingMarketEvents() {
 }
 
 /**
+ * 唯讀取得 Fin-News 全套資料（嚴禁寫入 ScriptProperties、清除 Cache、呼叫 Gemini 或 Drive）
+ */
+function getFinNewsCombinedPayloadReadOnly_(refDate) {
+  const now = (refDate instanceof Date && !isNaN(refDate.getTime())) ? refDate : new Date();
+  const props = PropertiesService.getScriptProperties();
+  const isoWeek = getIsoWeekString(now);
+  const todayDateStr = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd');
+
+  // 1. Weekly Payload (FIN_NEWS_WEEKLY_PAYLOAD)
+  const weeklyStr = props.getProperty('FIN_NEWS_WEEKLY_PAYLOAD');
+  let weeklyData = null;
+  let weeklyMeta = { dataStatus: 'MISSING_DATA', isStale: false, isMissing: true };
+
+  if (weeklyStr) {
+    try {
+      const parsed = JSON.parse(weeklyStr);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.lastFetchStatus === 'FAILED' || parsed.dataStatus === 'UPDATE_FAILED') {
+          weeklyData = Object.assign({}, parsed, {
+            dataStatus: 'UPDATE_FAILED',
+            isStale: parsed.isoWeek !== isoWeek,
+            isMissing: false,
+            isFailed: true,
+            statusMessage: parsed.statusMessage || '週報最近一次更新失敗（保留現有資料）'
+          });
+          weeklyMeta = { dataStatus: 'UPDATE_FAILED', isStale: weeklyData.isStale, isMissing: false, isFailed: true };
+        } else if (parsed.isoWeek === isoWeek) {
+          weeklyData = Object.assign({}, parsed, {
+            dataStatus: 'FRESH_VALID',
+            isStale: false,
+            isMissing: false
+          });
+          weeklyMeta = { dataStatus: 'FRESH_VALID', isStale: false, isMissing: false };
+        } else {
+          weeklyData = Object.assign({}, parsed, {
+            dataStatus: 'STALE_DATA',
+            isStale: true,
+            isMissing: false,
+            statusMessage: `週報資料已過期（保留最後有效週報：${parsed.isoWeek || '未知週別'}，目前為 ${isoWeek}）`,
+            updateTime: parsed.updateTime ? `${parsed.updateTime}（已過期）` : '已過期'
+          });
+          weeklyMeta = { dataStatus: 'STALE_DATA', isStale: true, isMissing: false };
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!weeklyData) {
+    weeklyData = {
+      isoWeek: `${isoWeek} (尚無資料)`,
+      dataStatus: 'MISSING_DATA',
+      isStale: false,
+      isMissing: true,
+      statusMessage: '尚無 Fin-News 週報資料（唯讀模式不觸發自動生成）',
+      storyBuffett: '尚無本週老巴讀報資料（待排程更新）',
+      storySoros: '尚無本週小羅拆解資料（待排程更新）',
+      radarAi: '⚪ 尚無資料',
+      radarCpi: '⚪ 尚無資料',
+      radarGeo: '⚪ 尚無資料',
+      summaryA: '尚無本週市場綜合定位資料',
+      summaryC: '尚無市場波動性質判定資料',
+      summaryD: '未知（尚無週報資料）',
+      summaryE: '尚無本週備忘資料',
+      updateTime: '尚無更新紀錄'
+    };
+  }
+
+  // 2. Events Payload (FIN_NEWS_EVENTS_PAYLOAD)
+  const eventsStr = props.getProperty('FIN_NEWS_EVENTS_PAYLOAD');
+  let rawEvents = [];
+  if (eventsStr) {
+    try {
+      const parsedEvents = JSON.parse(eventsStr);
+      if (Array.isArray(parsedEvents)) rawEvents = parsedEvents;
+    } catch (e) {}
+  }
+
+  const normalizeEvent = (evt, isExpired) => {
+    let countdownDays = 0;
+    if (!isExpired && evt.eventDate) {
+      try {
+        const evtD = new Date(evt.eventDate + 'T00:00:00+08:00');
+        const diffMs = evtD.getTime() - now.getTime();
+        countdownDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      } catch (e) {}
+    }
+    const cleanImp = evt.importance
+      ? String(evt.importance).replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, '')
+      : '';
+    const cleanStrat = evt.impactAndStrategy
+      ? String(evt.impactAndStrategy).replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '')
+      : '';
+    const out = Object.assign({}, evt, {
+      countdownDays: countdownDays,
+      importance: cleanImp,
+      impactAndStrategy: cleanStrat
+    });
+    if (isExpired) {
+      out.isStale = true;
+      out.dataStatus = 'STALE_DATA';
+      out.statusMessage = '此事件日期已過期（保留最後有效紀錄僅供參考）';
+    }
+    return out;
+  };
+
+  let eventsData = [];
+  let eventsMeta = { dataStatus: 'MISSING_DATA', isStale: false, isMissing: true, validCount: 0 };
+  if (rawEvents.length > 0) {
+    const validEvents = rawEvents.filter(evt => evt && evt.eventDate && evt.eventDate >= todayDateStr);
+    if (validEvents.length > 0) {
+      eventsData = validEvents.map(evt => normalizeEvent(evt, false));
+      eventsMeta = { dataStatus: 'FRESH_VALID', isStale: false, isMissing: false, validCount: eventsData.length };
+    } else {
+      eventsData = rawEvents.filter(evt => evt && evt.eventName).map(evt => normalizeEvent(evt, true));
+      eventsMeta = {
+        dataStatus: 'STALE_DATA',
+        isStale: true,
+        isMissing: false,
+        validCount: 0,
+        retainedCount: eventsData.length,
+        statusMessage: '事件日曆已過期（保留最後有效事件僅供參考）'
+      };
+    }
+  } else {
+    eventsMeta.statusMessage = '尚無重大事件雷達資料（唯讀模式不觸發自動生成）';
+  }
+
+  // 3. Crash Payload (FIN_NEWS_CRASH_PAYLOAD) - 缺失時明確回傳未知，不得回傳大盤平穩
+  const crashStr = props.getProperty('FIN_NEWS_CRASH_PAYLOAD');
+  let crashData = null;
+  let crashMeta = { dataStatus: 'MISSING_DATA', isStale: false, isMissing: true, isUnknown: true };
+
+  if (crashStr) {
+    try {
+      const parsedCrash = JSON.parse(crashStr);
+      if (parsedCrash && typeof parsedCrash === 'object') {
+        let isCrashStale = false;
+        const dateMatch = parsedCrash.dateStr ? String(parsedCrash.dateStr).match(/(\d{4}-\d{2}-\d{2})/) : null;
+        if (dateMatch && dateMatch[1]) {
+          const crashDate = new Date(dateMatch[1] + 'T00:00:00+08:00');
+          const todayMidnight = new Date(todayDateStr + 'T00:00:00+08:00');
+          const ageDays = Math.floor((todayMidnight.getTime() - crashDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (ageDays > 7) isCrashStale = true;
+        }
+        crashData = Object.assign({}, parsedCrash, {
+          isUnknown: false,
+          isStale: isCrashStale,
+          dataStatus: isCrashStale ? 'STALE_DATA' : 'FRESH_VALID'
+        });
+        if (isCrashStale) {
+          crashData.statusMessage = `大跌防禦資料已過期（保留最後紀錄：${parsedCrash.dateStr}，非最新狀態）`;
+        }
+        crashMeta = {
+          dataStatus: crashData.dataStatus,
+          isStale: isCrashStale,
+          isMissing: false,
+          isUnknown: false
+        };
+      }
+    } catch (e) {}
+  }
+
+  if (!crashData) {
+    crashData = {
+      isTriggered: false,
+      isUnknown: true,
+      isStale: false,
+      dataStatus: 'MISSING_DATA',
+      status: 'UNKNOWN',
+      triggerReason: '',
+      dropPoints: null,
+      classification: '狀態未知（尚無大跌防禦資料）',
+      reasons: ['尚無最新大跌緊急防禦檢查紀錄（唯讀模式不觸發即時寫入）。'],
+      powderAdvice: '未知（請先確認盤後排程狀態）',
+      warningTip: '目前缺少大跌防禦紀錄，不代表市場一定平穩。',
+      analysisText: '⚠️ 尚無大跌緊急防禦檢查資料（狀態未知，未以「大盤平穩」替代）。',
+      dateStr: null,
+      statusMessage: '尚無大跌防禦資料（狀態未知）'
+    };
+  }
+
+  if (crashData && crashData.isTriggered) {
+    const formattedDrop = crashData.dropPoints ? Number(crashData.dropPoints).toLocaleString() : '1,000';
+    if (!crashData.analysisText || crashData.analysisText.includes('未觸發') || crashData.analysisText.includes('運作平穩')) {
+      crashData.analysisText = `近 2 日大盤累計重挫 ${formattedDrop} 點，正式觸發 1,000 點急煞大跌防禦機制，進入情緒型下跌監測。`;
+    }
+    if (!Array.isArray(crashData.reasons) || crashData.reasons.length === 0) {
+      crashData.reasons = [
+        `近 2 日大盤加權指數急遽重挫 ${formattedDrop} 點，引發短線恐慌賣壓迅速宣洩。`,
+        `季線偏離度自高位急殺收斂，此波動屬於典型高檔情緒型與籌碼面急跌。`,
+        `核心長期部位維持既定紀律穩定扣款，手動加碼資金池暫緩衝動動用，靜待盤勢止跌沉澱。`
+      ];
+    }
+  }
+
+  return {
+    weekly: weeklyData,
+    crashAlert: crashData,
+    upcomingEvents: eventsData,
+    meta: {
+      readOnly: true,
+      weekly: weeklyMeta,
+      events: eventsMeta,
+      crash: crashMeta
+    }
+  };
+}
+
+/**
  * 讀取 Fin-News 全套資料
  */
-function getFinNewsCombinedPayload() {
+function getFinNewsCombinedPayload(options) {
+  if (options && options.readOnly) {
+    return getFinNewsCombinedPayloadReadOnly_(options.now);
+  }
   const props = PropertiesService.getScriptProperties();
   const isoWeek = getIsoWeekString(new Date());
   const crashStr = props.getProperty('FIN_NEWS_CRASH_PAYLOAD');
