@@ -1471,6 +1471,8 @@
           </span>
         </div>
 
+        <div id="finNewsWeeklyStatusBanner" style="display: none; margin-bottom: 18px; padding: 12px 16px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; line-height: 1.5;"></div>
+
         <!-- 3 大雷達燈號區塊 -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px;">
           <div style="background: rgba(15, 23, 42, 0.6); padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08);">
@@ -1525,7 +1527,7 @@
               <div style="font-size: 13px; color: #cbd5e1;">自動追蹤未來 30~60 天全球總經與半導體法說會重大事件</div>
             </div>
           </div>
-          <span style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 10px;">
+          <span id="upcomingEventsBadge" style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 10px;">
             ⏱️ 動態倒數中
           </span>
         </div>
@@ -2233,8 +2235,49 @@
         const fn = data.finNews;
         const w = fn.weekly || {};
         const c = fn.crashAlert || {};
+        const meta = fn.meta || {};
+        const metaWeekly = meta.weekly || {};
+        const metaEvents = meta.events || {};
+        const metaCrash = meta.crash || {};
+        const escHtml = (val) => String(val === null || val === undefined ? '' : val)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
 
-        // ☕ 雙大師說書讀報卡渲染
+        // ☕ 雙大師說書讀報卡與週報狀態渲染
+        const wStatus = w.dataStatus || metaWeekly.dataStatus || '';
+        const wIsFailed = Boolean(w.isFailed || metaWeekly.isFailed || wStatus === 'UPDATE_FAILED');
+        const wIsStale = Boolean(w.isStale || metaWeekly.isStale || wStatus === 'STALE_DATA');
+        const wIsMissing = Boolean(w.isMissing || metaWeekly.isMissing || wStatus === 'MISSING_DATA');
+        const wStatusMsg = w.statusMessage || metaWeekly.statusMessage || '';
+
+        const weeklyBanner = document.getElementById('finNewsWeeklyStatusBanner');
+        if (weeklyBanner) {
+          if (wIsFailed) {
+            weeklyBanner.style.display = 'block';
+            weeklyBanner.style.background = 'rgba(239, 68, 68, 0.16)';
+            weeklyBanner.style.border = '1px solid rgba(239, 68, 68, 0.45)';
+            weeklyBanner.style.color = '#fca5a5';
+            weeklyBanner.textContent = `⚠️ 週報更新失敗：${wStatusMsg || '最近一次更新失敗，以下保留最後有效週報內容。'}`;
+          } else if (wIsStale) {
+            weeklyBanner.style.display = 'block';
+            weeklyBanner.style.background = 'rgba(245, 158, 11, 0.16)';
+            weeklyBanner.style.border = '1px solid rgba(245, 158, 11, 0.45)';
+            weeklyBanner.style.color = '#fcd34d';
+            weeklyBanner.textContent = `⏳ 資料已過期：${wStatusMsg || '週報資料已過期，以下保留最後有效週報僅供參考。'}`;
+          } else if (wIsMissing) {
+            weeklyBanner.style.display = 'block';
+            weeklyBanner.style.background = 'rgba(148, 163, 184, 0.15)';
+            weeklyBanner.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+            weeklyBanner.style.color = '#cbd5e1';
+            weeklyBanner.textContent = `ℹ️ 尚無週報資料：${wStatusMsg || '尚無 Fin-News 週報資料（唯讀模式不觸發自動生成）。'}`;
+          } else {
+            weeklyBanner.style.display = 'none';
+            weeklyBanner.textContent = '';
+          }
+        }
+
         const sBuffett = document.getElementById('finNewsStoryBuffett');
         const sSoros = document.getElementById('finNewsStorySoros');
         if (sBuffett && w.storyBuffett) {
@@ -2245,7 +2288,15 @@
         }
 
         const weekTagEl = document.getElementById('finNewsWeekTag');
-        if (weekTagEl && w.isoWeek) weekTagEl.textContent = `${w.isoWeek} 報告`;
+        if (weekTagEl && w.isoWeek) {
+          let weekTagText = `${w.isoWeek} 報告`;
+          if (wIsFailed && !weekTagText.includes('失敗')) {
+            weekTagText += wIsStale ? '（更新失敗・已過期）' : '（更新失敗）';
+          } else if (wIsStale && !weekTagText.includes('已過期')) {
+            weekTagText += '（已過期）';
+          }
+          weekTagEl.textContent = weekTagText;
+        }
 
         const bAi = document.getElementById('radarBadgeAi');
         const bCpi = document.getElementById('radarBadgeCpi');
@@ -2269,14 +2320,61 @@
 
         // 🗓️ 未來重大事件倒數雷達動態渲染
         const eventsContainer = document.getElementById('upcomingEventsList');
+        const eventsBadge = document.getElementById('upcomingEventsBadge');
+        const eventsStatus = metaEvents.dataStatus || '';
+        const eventsList = Array.isArray(fn.upcomingEvents) ? fn.upcomingEvents : [];
+        const eventsIsStale = Boolean(
+          metaEvents.isStale ||
+          eventsStatus === 'STALE_DATA' ||
+          eventsList.some(evt => evt && (evt.isStale || evt.dataStatus === 'STALE_DATA'))
+        );
+        const eventsIsMissing = Boolean(
+          metaEvents.isMissing ||
+          eventsStatus === 'MISSING_DATA' ||
+          eventsList.length === 0
+        );
+
+        if (eventsBadge) {
+          if (eventsIsStale) {
+            eventsBadge.textContent = '⏳ 資料已過期';
+            eventsBadge.style.background = 'rgba(245, 158, 11, 0.16)';
+            eventsBadge.style.color = '#fbbf24';
+            eventsBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+          } else if (eventsIsMissing && eventsList.length === 0) {
+            eventsBadge.textContent = 'ℹ️ 尚無資料';
+            eventsBadge.style.background = 'rgba(148, 163, 184, 0.16)';
+            eventsBadge.style.color = '#cbd5e1';
+            eventsBadge.style.borderColor = 'rgba(148, 163, 184, 0.35)';
+          } else {
+            eventsBadge.textContent = '⏱️ 動態倒數中';
+            eventsBadge.style.background = 'rgba(56, 189, 248, 0.15)';
+            eventsBadge.style.color = '#7dd3fc';
+            eventsBadge.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+          }
+        }
+
         if (eventsContainer) {
-          if (Array.isArray(fn.upcomingEvents) && fn.upcomingEvents.length > 0) {
-            eventsContainer.innerHTML = fn.upcomingEvents.map(evt => {
-              const days = evt.countdownDays !== undefined ? evt.countdownDays : 0;
-              const badgeBg = days <= 14 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)';
-              const badgeColor = days <= 14 ? '#f87171' : '#38bdf8';
-              const badgeBorder = days <= 14 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.3)';
-              const badgeText = days === 0 ? '🔥 今日登場' : `⏱️ 距今 ${days} 天`;
+          if (eventsList.length > 0) {
+            const staleBannerHtml = eventsIsStale
+              ? `<div style="background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.4); color: #fcd34d; border-radius: 12px; padding: 12px 16px; font-size: 0.95rem; font-weight: 600;">⏳ 資料已過期：${escHtml(metaEvents.statusMessage || '事件日曆已過期，以下保留最後有效事件紀錄僅供參考，非即時倒數。')}</div>`
+              : '';
+
+            eventsContainer.innerHTML = staleBannerHtml + eventsList.map(evt => {
+              const evtIsStale = Boolean(evt.isStale || evt.dataStatus === 'STALE_DATA' || eventsIsStale);
+              let badgeBg, badgeColor, badgeBorder, badgeText;
+
+              if (evtIsStale) {
+                badgeBg = 'rgba(148, 163, 184, 0.18)';
+                badgeColor = '#cbd5e1';
+                badgeBorder = 'rgba(148, 163, 184, 0.35)';
+                badgeText = '⏳ 資料已過期（僅供參考）';
+              } else {
+                const days = evt.countdownDays !== undefined ? evt.countdownDays : 0;
+                badgeBg = days <= 14 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)';
+                badgeColor = days <= 14 ? '#f87171' : '#38bdf8';
+                badgeBorder = days <= 14 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.3)';
+                badgeText = days === 0 ? '🔥 今日登場' : `⏱️ 距今 ${days} 天`;
+              }
 
               const cleanImportance = (evt.importance || '').replace(/(?:💡|\*)*\s*【?\*?\*?為什麼重要\*?\*?】?[:：]?\*?\*?\s*/g, '');
               const cleanImpact = (evt.impactAndStrategy || '').replace(/(?:🛡️|\*)*\s*【?\*?\*?(?:盤面影響與資金池戰術指南|資金池戰術指南|盤面影響)\*?\*?】?[:：]?\*?\*?\s*/g, '');
@@ -2284,69 +2382,158 @@
               return `
                 <div style="background: rgba(15, 23, 42, 0.65); border-left: 4px solid ${badgeColor}; border-radius: 14px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.08);">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                    <div style="font-size: 1.1rem; font-weight: 800; color: #f1f5f9;">${evt.eventName}</div>
+                    <div style="font-size: 1.1rem; font-weight: 800; color: #f1f5f9;">${escHtml(evt.eventName)}</div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">📅 ${evt.eventDate}</span>
+                      <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">📅 ${escHtml(evt.eventDate)}</span>
                       <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px;">${badgeText}</span>
                     </div>
                   </div>
                   <div style="font-size: 0.98rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 8px;">
-                    ${cleanImportance}
+                    ${escHtml(cleanImportance)}
                   </div>
                   <div style="font-size: 0.98rem; color: #fef08a; line-height: 1.6; background: rgba(0,0,0,0.25); padding: 10px 14px; border-radius: 10px; border-left: 3px solid #fde047;">
-                    ${cleanImpact}
+                    ${escHtml(cleanImpact)}
                   </div>
                 </div>
               `;
             }).join('');
           } else {
+            const missingMsg = metaEvents.statusMessage || '尚無重大事件雷達資料（唯讀模式不觸發自動生成）';
             eventsContainer.innerHTML = `
-              <div style="background: rgba(15, 23, 42, 0.45); border-radius: 12px; padding: 24px; text-align: center; border: 1px dashed rgba(255, 255, 255, 0.15);">
-                <div style="font-size: 1.05rem; color: #94a3b8; margin-bottom: 12px;">⏳ 正在即時同步未來重大事件雷達...</div>
-                <button onclick="fetchLiveData(true)" style="background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; border-radius: 8px; padding: 6px 16px; cursor: pointer; font-size: 13px; font-weight: 600;">點擊立即重新同步</button>
+              <div style="background: rgba(15, 23, 42, 0.45); border-radius: 12px; padding: 24px; text-align: center; border: 1px dashed rgba(148, 163, 184, 0.3);">
+                <div style="font-size: 1.05rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">ℹ️ 尚無重大事件雷達資料</div>
+                <div style="font-size: 0.92rem; color: #94a3b8;">${escHtml(missingMsg)}</div>
               </div>
             `;
           }
         }
 
-        // 🚨 突發大跌事件鑑別 (平時隱藏，觸發時顯示)
+        // 🚨 突發大跌事件鑑別 (UNKNOWN / STALE_DATA / 有效觸發皆須正確呈現語意)
         const crashCard = document.getElementById('crashDefenseCard');
         const crashBadge = document.getElementById('crashDefenseBadge');
         const crashBody = document.getElementById('crashDefenseBody');
         const crashTime = document.getElementById('crashDefenseTime');
 
+        const cStatus = c.dataStatus || metaCrash.dataStatus || '';
+        const cIsUnknown = Boolean(c.isUnknown || metaCrash.isUnknown || cStatus === 'MISSING_DATA' || c.status === 'UNKNOWN');
+        const cIsStale = Boolean(c.isStale || metaCrash.isStale || cStatus === 'STALE_DATA');
+        const cStatusMsg = c.statusMessage || metaCrash.statusMessage || '';
+
+        const buildCrashReasonsHtml = (crashObj) => {
+          if (Array.isArray(crashObj.reasons) && crashObj.reasons.length > 0) {
+            return '<ul style="margin: 8px 0 12px 20px; padding: 0;">' + crashObj.reasons.map(r => `<li>${escHtml(r)}</li>`).join('') + '</ul>';
+          }
+          if (crashObj.analysisText && !crashObj.analysisText.includes('未觸發') && !crashObj.analysisText.includes('運作平穩')) {
+            return `<p>${escHtml(crashObj.analysisText)}</p>`;
+          }
+          const dropStr = crashObj.dropPoints ? Number(crashObj.dropPoints).toLocaleString() : '1,000';
+          return `<ul style="margin: 8px 0 12px 20px; padding: 0;">
+            <li>近 2 日大盤累計重挫 ${escHtml(dropStr)} 點，正式觸發 1,000 點急煞大跌防禦機制，進入情緒型下跌監測。</li>
+            <li>短線恐慌情緒快速宣洩，目前偏離度急遽收斂，核心長期資產維持既定扣款紀律。</li>
+            <li>手動加碼資金池暫緩衝動進場，耐心觀察後續盤勢止跌與籌碼落底訊號。</li>
+          </ul>`;
+        };
+
         if (crashCard && crashBadge && crashBody) {
-          if (c.isTriggered) {
+          if (cIsUnknown) {
             crashCard.style.display = 'block';
-            crashBadge.textContent = `🚨 ${c.classification || '情緒型下跌'} (${c.triggerReason || '大跌觸發'})`;
-            
-            let reasonsHtml = '';
-            if (Array.isArray(c.reasons) && c.reasons.length > 0) {
-              reasonsHtml = '<ul style="margin: 8px 0 12px 20px; padding: 0;">' + c.reasons.map(r => `<li>${r}</li>`).join('') + '</ul>';
-            } else if (c.analysisText && !c.analysisText.includes('未觸發') && !c.analysisText.includes('運作平穩')) {
-              reasonsHtml = `<p>${c.analysisText}</p>`;
-            } else {
-              const dropStr = c.dropPoints ? Number(c.dropPoints).toLocaleString() : '1,000';
-              reasonsHtml = `<ul style="margin: 8px 0 12px 20px; padding: 0;">
-                <li>近 2 日大盤累計重挫 ${dropStr} 點，正式觸發 1,000 點急煞大跌防禦機制，進入情緒型下跌監測。</li>
-                <li>短線恐慌情緒快速宣洩，目前偏離度急遽收斂，核心長期資產維持既定扣款紀律。</li>
-                <li>手動加碼資金池暫緩衝動進場，耐心觀察後續盤勢止跌與籌碼落底訊號。</li>
-              </ul>`;
-            }
+            crashCard.style.border = '1px solid rgba(245, 158, 11, 0.45)';
+            crashCard.style.background = 'rgba(30, 41, 59, 0.85)';
+            crashCard.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.12)';
+
+            crashBadge.textContent = '⚠️ 風險狀態未知';
+            crashBadge.style.background = 'rgba(245, 158, 11, 0.2)';
+            crashBadge.style.color = '#fbbf24';
+            crashBadge.style.border = '1px solid rgba(245, 158, 11, 0.45)';
+
+            const classificationHtml = c.classification
+              ? `<div style="font-weight: 700; color: #e2e8f0; margin-bottom: 6px;">【狀態判讀】${escHtml(c.classification)}</div>`
+              : '';
+            const analysisHtml = c.analysisText
+              ? `<div style="color: #cbd5e1; margin-bottom: 8px;">${escHtml(c.analysisText)}</div>`
+              : '';
+            const warningTipHtml = c.warningTip
+              ? `<div style="margin-top: 10px; background: rgba(0,0,0,0.28); padding: 10px 14px; border-radius: 10px; border-left: 4px solid #f59e0b; color: #fde68a; font-weight: 600;">【風險提醒】${escHtml(c.warningTip)}</div>`
+              : '';
 
             crashBody.innerHTML = `
-              <div style="font-weight: 700; color: #fde047; margin-bottom: 6px;">【波動性質主判定】${c.classification || '① 情緒型下跌'}</div>
+              <div style="background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.38); color: #fde68a; padding: 10px 14px; border-radius: 10px; font-weight: 700; margin-bottom: 12px;">
+                ⚠️ 風險狀態未知，不代表市場平穩
+              </div>
+              ${classificationHtml}
+              ${analysisHtml}
+              ${warningTipHtml}
+            `;
+          } else if (cIsStale) {
+            crashCard.style.display = 'block';
+            crashCard.style.border = '1px solid rgba(245, 158, 11, 0.55)';
+            crashCard.style.background = 'rgba(45, 35, 20, 0.85)';
+            crashCard.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.18)';
+
+            crashBadge.style.background = 'rgba(245, 158, 11, 0.22)';
+            crashBadge.style.color = '#fbbf24';
+            crashBadge.style.border = '1px solid rgba(245, 158, 11, 0.5)';
+
+            if (c.isTriggered) {
+              crashBadge.textContent = '⏳ 歷史警報（資料已過期，非最新狀態）';
+              const reasonsHtml = buildCrashReasonsHtml(c);
+              crashBody.innerHTML = `
+                <div style="background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.45); color: #fcd34d; padding: 10px 14px; border-radius: 10px; font-weight: 700; margin-bottom: 12px;">
+                  ⏳ ${escHtml(cStatusMsg || '大跌防禦資料已過期，以下保留舊警報內容僅供參考，非目前仍然有效的即時警報。')}
+                </div>
+                <div style="font-weight: 700; color: #fde047; margin-bottom: 6px;">【歷史波動性質主判定】${escHtml(c.classification || '① 情緒型下跌')}</div>
+                <div style="font-weight: 700; color: #cbd5e1; margin-top: 10px;">【歷史判定依據】</div>
+                ${reasonsHtml}
+                <div style="margin-top: 12px; background: rgba(0,0,0,0.3); padding: 12px 16px; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                  <div style="font-weight: 700; color: #fbbf24;">【原資金池態度建議】: ${escHtml(c.powderAdvice || '暫緩')}</div>
+                  <div style="font-weight: 700; color: #fef08a; margin-top: 4px;">【一句話提醒】: ${escHtml(c.warningTip || '保持冷靜，避免情緒化行動。')}</div>
+                </div>
+              `;
+            } else {
+              crashBadge.textContent = '⏳ 防禦資料已過期（非最新狀態）';
+              const analysisHtml = c.analysisText
+                ? `<div style="color: #cbd5e1; margin-bottom: 8px;">${escHtml(c.analysisText)}</div>`
+                : '';
+              const warningTipHtml = c.warningTip
+                ? `<div style="margin-top: 10px; background: rgba(0,0,0,0.28); padding: 10px 14px; border-radius: 10px; border-left: 4px solid #f59e0b; color: #fde68a; font-weight: 600;">${escHtml(c.warningTip)}</div>`
+                : '';
+              crashBody.innerHTML = `
+                <div style="background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.45); color: #fcd34d; padding: 10px 14px; border-radius: 10px; font-weight: 700; margin-bottom: 10px;">
+                  ⏳ ${escHtml(cStatusMsg || '大跌防禦資料已過期（保留最後紀錄為未觸發，非最新狀態）。')}
+                </div>
+                ${analysisHtml}
+                ${warningTipHtml}
+              `;
+            }
+          } else if (c.isTriggered) {
+            crashCard.style.display = 'block';
+            crashCard.style.border = '1px solid rgba(239, 68, 68, 0.6)';
+            crashCard.style.background = 'rgba(60, 20, 20, 0.85)';
+            crashCard.style.boxShadow = '0 0 25px rgba(239, 68, 68, 0.3)';
+
+            crashBadge.textContent = `🚨 ${c.classification || '情緒型下跌'} (${c.triggerReason || '大跌觸發'})`;
+            crashBadge.style.background = 'rgba(239, 68, 68, 0.25)';
+            crashBadge.style.color = '#f87171';
+            crashBadge.style.border = '1px solid rgba(239, 68, 68, 0.5)';
+
+            const reasonsHtml = buildCrashReasonsHtml(c);
+            crashBody.innerHTML = `
+              <div style="font-weight: 700; color: #fde047; margin-bottom: 6px;">【波動性質主判定】${escHtml(c.classification || '① 情緒型下跌')}</div>
               <div style="font-weight: 700; color: #cbd5e1; margin-top: 10px;">【判定依據】</div>
               ${reasonsHtml}
               <div style="margin-top: 12px; background: rgba(0,0,0,0.3); padding: 12px 16px; border-radius: 10px; border-left: 4px solid #f87171;">
-                <div style="font-weight: 700; color: #f87171;">【對資金池的態度建議】: ${c.powderAdvice || '暫緩'}</div>
-                <div style="font-weight: 700; color: #fef08a; margin-top: 4px;">【一句話提醒】: ${c.warningTip || '保持冷靜，避免情緒化行動。'}</div>
+                <div style="font-weight: 700; color: #f87171;">【對資金池的態度建議】: ${escHtml(c.powderAdvice || '暫緩')}</div>
+                <div style="font-weight: 700; color: #fef08a; margin-top: 4px;">【一句話提醒】: ${escHtml(c.warningTip || '保持冷靜，避免情緒化行動。')}</div>
               </div>
             `;
           } else {
             crashCard.style.display = 'none';
           }
-          if (crashTime) crashTime.textContent = `檢查時間: ${c.dateStr || c.updateTime || '--'}`;
+
+          if (crashTime) {
+            const timeLabel = c.dateStr || c.updateTime || '--';
+            crashTime.textContent = `檢查時間: ${timeLabel}${cIsStale && !String(timeLabel).includes('已過期') ? '（已過期）' : ''}`;
+          }
         }
       }
 
