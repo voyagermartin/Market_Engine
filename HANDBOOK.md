@@ -103,10 +103,11 @@
 - **新聞讀報 (週二 18:00)**: 綜合敘述 🤖AI、📈CPI、🌐GEO 三大主題，提供專屬對立哲學解讀。
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.9.2`（正式線上 GAS `@152` 穩定運行；資料生命週期強固進度位於本地分支 `feature/data-lifecycle-hardening` `@ 21766e7`，完成 02B-1 ~ 02B-5.2，尚未 push/部署）
+- **Current Version**: `v2.9.2`（正式線上 GAS `@152` 運行中；本地分支 `feature/data-lifecycle-hardening` `@ 23a830b` 完成 02B-1 ~ 02B-5.4 程式碼修正與 02B-6 ~ 02B-6.7 部署前安全盤點／修復演練，尚未 push/部署）
 - **GAS Deployment**: `@152` (ID: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`)
+- **Production Spreadsheet**: `Market_Engine_V3` (`1mbOW4hyoiAJFxGxpSfMPqg21M9d0EhcbTihab7J49Rw`)｜**Pre-02B-6 Backup**: `Market_Engine_V3_BACKUP_PRE_02B-6` (`1TuHwETZRlmAv5YSdTKy7X9saigOVYHT7-1Pos_5DOno`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
-- **Data Status**: 行情對帳日 `2026-11-09`，回測基準日 `2026-10-01`。
+- **Data Status**: 行情對帳日 `2026-11-12`（`RAW_HISTORY` 4,499 筆完整；`HISTORY_LOG` Row 31~1829 尚待執行正式修復）。
 
 ## ⑧ Roadmap & Milestones
 - **Milestone 1~6.9 (COMPLETED)**:
@@ -134,14 +135,28 @@
     * 雙表（`RAW_HISTORY` 與 `HISTORY_LOG`）對稱插列、悲觀鎖（`LockService` 30 秒）防並行。
     * 全列快照備份（值、公式、格式），若公式計算異常自動執行補償復原（Compensating Rollback）或自癒對齊。
   - (4) **GAS 生產環境與部署回滾規範**：確認線上 Production Deployment ID 鎖定，確立 `clasp deploy -i <id> -V <ver>` 秒級版本回滾標準（無需重新 push）。
-- **Milestone 7.6 (`feature/data-lifecycle-hardening` IN PROGRESS｜本地已完成 02B-1 ~ 02B-5.2，尚未部署)**: 🔒 **海外觀測與前端解耦、歷史維護解綁與危險入口緊急隔離**
+- **Milestone 7.6 (`feature/data-lifecycle-hardening` IN PROGRESS｜本地完成 02B-1 ~ 02B-7.2，尚未部署)**: 🔒 **海外觀測與前端解耦、公開唯讀隔離、部署前安全盤點、修復演練與公式防漂移**
   - (1) **02B-1 海外 API 解耦** (`17e63ae`~`798da60`)：`getMarketEngineData()` 改以 `evaluateOverseasObservation_(getOverseasObservation_())` 分別判定 VIX/EWT 五種狀態碼、保留 `parseDistValue()` `+0.10%` 解析修正、修正 `calculateMetricStats()` 於 `N === 0` 且無有效值時回傳 `null`、保留 7 天安全上限。
   - (2) **02B-2 前端狀態呈現與假值移除** (`c376a00`)：[index.html](file:///f:/Projects/Market_Engine/index.html) 移除 `19.99`/`+2.71%`/`-1.83%` 假行情 fallback，改為載入中 `--` 與「資料暫不可用」，停止前端重算後端防追高／資金池／CD。
   - (3) **02B-3 盤後導航解耦** (`e227f19`)：`generateAfternoonNavigation()` 與盤後 fallback 文字全面改用 `OVERSEAS_OBSERVATION_JSON` 五種狀態語意。
   - (4) **02B-4 ~ 02B-5 歷史維護安全審查與解綁** (`366c92c`)：確認 `seedAndFixWeekendMode()` / `seedAugust2026HistoricalRows()` 高風險覆寫範圍，解除 `updateAfternoonMarketEngine()` 休市分支與 `doGet()` 對其自動呼叫，並將選單 `healRawHistoryEwtData()` 轉為安全暫停。
-  - (5) **02B-5.1 ~ 02B-5.2 全量初始化安全盤點與危險入口緊急隔離** (`21766e7`)：完成全部初始化／重建入口盤點；隔離 `applyFormulasAndStyles()` 與 Full Setup 選單入口（`setupMarketEngineV3MenuNotice()`）；公開 `doGet()` 拒絕所有寫入、快取清除與排程管理 `action` 並解除 `TAIWAN_HOLIDAYS_JSON` 前置刪除副作用，同時維持 GitHub Pages 公開 JSONP 唯讀相容。
-  - (6) **待辦 / 下一步安全清單**：盤點正式 GAS Deployment 設定（Deployments UI / Triggers / `SPREADSHEET_ID`）、檢視 `seedFullHistoricalData` 手動選單及 `getMarketEngineData()` 快取未命中時 `DASHBOARD`／`getFinNewsCombinedPayload()` 惰性回寫的純唯讀分離，並依驗證結果推進正式部署收斂。
-- **🚀 目前停止位置**: `feature/data-lifecycle-hardening` `@ 21766e7` (02B-1 ~ 02B-5.2 本地程式碼與隔離沙盒驗證完畢，等待後續審查與部署決策；正式線上仍維持 `v2.9.2` / `@152`)
+  - (5) **02B-5.1 ~ 02B-5.4 全量初始化隔離與公開唯讀強化** (`21766e7`, `1a4bb32`, `23a830b`)：隔離 `applyFormulasAndStyles()` 與 Full Setup 選單（`setupMarketEngineV3MenuNotice()`）；公開 `doGet()` 拒絕所有寫入、快取清除與排程控制 `action`，並於 `getMarketEngineData(false, { readOnly: true })` 與 `getFinNewsCombinedPayloadReadOnly_()` 全面落實純唯讀路徑，同步對齊前端 Fin-News UI 狀態語意。
+  - (6) **02B-6 ~ 02B-6.7 部署前安全盤點、備份與修復演練（2026-11-12 完成，0 正式寫入）**：
+    * **備份就緒**：建立獨立試算表副本 `Market_Engine_V3_BACKUP_PRE_02B-6`（`1TuHwETZRlmAv5YSdTKy7X9saigOVYHT7-1Pos_5DOno`），全表 6 頁比對 0 差異。
+    * **Trigger 與逾時盤點**：Apps Script IDE 實存 3 組 `HEAD` 排程（`updateMorningMarketEngine` 07:00–08:00、`updateAfternoonMarketEngine` 16:00–17:00、`updateMonthlyLabBacktest` 每月 1 日 01:00–02:00；缺少 `updateWeeklyFinNewsReport`，無重複／遺留危險 Trigger）；`callGeminiAPIUniversal()` 同步重試曾於 11/06 觸及 `360.6s` 逾時。
+    * **程式碼與資料缺口確認**：確認 `commitDailyTradingRow()` 尚未實作於 [Market_Engine_GAS.js](file:///f:/Projects/Market_Engine/Market_Engine_GAS.js)（`updateAfternoonMarketEngine()` 仍無鎖定／快照回滾／`13:30`／`10.5%` 閘門且有 `realData.twii || prevTwii` 回退風險）；確認 `HISTORY_LOG` Row 31~1829 存在 1,799 列 `#REF!`（16,191 格錯誤）導致 `LAB_BACKTEST` 僅計 2,769 天。
+    * **測試副本演練通過**：於 `Market_Engine_V3_TEST_REPAIR_02B-6.7`（`1ZR9JcKEhlxSY7BZTocEna3oNfc8C_z4icUii9Gb3FYg`）完成 `HISTORY_LOG!A3:I4501` 批次重建（`4.81s`）、`A4502:I5000` 清空、`J/K` 0 異動、`LAB_BACKTEST` 恢復 4,499 天且 4 項稽核全通過，並完成 `4.49s` 回滾演練。
+  - (7) **02B-7.1 ~ 02B-7.2 頂端插列公式防漂移實證與新 Row 3 公式包（2026-11-14 完成）**：
+    * **實證發現 (02B-7.1)**：於隔離副本實證 `insertRowBefore(3)` 會使 `LAB_BACKTEST!B4:E8` 起算列自動漂移為 `$F$4:$F`（永久排除最新日），且 `THRESHOLD_CONFIG!C12:D15` 漂移為 `F54:F`（每日縮水 1 天），新插 Row 3 缺少計算公式。
+    * **程式碼與公式包落地 (02B-7.2)**：
+      1. `THRESHOLD_CONFIG!C12:D15` 改用 `INDIRECT("RAW_HISTORY!F53:F")` / `G53:G` 鎖定起算列；
+      2. `LAB_BACKTEST!B4:E8` 改用 `INDIRECT("HISTORY_LOG!$F$3:$F")` / `$I$3:$I` 鎖定回測起算列；
+      3. 實作 `applyRawHistoryRow3Formulas()`（D3:I3）與 `applyHistoryLogRow3Formulas()`（A3:I3，含 252 日前瞻報酬率）；
+      4. 於全新測試副本 `Market_Engine_V3_TEST_ANTI_DRIFT_02B-7.2`（`1nRaDnv1Dxs6nqEvzOXajzZyLU69A2qDSdrmEEcr-L0w`）完成連續 3 次插列實測，公式 0 漂移且 `LAB_BACKTEST` 天數精準累加（2,769 -> 2,772）。
+  - (8) **下一步開發起點（Next Up）**：
+    1. 實作 `commitDailyTradingRow()` 安全原子提交機制（整合 02B-7.2 之 `applyRawHistoryRow3Formulas` 與 `applyHistoryLogRow3Formulas`、前置驗證、30s `LockService`、快照回滾、移除 `realData.twii || prevTwii`）並為排程加入 Gemini 執行時間預算保護。
+    2. 執行正式環境 `HISTORY_LOG!A3:I4501` 修復、公式防漂移套用與 `verifyLabBacktest()` 對帳，並清理演練用測試副本。
+- **🚀 目前停止位置**: `feature/data-lifecycle-hardening`（02B-1 ~ 02B-7.2 本地程式碼完成並經隔離副本實測驗證，正式線上仍維持 `v2.9.1` / `@152`）
 - **🎯 下一步施工目標 (Milestone 8 / v3.0.0)**:
   - **策略對決模擬器進階互動擴充**: 提供定期定額每月扣款與彈藥池投入比例之即時自選試算。
   - **行動裝置細節體驗與暗色調 Glassmorphism 微動態打磨**。
@@ -170,3 +185,5 @@
 | **2026-10-18** | `v2.9.1` | **Milestone 7 延伸強化：三窗口歷史下行風險與前瞻報酬驗證完工 (Risk & Forward Return Verification)**：(1) 避免逐日動態重算，直接以 18Y、10Y、5Y 三窗口標準分位數門檻，分別統計各位階出現後未來 20 日 (1 個月) 與 60 日 (1 季) 的平均前瞻報酬率、最大不利變動 (Max Drawdown / 下行風險) 與正報酬勝率；(2) 後端 `Market_Engine_GAS.js` 實現 `calculatePhaseForwardPerformance`，單次遍歷執行耗時僅 14ms，由 300s API 快取保護，維持 doGet < 2s 極速響應；(3) 前端 `index.html` 發布當前選定窗口 T1~T5 詳細前瞻風險表與三窗口橫向對比矩陣，支援 0ms 切換即時響應；(4) 量化核心結論證實：18Y 具備最高等級跨週期穩健性；5Y 窗口在近期牛市中狂熱區衝刺達 +15.5%，但在空頭週期 T2 (恐慌) 最大回撤達 -9.80%，證實 18Y THRESHOLD_CONFIG 不可替代；(5) 雲端 GAS 部署升級至 `@152`。 |
 | **2026-11-09** | `v2.9.2` | **時序解耦架構重構、資料生命週期安全強化與實證稽核完工**：(1) 確立「正式 T1–T5 永遠以最近一次完整收盤為準」核心不可變原則；(2) 盤前 07:30 徹底唯讀化，移除 RAW_HISTORY 提早插列與佔位賦值，保持均線純淨；(3) 海外市場觀測存入 ScriptProperties 解耦快取，萃取美股交易日並建立 `isStale` 防追高保護；(4) 實作 `commitDailyTradingRow` 盤後安全原子提交機制，含成交時間戳檢驗（>= 13:30:00）、價格合理性防護閘門（<= 10.5%）、悲觀鎖（LockService 30s）、全列備份與失敗自動回滾自癒；(5) 確立 GAS Deployment ID 鎖定與秒級版本回滾規範。 |
 | **2026-11-11** | `v2.9.2` (`feature/data-lifecycle-hardening`) | **海外行情全鏈解耦、歷史維護解綁與危險入口緊急隔離 (02B-1 ~ 02B-5.2，本地驗證完畢尚未上線)**：(1) 02B-1 (`17e63ae`~`798da60`)：`getMarketEngineData()` 海外 VIX/EWT 全面改讀 `OVERSEAS_OBSERVATION_JSON` 與獨立五態評估（`FRESH_VALID` / `FETCH_FAILED_WITH_CACHED` / `FETCH_FAILED_NO_DATA` / `MISSING_TIMESTAMP` / `STALE_DATA`），保留 `parseDistValue()` `+0.10%` 解析修正與 `N===0 && curVal===null` 邊界處理；(2) 02B-2 (`c376a00`)：`index.html` 移除 `19.99` / `+2.71%` / `-1.83%` 假行情 fallback，禁止前端重算策略與 CD；(3) 02B-3 (`e227f19`)：`generateAfternoonNavigation()` 與盤後 fallback 解耦 `RAW_HISTORY!C3/J3`；(4) 02B-4~02B-5 (`366c92c`)：解除 `updateAfternoonMarketEngine()` 與 `doGet()` 對 `seedAndFixWeekendMode()` 的自動觸發，選單 `healRawHistoryEwtData()` 轉安全暫停；(5) 02B-5.1~02B-5.2 (`21766e7`)：隔離 `applyFormulasAndStyles()` 與 Full Setup 選單，公開 `doGet()` 封鎖全部寫入／清快取／排程控制 `action` 並移除 `TAIWAN_HOLIDAYS_JSON` 前置刪除副作用，完整保留公開 JSONP 唯讀相容。 |
+| **2026-11-12** | `v2.9.2` (`23a830b` / 02B-6~6.7) | **公開 `doGet` 嚴格唯讀強化、正式環境安全盤點、獨立備份與 `HISTORY_LOG` 修復演練完工**：(1) 02B-5.4 (`1a4bb32`, `23a830b`)：落實 `getMarketEngineData(false, { readOnly: true })` 與 `getFinNewsCombinedPayloadReadOnly_()` 純唯讀路徑並對齊前端 Fin-News 狀態語意；(2) 02B-6~6.4：完成正式 GAS `@152` / `HEAD` 盤點、建立獨立試算表備份 `Market_Engine_V3_BACKUP_PRE_02B-6`、透過 IDE 實證僅 3 組 `HEAD` Triggers 且無危險遺留排程；(3) 02B-6.5~6.7：確認 `commitDailyTradingRow()` 尚未實作於程式碼並產出完整 10 階段設計與 14 項測試規格；查明 `HISTORY_LOG` Row 31~1829 共 1,799 列 `#REF!` 根因，並於獨立測試副本 `Market_Engine_V3_TEST_REPAIR_02B-6.7` 完成 `A3:I4501` 重建（`4.81s`）、`LAB_BACKTEST` 4,499 天恢復與 `4.49s` 回滾演練。 |
+| **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-7.1~7.2) | **頂端插列公式防漂移實證、跨表 INDIRECT 鎖定與新 Row 3 公式包落地**：(1) 02B-7.1：於獨立測試副本完成插列公式漂移實證，精準鑑別 `LAB_BACKTEST!B4:E8`（$F$3:$F -> $F$4:$F 漏日）與 `THRESHOLD_CONFIG!C12:D15`（F53:F -> F54:F 萎縮）之漂移根因；(2) 02B-7.2：本地程式碼 `THRESHOLD_CONFIG` 改用 `INDIRECT("RAW_HISTORY!F53:F")` / `G53:G` 鎖定，`LAB_BACKTEST` 改用 `INDIRECT("HISTORY_LOG!$F$3:$F")` / `$I$3:$I` 鎖定；(3) 建立新 Row 3 公式包函式 `applyRawHistoryRow3Formulas()`（D3:I3）與 `applyHistoryLogRow3Formulas()`（A3:I3，含 252 日前瞻報酬率）；(4) 於全新隔離副本連續 3 次插列實測，公式 0 漂移、回測動態累加（2,769 -> 2,772），指標計算與門檻百分百正常。 |

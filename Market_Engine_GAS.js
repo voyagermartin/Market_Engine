@@ -402,10 +402,10 @@ function buildThresholdConfigSheet(sheet) {
   );
 
   const percentileFormulas = [
-    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.10), -0.10)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.10), -0.15)'],
-    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.25), -0.03)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.25), -0.05)'],
-    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.75), 0.05)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.75), 0.10)'],
-    ['=IFERROR(PERCENTILE(RAW_HISTORY!F3:F, 0.90), 0.12)', '=IFERROR(PERCENTILE(RAW_HISTORY!G3:G, 0.90), 0.20)']
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.10), -0.10)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.10), -0.15)'],
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.25), -0.03)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.25), -0.05)'],
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.75), 0.05)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.75), 0.10)'],
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.90), 0.12)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.90), 0.20)']
   ];
 
   sheet.getRange('C12:D15').setFormulas(percentileFormulas);
@@ -433,6 +433,24 @@ function buildThresholdConfigSheet(sheet) {
   sheet.setColumnWidth(5, 320);
   sheet.setColumnWidth(6, 160);
   sheet.setColumnWidth(7, 420);
+}
+
+/**
+ * 寫入 THRESHOLD_CONFIG C12:D15 歷史分位數防漂移公式 (INDIRECT 固定鎖定 F53:F / G53:G)
+ * @param {Sheet} [sheet] 可選指定 THRESHOLD_CONFIG 工作表
+ */
+function applyThresholdConfigAntiDriftFormulas(sheet) {
+  const targetSheet = sheet || getSpreadsheet().getSheetByName('THRESHOLD_CONFIG');
+  if (!targetSheet) throw new Error('找不到 THRESHOLD_CONFIG 工作表');
+  
+  const percentileFormulas = [
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.10), -0.10)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.10), -0.15)'],
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.25), -0.03)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.25), -0.05)'],
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.75), 0.05)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.75), 0.10)'],
+    ['=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!F53:F"), 0.90), 0.12)', '=IFERROR(PERCENTILE(INDIRECT("RAW_HISTORY!G53:G"), 0.90), 0.20)']
+  ];
+  targetSheet.getRange('C12:D15').setFormulas(percentileFormulas);
+  targetSheet.getRange('C12:D15').setNumberFormat('+0.00%;-0.00%;0.00%').setFontWeight('bold');
 }
 
 // ==========================================
@@ -491,6 +509,29 @@ function applyRawHistoryFormulas(sheet, startRow, endRow) {
   sheet.getRange(startRow, 4, count, 2).setNumberFormat('#,##0.00');
   sheet.getRange(startRow, 6, count, 4).setNumberFormat('+0.00%;-0.00%;0.00%');
   sheet.getRange(startRow, 10, count, 1).setNumberFormat('+0.00%;-0.00%;0.00%');
+}
+
+/**
+ * 寫入 RAW_HISTORY 新 Row 3 之標準指標公式包 (D:I 欄)
+ * 涵蓋 MA60、MA240、Dist60、Dist240、MA60_Slope、Dist60_Delta
+ * @param {Sheet} [sheet] 可選指定工作表，預設開啟 RAW_HISTORY
+ */
+function applyRawHistoryRow3Formulas(sheet) {
+  const targetSheet = sheet || getSpreadsheet().getSheetByName('RAW_HISTORY');
+  if (!targetSheet) throw new Error('找不到 RAW_HISTORY 工作表');
+
+  const formulas = [[
+    '=IF(AND(ISNUMBER(B3), COUNT(B3:B62)>=10), AVERAGE(B3:B62), "")',
+    '=IF(AND(ISNUMBER(B3), COUNT(B3:B242)>=10), AVERAGE(B3:B242), "")',
+    '=IF(AND(ISNUMBER(B3), ISNUMBER(D3), D3>0), (B3-D3)/D3, "")',
+    '=IF(AND(ISNUMBER(B3), ISNUMBER(E3), E3>0), (B3-E3)/E3, "")',
+    '=IF(AND(ISNUMBER(D3), ISNUMBER(D8), D8>0), (D3-D8)/D8, "")',
+    '=IF(AND(ISNUMBER(F3), ISNUMBER(F8)), F3-F8, "")'
+  ]];
+
+  targetSheet.getRange(3, 4, 1, 6).setFormulas(formulas);
+  targetSheet.getRange(3, 4, 1, 2).setNumberFormat('#,##0.00');
+  targetSheet.getRange(3, 6, 1, 4).setNumberFormat('+0.00%;-0.00%;0.00%');
 }
 
 /**
@@ -732,6 +773,35 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
   sheet.getRange(startRow, 7, count, 3).setNumberFormat('+0.00%;-0.00%;0.00%');
 }
 
+/**
+ * 寫入 HISTORY_LOG 新 Row 3 之標準日誌公式包 (A:I 欄)
+ * 涵蓋 Date、TWII、Dist60、Dist240、VIX、今日位階、MA60_Slope、Dist60_Delta、1年前瞻報酬率
+ * @param {Sheet} [sheet] 可選指定工作表，預設開啟 HISTORY_LOG
+ */
+function applyHistoryLogRow3Formulas(sheet) {
+  const targetSheet = sheet || getSpreadsheet().getSheetByName('HISTORY_LOG');
+  if (!targetSheet) throw new Error('找不到 HISTORY_LOG 工作表');
+
+  const formulas = [[
+    '=RAW_HISTORY!A3',
+    '=RAW_HISTORY!B3',
+    '=RAW_HISTORY!F3',
+    '=RAW_HISTORY!G3',
+    '=RAW_HISTORY!C3',
+    '=IF(OR(ISBLANK(A3), WEEKDAY(A3, 2)>5), "", IFERROR(IFS(C3<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C3<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C3>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C3>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))',
+    '=RAW_HISTORY!H3',
+    '=RAW_HISTORY!I3',
+    '=IF(AND(ISNUMBER(B3), ISNUMBER(INDIRECT("B"&(ROW()-252))), B3>0), (INDIRECT("B"&(ROW()-252)) - B3) / B3, "")'
+  ]];
+
+  targetSheet.getRange(3, 1, 1, 9).setFormulas(formulas);
+  targetSheet.getRange(3, 1, 1, 1).setNumberFormat('yyyy-mm-dd');
+  targetSheet.getRange(3, 2, 1, 1).setNumberFormat('#,##0.00');
+  targetSheet.getRange(3, 3, 1, 2).setNumberFormat('+0.00%;-0.00%;0.00%');
+  targetSheet.getRange(3, 5, 1, 1).setNumberFormat('0.00');
+  targetSheet.getRange(3, 7, 1, 3).setNumberFormat('+0.00%;-0.00%;0.00%');
+}
+
 // ==========================================
 // 4. LAB_BACKTEST (門檻驗證與回測)
 // ==========================================
@@ -756,34 +826,34 @@ function buildLabBacktestSheet(sheet) {
 
   const tierFormulas = [
     [
-      '=COUNTIF(HISTORY_LOG!$F$3:$F, A4)', 
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4)', 
       '=IF($B$9>0, B4/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A4, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
     ],
     [
-      '=COUNTIF(HISTORY_LOG!$F$3:$F, A5)', 
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5)', 
       '=IF($B$9>0, B5/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A5, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
     ],
     [
-      '=COUNTIF(HISTORY_LOG!$F$3:$F, A6)', 
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6)', 
       '=IF($B$9>0, B6/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A6, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
     ],
     [
-      '=COUNTIF(HISTORY_LOG!$F$3:$F, A7)', 
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7)', 
       '=IF($B$9>0, B7/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A7, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
     ],
     [
-      '=COUNTIF(HISTORY_LOG!$F$3:$F, A8)', 
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8)', 
       '=IF($B$9>0, B8/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I), "N/A")', 
-      '=IFERROR(COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">0") / MAX(1, COUNTIFS(HISTORY_LOG!$F$3:$F, A8, HISTORY_LOG!$I$3:$I, ">= -1")), "N/A")'
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
     ]
   ];
 
@@ -827,6 +897,52 @@ function buildLabBacktestSheet(sheet) {
   } catch (e) {
     Logger.log('[LAB_BACKTEST Verification Warning] ' + e.message);
   }
+}
+
+/**
+ * 寫入 LAB_BACKTEST B4:E8 回測統計防漂移公式 (INDIRECT 固定鎖定 HISTORY_LOG!$F$3:$F / $I$3:$I)
+ * @param {Sheet} [sheet] 可選指定 LAB_BACKTEST 工作表
+ */
+function applyLabBacktestAntiDriftFormulas(sheet) {
+  const targetSheet = sheet || getSpreadsheet().getSheetByName('LAB_BACKTEST');
+  if (!targetSheet) throw new Error('找不到 LAB_BACKTEST 工作表');
+  
+  const tierFormulas = [
+    [
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4)', 
+      '=IF($B$9>0, B4/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
+    ],
+    [
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5)', 
+      '=IF($B$9>0, B5/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
+    ],
+    [
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6)', 
+      '=IF($B$9>0, B6/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
+    ],
+    [
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7)', 
+      '=IF($B$9>0, B7/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
+    ],
+    [
+      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8)', 
+      '=IF($B$9>0, B8/$B$9, 0)', 
+      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
+      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
+    ]
+  ];
+  targetSheet.getRange('B4:E8').setFormulas(tierFormulas);
+  targetSheet.getRange('B4:B8').setNumberFormat('#,##0');
+  targetSheet.getRange('C4:C8').setNumberFormat('0.0%');
+  targetSheet.getRange('D4:E8').setNumberFormat('+0.00%;-0.00%;0.00%');
 }
 
 /**
