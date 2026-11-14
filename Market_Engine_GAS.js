@@ -6443,7 +6443,7 @@ function forceClearCorruptedSnapshotState_(options) {
 
 /**
  * 嚴格日曆合法性驗證 (Strict Calendar Date Validator)
- * 同時檢驗格式、整數範圍、大小月天數與閏年規則 (400年閏/100年不閏/4年閏)
+ * 同時檢驗格式、整數範圍、大小月天數、閏年規則 (400年閏/100年不閏/4年閏) 與 Invalid Date 防禦
  * @param {string|Date} dateVal 待檢驗日期字串或 Date 物件
  * @return {Object} { isValid: boolean, dateString: string|null, reason: string }
  */
@@ -6454,6 +6454,11 @@ function isValidCalendarDate_(dateVal) {
 
   let dateStr = '';
   if (dateVal instanceof Date) {
+    // 02B-8.3.2.2.4 防禦: 嚴格排除 Invalid Date (如 new Date('invalid') 或 new Date(NaN))
+    const timeNum = dateVal.getTime();
+    if (typeof timeNum !== 'number' || isNaN(timeNum) || !isFinite(timeNum)) {
+      return { isValid: false, dateString: null, reason: '無效 Date 物件 (Invalid Date: getTime() 為 NaN 或非有限數值)' };
+    }
     dateStr = Utilities.formatDate(dateVal, 'Asia/Taipei', 'yyyy-MM-dd');
   } else if (typeof dateVal === 'string') {
     dateStr = dateVal.trim();
@@ -6522,18 +6527,8 @@ function findPreviousValidClose_(rawSheet, targetDate) {
     };
   }
 
-  // 目標日期標準化 (Asia/Taipei)
-  let targetDateStr = '';
-  if (targetDate instanceof Date) {
-    targetDateStr = Utilities.formatDate(targetDate, 'Asia/Taipei', 'yyyy-MM-dd');
-  } else if (typeof targetDate === 'string' && targetDate.trim() !== '') {
-    targetDateStr = targetDate.trim();
-  } else {
-    targetDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
-  }
-
-  // 檢驗 targetDate 嚴格日曆合法性
-  const targetCalCheck = isValidCalendarDate_(targetDateStr);
+  // 檢驗 targetDate 嚴格日曆合法性與 Invalid Date 防禦
+  const targetCalCheck = isValidCalendarDate_(targetDate !== undefined && targetDate !== null && targetDate !== '' ? targetDate : new Date());
   if (!targetCalCheck.isValid) {
     return {
       success: false,
@@ -6541,9 +6536,10 @@ function findPreviousValidClose_(rawSheet, targetDate) {
       date: null,
       row: null,
       status: 'REJECTED_TARGET_DATE_INVALID',
-      reason: `目標交易日不是有效日曆日期 (${targetDateStr}): ${targetCalCheck.reason}`
+      reason: `目標交易日不是有效日曆日期 (${targetDate}): ${targetCalCheck.reason}`
     };
   }
+  const targetDateStr = targetCalCheck.dateString;
 
   const range = rawSheet.getRange(3, 1, 5, 2); // Row 3~7, Col A (Date) & B (TWII)
   const values = range.getValues();
@@ -6690,24 +6686,14 @@ function findPreviousValidClose_(rawSheet, targetDate) {
 function validateDailyCloseData_(realData, previousValidClose, targetDate, options) {
   const opt = options || {};
 
-  // 1. 目標交易日標準化 (Asia/Taipei) 與嚴格日曆真實性檢驗
-  let targetDateStr = '';
-  if (targetDate instanceof Date) {
-    targetDateStr = Utilities.formatDate(targetDate, 'Asia/Taipei', 'yyyy-MM-dd');
-  } else if (typeof targetDate === 'string' && targetDate.trim() !== '') {
-    targetDateStr = targetDate.trim();
-  } else {
-    targetDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
-  }
-
-  // 檢驗 targetDate 嚴格日曆合法性
-  const targetCalCheck = isValidCalendarDate_(targetDateStr);
+  // 1. 目標交易日檢驗 (Asia/Taipei) 與嚴格日曆真實性 / Invalid Date 防禦
+  const targetCalCheck = isValidCalendarDate_(targetDate !== undefined && targetDate !== null && targetDate !== '' ? targetDate : new Date());
   if (!targetCalCheck.isValid) {
     return {
       accepted: false,
       status: 'REJECTED_TARGET_DATE_INVALID',
-      reason: `目標交易日不是有效日曆日期 (${targetDateStr}): ${targetCalCheck.reason}`,
-      targetDate: targetDateStr,
+      reason: `目標交易日不是有效日曆日期 (${targetDate}): ${targetCalCheck.reason}`,
+      targetDate: String(targetDate),
       twii: null,
       previousValidClose: null,
       changeRate: null,
@@ -6715,6 +6701,7 @@ function validateDailyCloseData_(realData, previousValidClose, targetDate, optio
       marketTimestampTaipei: null
     };
   }
+  const targetDateStr = targetCalCheck.dateString;
 
   // 基礎欄位預設
   let todayTwii = null;
