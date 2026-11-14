@@ -957,33 +957,87 @@ function verifyLabBacktest(sheet) {
   const ss = getSpreadsheet();
   const labSheet = sheet || (ss ? ss.getSheetByName('LAB_BACKTEST') : null);
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  if (!labSheet || !rawSheet) {
-    return { success: false, message: '找不到分頁 LAB_BACKTEST 或 RAW_HISTORY' };
+  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
+  if (!labSheet || !rawSheet || !historyLogSheet) {
+    return { success: false, message: '找不到分頁 LAB_BACKTEST, RAW_HISTORY 或 HISTORY_LOG' };
   }
 
-  // 僅統計台股實體交易日 (過濾 WEEKDAY > 5 之週末休市列)
-  let validRowCount = 0;
-  if (rawSheet && rawSheet.getLastRow() >= 3) {
-    const totalRaw = rawSheet.getLastRow() - 2;
-    const dates = rawSheet.getRange(3, 1, totalRaw, 1).getValues();
-    for (let i = 0; i < dates.length; i++) {
-      if (dates[i][0]) {
+  // 輔助檢查數值 (相容試算表純數字或百分比字串格式，如 -6.83% 或 0.05)
+  function isValidNumeric(val) {
+    if (val === '' || val === null || val === undefined) return false;
+    if (typeof val === 'number') return !isNaN(val);
+    const cleaned = String(val).replace(/%/g, '').replace(/,/g, '').trim();
+    return cleaned !== '' && !isNaN(Number(cleaned));
+  }
+
+  // 1. 統計 RAW_HISTORY 交易日與 Dist60 數值狀態
+  let rawDateCount = 0;
+  let validDist60Count = 0;
+  let blankDist60Count = 0;
+  const rawLastRow = rawSheet.getLastRow();
+
+  if (rawLastRow >= 3) {
+    const totalRaw = rawLastRow - 2;
+    // 讀取 A 欄 (日期) 與 F 欄 (Dist60)
+    const rawData = rawSheet.getRange(3, 1, totalRaw, 6).getValues();
+    for (let i = 0; i < rawData.length; i++) {
+      const dateVal = rawData[i][0];
+      if (dateVal) {
         let dObj = null;
-        if (dates[i][0] instanceof Date) {
-          dObj = dates[i][0];
+        if (dateVal instanceof Date) {
+          dObj = dateVal;
         } else {
-          dObj = new Date(String(dates[i][0]).replace(/-/g, '/') + ' 00:00:00');
+          dObj = new Date(String(dateVal).replace(/-/g, '/') + ' 00:00:00');
         }
         const dayOfWeek = dObj.getDay(); // 0 = Sun, 6 = Sat
         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-          validRowCount++;
+          rawDateCount++;
+          const dist60Val = rawData[i][5]; // Col F is index 5
+          if (isValidNumeric(dist60Val)) {
+            validDist60Count++;
+          } else {
+            blankDist60Count++;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. 統計 HISTORY_LOG F 欄位階完整性與空白防護
+  const validTiers = ['極度恐慌', '恐慌', '順風/中性', '過熱', '狂熱'];
+  let blankDist60HasPhaseViolation = false;
+  let validDist60MissingPhaseViolation = false;
+  let violationDetails = [];
+
+  const histLastRow = historyLogSheet.getLastRow();
+  if (histLastRow >= 3) {
+    const totalHist = Math.min(rawLastRow - 2, histLastRow - 2);
+    // 讀取 HISTORY_LOG A 欄 (Col 1), C 欄 Dist60 (Col 3), F 欄 位階 (Col 6)
+    const histData = historyLogSheet.getRange(3, 1, totalHist, 6).getValues();
+    for (let i = 0; i < histData.length; i++) {
+      const dateVal = histData[i][0];
+      if (!dateVal) continue;
+      const cDist60 = histData[i][2]; // Col C is index 2
+      const fPhase = histData[i][5];  // Col F is index 5
+      const isNum = isValidNumeric(cDist60);
+
+      if (!isNum) {
+        // Dist60 非數值 (空白暖機期)，F 欄絕對不可具備 T1~T5 位階
+        if (fPhase && validTiers.includes(String(fPhase).trim())) {
+          blankDist60HasPhaseViolation = true;
+          violationDetails.push(`Row ${i+3} (${dateVal}): Dist60 空白卻出現位階 [${fPhase}]`);
+        }
+      } else {
+        // Dist60 為有效數值，F 欄必須具備且僅具備一個有效位階
+        if (!fPhase || !validTiers.includes(String(fPhase).trim())) {
+          validDist60MissingPhaseViolation = true;
+          violationDetails.push(`Row ${i+3} (${dateVal}): Dist60 有效(${cDist60})卻缺少有效位階 [${fPhase}]`);
         }
       }
     }
   }
 
   const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
-  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
   if (historyLogSheet) {
     const logMax = historyLogSheet.getMaxRows();
     const targetEndRow = 2 + rawRowCount;
@@ -1007,7 +1061,7 @@ function verifyLabBacktest(sheet) {
   const overheatCount = Number(values[3][1]) || 0;
   const euphoriaCount = Number(values[4][1]) || 0;
 
-  const totalCount = Number(values[5][1]) || 0;
+  const totalCount = Number(values[5][1]) || 0; // LAB_BACKTEST!B9 (backtestPhaseCount)
   const totalPercent = Number(values[5][2]) || 0;
 
   const panicExtremeWin = Number(values[0][4]) || 0;
@@ -1017,12 +1071,25 @@ function verifyLabBacktest(sheet) {
 
   const checks = [];
 
-  // Audit 1: 總天數一致性 (純實體交易日)
-  const isTotalMatch = (totalCount === validRowCount);
+  // Audit 1: 總天數與位階分類完整性稽核 (母體完整、位階精確、空白防護、無缺漏)
+  const isPopulationMatch = (rawDateCount === validDist60Count + blankDist60Count);
+  const isPhaseCountMatch = (totalCount === validDist60Count);
+  const isPhaseIntegrityPass = (!blankDist60HasPhaseViolation && !validDist60MissingPhaseViolation);
+  const isAudit1Pass = isPopulationMatch && isPhaseCountMatch && isPhaseIntegrityPass;
+
+  let audit1Detail = `B9位階總數: ${totalCount} 天, RAW有效Dist60: ${validDist60Count} 天, 空白暖機: ${blankDist60Count} 天, 總交易日: ${rawDateCount} 天`;
+  if (!isAudit1Pass) {
+    if (!isPopulationMatch) audit1Detail += ` ❌ [母體不一致: ${rawDateCount} != ${validDist60Count + blankDist60Count}]`;
+    if (!isPhaseCountMatch) audit1Detail += ` ❌ [位階數不一致: B9(${totalCount}) != Dist60有效數(${validDist60Count})]`;
+    if (blankDist60HasPhaseViolation) audit1Detail += ` ❌ [空白位階防護失敗: 出現偽位階]`;
+    if (validDist60MissingPhaseViolation) audit1Detail += ` ❌ [有效資料位階缺漏]`;
+    if (violationDetails.length > 0) audit1Detail += ` (範例: ${violationDetails.slice(0, 2).join('; ')})`;
+  }
+
   checks.push({
-    name: '1. 總天數一致性稽核 (純實體交易日)',
-    pass: isTotalMatch,
-    detail: `位階天數和: ${totalCount} 天, RAW_HISTORY 實體台股交易列: ${validRowCount} 天 (已自動扣除休市列)`
+    name: '1. 總天數與位階分類完整性稽核 (含Dist60暖機防護)',
+    pass: isAudit1Pass,
+    detail: audit1Detail
   });
 
   // Audit 2: 佔比百分之百
@@ -1043,11 +1110,11 @@ function verifyLabBacktest(sheet) {
   });
 
   // Audit 4: 歷史涵蓋度
-  const isSufficientHistory = (validRowCount >= 4000);
+  const isSufficientHistory = (rawDateCount >= 4000);
   checks.push({
     name: '4. 18年歷史涵蓋度稽核',
     pass: isSufficientHistory,
-    detail: `累積實體交易日數: ${validRowCount} 筆 (>= 4,000 筆)`
+    detail: `累積實體交易日數: ${rawDateCount} 筆 (>= 4,000 筆)`
   });
 
   const allPassed = checks.every(c => c.pass);
