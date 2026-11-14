@@ -6430,3 +6430,391 @@ function forceClearCorruptedSnapshotState_(options) {
   return { success: true, message: '已成功人工解除快照閉鎖，狀態轉為 RELEASED' };
 }
 
+// ============================================================================
+// 02B-8.3.2: 每日收盤前置驗證閘門與 10.5% 雙向熔斷器 (Daily Close Pre-Commit Validation Gate)
+// 核心責任：回答「今天取得的行情資料，是否符合寫入正式 RAW_HISTORY 的基本條件？」
+// 聲明：Yahoo regularMarketTime 僅作為本系統收盤前置條件檢驗，非台灣證交所官方收盤證明。
+// 10.5% 熔斷器為本系統應用層安全護欄，非大盤法定漲跌幅。
+// ============================================================================
+
+/**
+ * 在 RAW_HISTORY Row 3~7 搜尋最近一筆有效正式收盤價作為比較基準
+ * @param {Sheet} rawSheet RAW_HISTORY 工作表物件
+ * @param {string|Date} [targetDate] 目標交易日 (如 '2026-11-13')
+ * @return {Object} { success: boolean, close: number|null, date: string|null, row: number|null, reason: string }
+ */
+function findPreviousValidClose_(rawSheet, targetDate) {
+  if (!rawSheet) {
+    return { success: false, close: null, date: null, row: null, reason: '找不到 RAW_HISTORY 工作表' };
+  }
+
+  // 目標日期標準化
+  let targetDateStr = '';
+  if (targetDate instanceof Date) {
+    targetDateStr = Utilities.formatDate(targetDate, 'Asia/Taipei', 'yyyy-MM-dd');
+  } else if (typeof targetDate === 'string' && targetDate.trim() !== '') {
+    targetDateStr = targetDate.trim();
+  } else {
+    targetDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+
+  const range = rawSheet.getRange(3, 1, 5, 2); // Row 3~7, Col A (Date) & B (TWII)
+  const values = range.getValues();
+
+  // 1. 檢驗歷史日期序列是否嚴格遞減且無重複
+  const rowDates = [];
+  for (let r = 0; r < values.length; r++) {
+    const rawD = values[r][0];
+    let dStr = '';
+    if (rawD instanceof Date) {
+      dStr = Utilities.formatDate(rawD, 'Asia/Taipei', 'yyyy-MM-dd');
+    } else if (rawD !== null && rawD !== undefined && String(rawD).trim() !== '') {
+      dStr = String(rawD).trim();
+    }
+    if (dStr) {
+      rowDates.push({ dateStr: dStr, row: 3 + r });
+    }
+  }
+
+  // 檢查嚴格遞減與重複
+  for (let i = 1; i < rowDates.length; i++) {
+    if (rowDates[i].dateStr >= rowDates[i - 1].dateStr) {
+      return {
+        success: false,
+        close: null,
+        date: null,
+        row: null,
+        reason: `歷史列日期未嚴格遞減或存在重複日期 (Row ${rowDates[i-1].row}: ${rowDates[i-1].dateStr} vs Row ${rowDates[i].row}: ${rowDates[i].dateStr})`
+      };
+    }
+  }
+
+  // 2. 由上而下尋找第一筆早於 targetDate 且 TWII 有效 (> 0) 的正式收盤
+  for (let r = 0; r < values.length; r++) {
+    const rawD = values[r][0];
+    const rawTwii = values[r][1];
+
+    let dStr = '';
+    if (rawD instanceof Date) {
+      dStr = Utilities.formatDate(rawD, 'Asia/Taipei', 'yyyy-MM-dd');
+    } else if (rawD !== null && rawD !== undefined) {
+      dStr = String(rawD).trim();
+    }
+
+    let twiiVal = null;
+    if (typeof rawTwii === 'number' && isFinite(rawTwii)) {
+      twiiVal = rawTwii;
+    } else if (typeof rawTwii === 'string') {
+      const parsed = parseFloat(rawTwii.replace(/,/g, ''));
+      if (isFinite(parsed)) twiiVal = parsed;
+    }
+
+    // 條件：日期格式合法、日期早於目標日、TWII 大於 0
+    if (dStr && /^\d{4}-\d{2}-\d{2}$/.test(dStr) && dStr < targetDateStr) {
+      if (twiiVal !== null && twiiVal > 0) {
+        return {
+          success: true,
+          close: twiiVal,
+          date: dStr,
+          row: 3 + r,
+          reason: `於 Row ${3 + r} 找到有效前次收盤價 (${dStr}: ${twiiVal})`
+        };
+      }
+    }
+  }
+
+  return {
+    success: false,
+    close: null,
+    date: null,
+    row: null,
+    reason: `在 RAW_HISTORY Row 3~7 搜尋範圍內找不到早於 ${targetDateStr} 之有效收盤資料`
+  };
+}
+
+/**
+ * 每日收盤前置驗證閘門 (Pre-Commit Validation Gate) 與 10.5% 雙向熔斷器
+ * @param {Object} realData 當日行情物件 (須含 twii, regularMarketTime)
+ * @param {number|Object} previousValidClose 前次有效收盤數值，或由 options 傳入 rawSheet 自動檢索
+ * @param {string|Date} [targetDate] 目標台灣交易日 (預設當前 Asia/Taipei 日期)
+ * @param {Object} [options] 額外參數 (如 rawSheet)
+ * @return {Object} 結構化驗證結果
+ */
+function validateDailyCloseData_(realData, previousValidClose, targetDate, options) {
+  const opt = options || {};
+
+  // 1. 目標交易日標準化 (Asia/Taipei)
+  let targetDateStr = '';
+  if (targetDate instanceof Date) {
+    targetDateStr = Utilities.formatDate(targetDate, 'Asia/Taipei', 'yyyy-MM-dd');
+  } else if (typeof targetDate === 'string' && targetDate.trim() !== '') {
+    targetDateStr = targetDate.trim();
+  } else {
+    targetDateStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+
+  // 基礎欄位預設
+  let todayTwii = null;
+  let prevClose = null;
+  let changeRate = null;
+  let rawTimestampSec = null;
+  let timestampTaipeiStr = null;
+
+  // 2. 驗證 A: 交易日檢驗 (非交易日不得通過)
+  const marketOpen = isMarketOpen(targetDateStr);
+  if (!marketOpen.isOpen) {
+    return {
+      accepted: false,
+      status: 'REJECTED_NON_TRADING_DAY',
+      reason: `目標日期 (${targetDateStr}) 非開盤交易日: ${marketOpen.reason}`,
+      targetDate: targetDateStr,
+      twii: null,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: null,
+      marketTimestampTaipei: null
+    };
+  }
+
+  // 3. 驗證 B: TWII 基本有效性檢驗
+  if (!realData || realData.twii === null || realData.twii === undefined || realData.twii === '') {
+    return {
+      accepted: false,
+      status: 'REJECTED_INVALID_TWII',
+      reason: 'TWII 行情資料不存在或為空值',
+      targetDate: targetDateStr,
+      twii: null,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: null,
+      marketTimestampTaipei: null
+    };
+  }
+
+  const rawTwiiVal = realData.twii;
+  let parsedTwii = null;
+  if (typeof rawTwiiVal === 'number') {
+    parsedTwii = rawTwiiVal;
+  } else if (typeof rawTwiiVal === 'string') {
+    const cleaned = rawTwiiVal.replace(/,/g, '').trim();
+    if (cleaned !== '') parsedTwii = Number(cleaned);
+  }
+
+  if (parsedTwii === null || typeof parsedTwii !== 'number' || isNaN(parsedTwii) || !isFinite(parsedTwii) || parsedTwii <= 0) {
+    return {
+      accepted: false,
+      status: 'REJECTED_INVALID_TWII',
+      reason: `TWII 數值無效 (原始值: ${rawTwiiVal})，必須為大於 0 之有限數值 (嚴禁 NaN, Infinity, 負數或 0)`,
+      targetDate: targetDateStr,
+      twii: null,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: null,
+      marketTimestampTaipei: null
+    };
+  }
+  todayTwii = parsedTwii;
+
+  // 4. 驗證 C: Yahoo regularMarketTime 時間戳檢驗
+  if (!realData.regularMarketTime) {
+    return {
+      accepted: false,
+      status: 'REJECTED_TIMESTAMP_MISSING',
+      reason: '缺少 Yahoo regularMarketTime 行情時間戳，無法確認成交時間',
+      targetDate: targetDateStr,
+      twii: todayTwii,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: null,
+      marketTimestampTaipei: null
+    };
+  }
+
+  let marketDateObj = null;
+  if (typeof realData.regularMarketTime === 'number') {
+    let numVal = realData.regularMarketTime;
+    if (numVal <= 0 || !isFinite(numVal)) {
+      return {
+        accepted: false,
+        status: 'REJECTED_TIMESTAMP_MISSING',
+        reason: `regularMarketTime 時間戳格式異常 (值: ${numVal})`,
+        targetDate: targetDateStr,
+        twii: todayTwii,
+        previousValidClose: null,
+        changeRate: null,
+        marketTimestamp: null,
+        marketTimestampTaipei: null
+      };
+    }
+    // 防禦：若傳入毫秒 (值 > 1e11，即大於西元 1973 年之毫秒)，自動正規化為秒數，確保乘以 1000 恰好一次
+    if (numVal > 1e11) {
+      rawTimestampSec = Math.floor(numVal / 1000);
+    } else {
+      rawTimestampSec = Math.floor(numVal);
+    }
+    marketDateObj = new Date(rawTimestampSec * 1000);
+  } else if (realData.regularMarketTime instanceof Date) {
+    marketDateObj = realData.regularMarketTime;
+    rawTimestampSec = Math.floor(marketDateObj.getTime() / 1000);
+  } else {
+    return {
+      accepted: false,
+      status: 'REJECTED_TIMESTAMP_MISSING',
+      reason: `無法解析 regularMarketTime 時間戳 (型別: ${typeof realData.regularMarketTime})`,
+      targetDate: targetDateStr,
+      twii: todayTwii,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: null,
+      marketTimestampTaipei: null
+    };
+  }
+
+  if (isNaN(marketDateObj.getTime())) {
+    return {
+      accepted: false,
+      status: 'REJECTED_TIMESTAMP_MISSING',
+      reason: 'regularMarketTime 時間戳轉為 Date 後為 Invalid Date',
+      targetDate: targetDateStr,
+      twii: todayTwii,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: rawTimestampSec,
+      marketTimestampTaipei: null
+    };
+  }
+
+  // 轉換為 Asia/Taipei 時區
+  const marketDateStr = Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+  const marketTimeStr = Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'HH:mm:ss');
+  timestampTaipeiStr = `${marketDateStr} ${marketTimeStr}`;
+
+  // 檢驗 C.1: 日期必須與目標交易日一致
+  if (marketDateStr !== targetDateStr) {
+    return {
+      accepted: false,
+      status: 'REJECTED_TIMESTAMP_DATE',
+      reason: `行情時間戳日期 (${marketDateStr}) 與目標交易日 (${targetDateStr}) 不一致`,
+      targetDate: targetDateStr,
+      twii: todayTwii,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: rawTimestampSec,
+      marketTimestampTaipei: timestampTaipeiStr
+    };
+  }
+
+  // 檢驗 C.2: 時間戳必須不早於 13:30:00 (台灣股市收盤時間)
+  const hour = parseInt(Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'HH'), 10);
+  const minute = parseInt(Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'mm'), 10);
+  const second = parseInt(Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'ss'), 10);
+  const timeInt = hour * 10000 + minute * 100 + second;
+
+  if (timeInt < 133000) {
+    return {
+      accepted: false,
+      status: 'REJECTED_TIMESTAMP_BEFORE_CLOSE',
+      reason: `行情時間戳 (${marketTimeStr}) 早於台灣股市收盤時間 (13:30:00)，非正式收盤資料`,
+      targetDate: targetDateStr,
+      twii: todayTwii,
+      previousValidClose: null,
+      changeRate: null,
+      marketTimestamp: rawTimestampSec,
+      marketTimestampTaipei: timestampTaipeiStr
+    };
+  }
+
+  // 5. 驗證 E: PreviousValidClose 基準檢核
+  if (previousValidClose === null || previousValidClose === undefined) {
+    if (opt.rawSheet) {
+      const searchRes = findPreviousValidClose_(opt.rawSheet, targetDateStr);
+      if (searchRes.success) {
+        prevClose = searchRes.close;
+      } else {
+        return {
+          accepted: false,
+          status: 'REJECTED_NO_PREVIOUS_VALID_CLOSE',
+          reason: `檢索前次有效收盤失敗: ${searchRes.reason}`,
+          targetDate: targetDateStr,
+          twii: todayTwii,
+          previousValidClose: null,
+          changeRate: null,
+          marketTimestamp: rawTimestampSec,
+          marketTimestampTaipei: timestampTaipeiStr
+        };
+      }
+    } else {
+      return {
+        accepted: false,
+        status: 'REJECTED_NO_PREVIOUS_VALID_CLOSE',
+        reason: '未提供前次有效收盤價 (previousValidClose 為空) 且未提供 RAW_HISTORY 工作表供搜尋',
+        targetDate: targetDateStr,
+        twii: todayTwii,
+        previousValidClose: null,
+        changeRate: null,
+        marketTimestamp: rawTimestampSec,
+        marketTimestampTaipei: timestampTaipeiStr
+      };
+    }
+  } else {
+    let parsedPrev = null;
+    if (typeof previousValidClose === 'number') {
+      parsedPrev = previousValidClose;
+    } else if (typeof previousValidClose === 'string') {
+      const parsed = parseFloat(previousValidClose.replace(/,/g, ''));
+      if (isFinite(parsed)) parsedPrev = parsed;
+    }
+
+    if (parsedPrev === null || typeof parsedPrev !== 'number' || isNaN(parsedPrev) || !isFinite(parsedPrev) || parsedPrev <= 0) {
+      return {
+        accepted: false,
+        status: 'REJECTED_INVALID_PREVIOUS_CLOSE',
+        reason: `前次收盤價基準無效 (值: ${previousValidClose})，無法作為計算基準`,
+        targetDate: targetDateStr,
+        twii: todayTwii,
+        previousValidClose: null,
+        changeRate: null,
+        marketTimestamp: rawTimestampSec,
+        marketTimestampTaipei: timestampTaipeiStr
+      };
+    }
+    prevClose = parsedPrev;
+  }
+
+  // 6. 驗證 D: ±10.5% 雙向熔斷器
+  // changeRate = (todayTwii - previousValidClose) / previousValidClose
+  changeRate = (todayTwii - prevClose) / prevClose;
+  const absChange = Math.abs(changeRate);
+  const limit = 0.105; // 10.5%
+
+  // 允許微小浮點誤差 (1e-7)，超過 10.5% 嚴格阻斷
+  if (absChange - limit > 1e-7) {
+    const directionStr = changeRate > 0 ? '上漲' : '下跌';
+    const percentStr = (changeRate * 100).toFixed(2) + '%';
+    return {
+      accepted: false,
+      status: 'REJECTED_DAILY_CHANGE_LIMIT',
+      reason: `單日${directionStr}幅度 (${percentStr}) 超過 ±10.5% 雙向熔斷器上限 (前收盤: ${prevClose.toFixed(2)}, 今日: ${todayTwii.toFixed(2)})，觸發安全閉鎖需人工覆核`,
+      targetDate: targetDateStr,
+      twii: todayTwii,
+      previousValidClose: prevClose,
+      changeRate: changeRate,
+      marketTimestamp: rawTimestampSec,
+      marketTimestampTaipei: timestampTaipeiStr
+    };
+  }
+
+  // 7. 全數通過！
+  return {
+    accepted: true,
+    status: 'ACCEPTED',
+    reason: '收盤行情通過交易日、TWII 有效性、時間戳與 ±10.5% 雙向熔斷器檢驗，符合本系統收盤資料驗證條件',
+    targetDate: targetDateStr,
+    twii: todayTwii,
+    previousValidClose: prevClose,
+    changeRate: changeRate,
+    marketTimestamp: rawTimestampSec,
+    marketTimestampTaipei: timestampTaipeiStr
+  };
+}
+
