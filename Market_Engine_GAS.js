@@ -6439,16 +6439,24 @@ function forceClearCorruptedSnapshotState_(options) {
 
 /**
  * 在 RAW_HISTORY Row 3~7 搜尋最近一筆有效正式收盤價作為比較基準
+ * 02B-8.3.2.2 強化：前五列歷史資料結構完整性嚴格防護
  * @param {Sheet} rawSheet RAW_HISTORY 工作表物件
  * @param {string|Date} [targetDate] 目標交易日 (如 '2026-11-13')
- * @return {Object} { success: boolean, close: number|null, date: string|null, row: number|null, reason: string }
+ * @return {Object} { success: boolean, close: number|null, date: string|null, row: number|null, status?: string, reason: string }
  */
 function findPreviousValidClose_(rawSheet, targetDate) {
   if (!rawSheet) {
-    return { success: false, close: null, date: null, row: null, reason: '找不到 RAW_HISTORY 工作表' };
+    return {
+      success: false,
+      close: null,
+      date: null,
+      row: null,
+      status: 'REJECTED_NO_PREVIOUS_VALID_CLOSE',
+      reason: '找不到 RAW_HISTORY 工作表'
+    };
   }
 
-  // 目標日期標準化
+  // 目標日期標準化 (Asia/Taipei)
   let targetDateStr = '';
   if (targetDate instanceof Date) {
     targetDateStr = Utilities.formatDate(targetDate, 'Asia/Taipei', 'yyyy-MM-dd');
@@ -6461,74 +6469,142 @@ function findPreviousValidClose_(rawSheet, targetDate) {
   const range = rawSheet.getRange(3, 1, 5, 2); // Row 3~7, Col A (Date) & B (TWII)
   const values = range.getValues();
 
-  // 1. 檢驗歷史日期序列是否嚴格遞減且無重複
-  const rowDates = [];
-  for (let r = 0; r < values.length; r++) {
-    const rawD = values[r][0];
-    let dStr = '';
-    if (rawD instanceof Date) {
-      dStr = Utilities.formatDate(rawD, 'Asia/Taipei', 'yyyy-MM-dd');
-    } else if (rawD !== null && rawD !== undefined && String(rawD).trim() !== '') {
-      dStr = String(rawD).trim();
-    }
-    if (dStr) {
-      rowDates.push({ dateStr: dStr, row: 3 + r });
-    }
-  }
+  // ---------------------------------------------------------
+  // 1. 核心規則 A: 檢驗 Row 3~7 歷史日期結構完整性
+  // ---------------------------------------------------------
+  const parsedRows = [];
 
-  // 檢查嚴格遞減與重複
-  for (let i = 1; i < rowDates.length; i++) {
-    if (rowDates[i].dateStr >= rowDates[i - 1].dateStr) {
+  for (let r = 0; r < values.length; r++) {
+    const currentRowNum = 3 + r;
+    const rawD = values[r][0];
+
+    // A.1 & A.5 檢查: 不得存在空白日期列
+    if (rawD === null || rawD === undefined || (typeof rawD === 'string' && rawD.trim() === '')) {
       return {
         success: false,
         close: null,
         date: null,
-        row: null,
-        reason: `歷史列日期未嚴格遞減或存在重複日期 (Row ${rowDates[i-1].row}: ${rowDates[i-1].dateStr} vs Row ${rowDates[i].row}: ${rowDates[i].dateStr})`
+        row: currentRowNum,
+        status: 'REJECTED_HISTORY_DATE_MISSING',
+        reason: `歷史資料第 ${currentRowNum} 列日期為空 (REJECTED_HISTORY_DATE_MISSING)`
       };
     }
-  }
-
-  // 2. 由上而下尋找第一筆早於 targetDate 且 TWII 有效 (> 0) 的正式收盤
-  for (let r = 0; r < values.length; r++) {
-    const rawD = values[r][0];
-    const rawTwii = values[r][1];
 
     let dStr = '';
     if (rawD instanceof Date) {
       dStr = Utilities.formatDate(rawD, 'Asia/Taipei', 'yyyy-MM-dd');
-    } else if (rawD !== null && rawD !== undefined) {
+    } else if (typeof rawD === 'string') {
+      dStr = rawD.trim();
+    } else {
       dStr = String(rawD).trim();
     }
 
-    let twiiVal = null;
-    if (typeof rawTwii === 'number' && isFinite(rawTwii)) {
-      twiiVal = rawTwii;
-    } else if (typeof rawTwii === 'string') {
-      const parsed = parseFloat(rawTwii.replace(/,/g, ''));
-      if (isFinite(parsed)) twiiVal = parsed;
+    // A.2 & A.6 檢查: 日期格式必須符合 yyyy-MM-dd
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+      return {
+        success: false,
+        close: null,
+        date: null,
+        row: currentRowNum,
+        status: 'REJECTED_HISTORY_DATE_INVALID',
+        reason: `歷史資料第 ${currentRowNum} 列日期格式錯誤: "${rawD}" (REJECTED_HISTORY_DATE_INVALID)`
+      };
     }
 
-    // 條件：日期格式合法、日期早於目標日、TWII 大於 0
-    if (dStr && /^\d{4}-\d{2}-\d{2}$/.test(dStr) && dStr < targetDateStr) {
+    parsedRows.push({
+      row: currentRowNum,
+      dateStr: dStr,
+      rawTwii: values[r][1]
+    });
+  }
+
+  // A.3 & A.4 檢查: 日期嚴格遞減且無重複
+  for (let i = 1; i < parsedRows.length; i++) {
+    const prev = parsedRows[i - 1];
+    const curr = parsedRows[i];
+
+    if (curr.dateStr === prev.dateStr) {
+      return {
+        success: false,
+        close: null,
+        date: null,
+        row: curr.row,
+        status: 'REJECTED_HISTORY_DATE_DUPLICATE',
+        reason: `歷史資料列日期重複: Row ${prev.row} (${prev.dateStr}) 與 Row ${curr.row} (${curr.dateStr}) 相同 (REJECTED_HISTORY_DATE_DUPLICATE)`
+      };
+    }
+
+    if (curr.dateStr > prev.dateStr) {
+      return {
+        success: false,
+        close: null,
+        date: null,
+        row: curr.row,
+        status: 'REJECTED_HISTORY_DATE_ORDER',
+        reason: `歷史資料列日期未嚴格遞減 (倒置): Row ${prev.row} (${prev.dateStr}) 早於 Row ${curr.row} (${curr.dateStr}) (REJECTED_HISTORY_DATE_ORDER)`
+      };
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 2. 核心規則 A.7: targetDate 歷史排他性驗證
+  // ---------------------------------------------------------
+  // 若 targetDate 與歷史列重複：
+  // 依既有規則，若 targetDate 與 Row 3 日期相同，代表 Row 3 為當日資料（例如盤後補跑或重複觸發），
+  // 允許排除 Row 3 後，尋找前一歷史收盤 (Row 4)。
+  // 但若 targetDate 與 Row 4~Row 7 歷史深層資料重複，則表示交易目標日落後於已記錄歷史或歷史表嚴重錯位，必須阻斷拒絕。
+  for (let i = 1; i < parsedRows.length; i++) {
+    if (parsedRows[i].dateStr === targetDateStr) {
+      return {
+        success: false,
+        close: null,
+        date: null,
+        row: parsedRows[i].row,
+        status: 'REJECTED_HISTORY_DATE_DUPLICATE',
+        reason: `目標交易日 ${targetDateStr} 與歷史深層資料 Row ${parsedRows[i].row} 日期衝突 (REJECTED_HISTORY_DATE_DUPLICATE)`
+      };
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 3. 核心規則 B & C: TWII 數值有效性穿透尋找前收
+  // ---------------------------------------------------------
+  for (let r = 0; r < parsedRows.length; r++) {
+    const item = parsedRows[r];
+
+    // 排除當日或晚於目標日之列 (嚴格早於 targetDateStr)
+    if (item.dateStr < targetDateStr) {
+      let twiiVal = null;
+      if (typeof item.rawTwii === 'number' && isFinite(item.rawTwii)) {
+        twiiVal = item.rawTwii;
+      } else if (typeof item.rawTwii === 'string') {
+        const parsed = parseFloat(item.rawTwii.replace(/,/g, ''));
+        if (isFinite(parsed)) twiiVal = parsed;
+      }
+
+      // 情況一: TWII 有效 (> 0 之有限正數) -> 成功回傳！
       if (twiiVal !== null && twiiVal > 0) {
         return {
           success: true,
           close: twiiVal,
-          date: dStr,
-          row: 3 + r,
-          reason: `於 Row ${3 + r} 找到有效前次收盤價 (${dStr}: ${twiiVal})`
+          date: item.dateStr,
+          row: item.row,
+          status: 'ACCEPTED',
+          reason: `於 Row ${item.row} 找到有效前次收盤價 (${item.dateStr}: ${twiiVal})`
         };
       }
+      // 情況一: 若 TWII 無效 (為 0, 空, 負數, NaN, Infinity)，此列穿透，繼續檢查下一列
     }
   }
 
+  // 前五列歷史全部無效
   return {
     success: false,
     close: null,
     date: null,
     row: null,
-    reason: `在 RAW_HISTORY Row 3~7 搜尋範圍內找不到早於 ${targetDateStr} 之有效收盤資料`
+    status: 'REJECTED_NO_PREVIOUS_VALID_CLOSE',
+    reason: `在 RAW_HISTORY Row 3~7 搜尋範圍內找不到早於 ${targetDateStr} 之有效收盤資料 (REJECTED_NO_PREVIOUS_VALID_CLOSE)`
   };
 }
 
@@ -6731,9 +6807,10 @@ function validateDailyCloseData_(realData, previousValidClose, targetDate, optio
       if (searchRes.success) {
         prevClose = searchRes.close;
       } else {
+        const failureStatus = searchRes.status || 'REJECTED_NO_PREVIOUS_VALID_CLOSE';
         return {
           accepted: false,
-          status: 'REJECTED_NO_PREVIOUS_VALID_CLOSE',
+          status: failureStatus,
           reason: `檢索前次有效收盤失敗: ${searchRes.reason}`,
           targetDate: targetDateStr,
           twii: todayTwii,

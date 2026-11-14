@@ -43,9 +43,9 @@
   - `updateSnapshotLifecycle_(newStatus, info)`: 快照五大生命週期（`CREATING` / `VERIFIED` / `IN_USE` / `RELEASED` / `CORRUPTED`）雙重持久化同步更新（實體表 + ScriptProperties）。
   - `inspectSnapshotState_(options)`: 快照狀態探測，優先以實體 `_ROLLBACK_TMP` 為 Single Source of Truth，達成 Properties 遺失時之自癒讀取。
   - `forceClearCorruptedSnapshotState_(options)`: 人工解除損毀閉鎖專用函式，必須顯式傳入 `forceConfirm: true` 與審核原因 `reason`，嚴禁日常自動呼叫。
-- **每日收盤前置驗證閘門與 10.5% 雙向熔斷器 (02B-8.3.2)**:
+- **每日收盤前置驗證閘門與 10.5% 雙向熔斷器 (02B-8.3.2 ~ 02B-8.3.2.2)**:
   - `validateDailyCloseData_(realData, previousValidClose, targetDate, options)`: 每日收盤前置驗證核心閘門。依序執行：(1) 交易日檢核（過濾週末與國定假日）；(2) TWII 數值有效性（存在、數值、>0、非空、非 NaN/Infinity，嚴禁前值替代）；(3) Yahoo 時間戳驗證（Unix 秒數單次乘 1000 轉 Date，Asia/Taipei 日期須等於目標交易日，時間戳須 >= 13:30:00，聲明非官方收盤證明）；(4) PreviousValidClose 檢驗（非空且 >0）；(5) ±10.5% 雙向熔斷器（`Math.abs(changeRate) > 0.105` 觸發安全閉鎖需人工覆核，剛好 ±10.50% 接受）。
-  - `findPreviousValidClose_(rawSheet, targetDate)`: 歷史收盤基準檢索函式。在 RAW_HISTORY Row 3~7 搜尋最近一筆有效正式收盤價（>0 且早於目標日），且強制檢驗 Row 3~7 歷史日期是否嚴格遞減且無重複日期。
+  - `findPreviousValidClose_(rawSheet, targetDate)`: 歷史收盤基準檢索與前五列結構完整性防護函式 (02B-8.3.2.2 強化)。在 RAW_HISTORY Row 3~7 搜尋最近一筆有效正式收盤價（>0 且早於目標日）。強制實施三大歷史結構防禦：(1) 每一列皆必須存在合法 yyyy-MM-dd 日期（嚴格阻斷空白日期 `REJECTED_HISTORY_DATE_MISSING` 與格式錯誤 `REJECTED_HISTORY_DATE_INVALID`）；(2) 歷史列日期必須嚴格遞減且無重複（阻斷重複日期 `REJECTED_HISTORY_DATE_DUPLICATE` 與日期倒置 `REJECTED_HISTORY_DATE_ORDER`）；(3) targetDate 歷史排他性驗證（允許排除當日 Row 3 取前收，但嚴禁與 Row 4~7 深層歷史重複）；(4) 只有在歷史結構完整無損之前提下，才允許對無效 TWII（0/負數/空/NaN）安全穿透至下一列取值。
   - *【重要功能邊界聲明】*：目前快照引擎與前置驗證閘門為獨立模組，**尚未整合至每日收盤流程 `updateAfternoonMarketEngine()`，亦尚未實作復原引擎 `rollbackTransactionSnapshot_()` 與原子提交器 `commitDailyTradingRow()`**。
 - **門檻定義與位階判定單一來源**:
   - `getThresholdConfig(sheet)`: 從 `THRESHOLD_CONFIG` 動態提取 P10/P25/P75/P90 百分比，確保全站單一門檻來源。
@@ -172,7 +172,7 @@
   - (8) **下一步開發起點（Next Up）**：
     1. 實作 `commitDailyTradingRow()` 安全原子提交機制（整合 02B-7.2 之 `applyRawHistoryRow3Formulas` 與 `applyHistoryLogRow3Formulas`、前置驗證、30s `LockService`、快照回滾、移除 `realData.twii || prevTwii`）並為排程加入 Gemini 執行時間預算保護。
     2. 執行正式環境 `HISTORY_LOG!A3:I4501` 修復、公式防漂移套用與 `verifyLabBacktest()` 對帳，並清理演練用測試副本。
-- **🚀 目前停止位置**: `feature/data-lifecycle-hardening`（02B-1 ~ 02B-8.3.2 本地加固與測試完畢，正式線上仍維持 `v2.9.1` / `@152`）
+- **🚀 目前停止位置**: `feature/data-lifecycle-hardening`（02B-1 ~ 02B-8.3.2.2 本地加固與測試完畢，正式線上仍維持 `v2.9.1` / `@152`）
 - **🎯 下一步施工目標 (Milestone 8 / v3.0.0)**:
   - **施工單 02B-8.3.3**: 實作每日收盤原子復原引擎 (`rollbackTransactionSnapshot_()`)。
   - **施工單 02B-8.3.4**: 實作每日收盤原子提交器 (`commitDailyTradingRow()`) 與後處理非同步解耦。
@@ -212,3 +212,4 @@
 | **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-8.1~8.3.1) | **每日收盤安全原子提交架構設計定案、獨立交易快照引擎實作與 10 項故障注入實測完工**：(1) 02B-8.1~8.2.3：完成每日收盤靜態盤點與原子提交架構設計，確立核心收盤寫入與 AI/新聞/Crash/月度回測後處理徹底解耦；定案以 `_ROLLBACK_TMP` 實體隱藏 Sheet（3x9 與 3x11 完整雙表鏡像）為第一持久化容器、搭配 ScriptProperties 快取，擺脫 9KB 限制；確立確定性 SHA-256 雜湊演算法與 10.5% 雙向熔斷器三態判定；(2) 02B-8.3.1：於本地實作獨立交易快照引擎 6 大核心函式（`createTransactionSnapshot_`、`readTransactionSnapshot_`、`validateSnapshotIntegrity_`、`calculateSnapshotHash_`、`updateSnapshotLifecycle_`、`inspectSnapshotState_`），實裝公式字串優先提取、型別標準化與生命週期流轉；(3) 於全新測試副本 `Market_Engine_V3_TEST_SNAPSHOT_02B-8.3.1` 完成全套 10 項故障注入實測，100% 通過（正常建立與讀回、儲存格篡改攔截、中繼資料缺欄位攔截、全量 Integrity Hash 篡改攔截、Properties 遺失自 `_ROLLBACK_TMP` 自癒重建、未驗證狀態防護、並發舊快照互斥鎖定、J/K 備註與 AI 文字敏感度、公式與靜態值隔離、重複交易冪等性沿用）；(4) 原母體 RAW_HISTORY (4,499列)、HISTORY_LOG (4,499列) 與 LAB_BACKTEST (B9=4,490) 100% 原始保留，零修改零損害。 |
 | **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-8.3.1.2) | **快照引擎安全加固、CORRUPTED 閉鎖、單一責任鎖定與 Hash 轉義完工**：(1) 修正 CORRUPTED 閉鎖與 Fail-Closed 防護：強制阻斷覆蓋任何損毀快照（新舊交易 ID 均無法覆蓋），中繼資料不完整或雜湊不符一律拒絕建立新快照，建立管理員專用人工解除函式 `forceClearCorruptedSnapshotState_()`；(2) 單一責任鎖定架構：對外入口 `createTransactionSnapshot_()` 自帶 30s `LockService` 悲觀鎖（`try...finally` 釋放），並支援外層協調器傳入 `lockAcquired: true` 直接調用核心 `createTransactionSnapshotCore_()`，徹底杜絕不可重入鎖衝突；(3) 確定性 Hash 序列化加固：實裝 `escapeSnapshotString_()` 轉義分號 (`;`)、直線 (`|`)、反斜線 (`\`) 與換行符 (`\n`)，杜絕結構性字串碰撞；(4) 補齊 `HANDBOOK.md` 第 ③ 節 `_ROLLBACK_TMP` 職責與第 ④ 節快照函式庫索引；(5) 於測試副本完成原有 10 項測試及新增 8 項安全加固測試，100% PASS。 |
 | **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-8.3.2) | **每日收盤前置驗證閘門與 10.5% 雙向熔斷器實作完工**：(1) 實作 `validateDailyCloseData_` 前置驗證核心閘門，徹底回答「今天取得的行情資料是否符合寫入 RAW_HISTORY 基本條件」；(2) 實裝五層防禦防線：交易日檢核（過濾週末/國定假日）、TWII 有效性（拒絕 0/負數/空值/NaN/Infinity，嚴禁前值替代）、Yahoo `regularMarketTime` 時間戳檢驗（>= 13:30:00 且日期相符，聲明非官方收盤證明）、PreviousValidClose 檢驗與 ±10.5% 雙向熔斷器（`Math.abs(changeRate) > 0.105` 觸發安全閉鎖需人工覆核，剛好 ±10.50% 通過）；(3) 實作 `findPreviousValidClose_` 在 RAW_HISTORY Row 3~7 自動尋找最近有效收盤，並強制校驗歷史列日期嚴格遞減且無重複；(4) 完成全套 20 項驗證案例測試，20/20 全部通過；(5) 原母體與正式環境維持零修改零接觸。 |
+| **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-8.3.2.2) | **PreviousValidClose 歷史資料結構完整性防護強化完工**：(1) 補強 `findPreviousValidClose_` 解決 02B-8.3.2.1 發現之 WARNING-01 歷史空白列盲區；(2) 建立前五列 (Row 3~7) 嚴格結構防線：每列必須存在有效標準日期，嚴格拒絕空白日期 (`REJECTED_HISTORY_DATE_MISSING`)、格式異常 (`REJECTED_HISTORY_DATE_INVALID`)、重複日期 (`REJECTED_HISTORY_DATE_DUPLICATE`)、日期倒置 (`REJECTED_HISTORY_DATE_ORDER`) 及深層歷史與 targetDate 衝突；(3) 明確劃分兩大穿透行為：只有在日期結構 100% 完整無損前提下，才允許 TWII 無效（0/負數/空/NaN）安全穿透至下一列取值，遇日期損毀一律 fail-closed；(4) 14 項專項測試全部通過 (14/14 PASS)，原 20 項驗證案例全數回歸通過；(5) 正式資料與策略維持零修改零接觸。 |
