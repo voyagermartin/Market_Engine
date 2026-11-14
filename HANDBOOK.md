@@ -22,15 +22,28 @@
   - **歷史下行風險與前瞻報酬驗證 (Risk & Forward Return)**：當前選定窗口 T1~T5 詳細前瞻績效表（20日/60日平均報酬、最大不利變動 MAE、勝率）與三窗口橫向對比矩陣。
   - **常態轉折路徑標籤 (Persistent Transition Breadcrumb)**：清晰呈現「前一位階歷史脈絡 → 今日位階」，賦予決策連續性。
 
-## ③ Database Schema (6 大 Sheet 職責)
+## ③ Database Schema (6 大常態 Sheet + 1 災難復原隱藏 Sheet)
 1. `RAW_HISTORY`: 100% 官方實體歷史數據底座 (Date, TWII, VIX, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change)。
 2. `THRESHOLD_CONFIG`: 位階門檻定義表 (Single Source of Truth，連動 18 年 P10/P25/P75/P90 分位數)。
 3. `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (含 4 大維度自我驗證算式與 `LAB_CALC_DATE` 月度對帳標籤)。
 4. `DASHBOARD`: 行情最新數據、今日位階、策略行動指引、動態轉折脈絡與 AI 顧問值班卡片。
 5. `HISTORY_LOG`: 每日盤後定時快照歷史備份 (內建動態列數擴充安全防護)。
 6. `DECISION_LOG`: 手動加碼/戰術決策審核檢討紀錄。
+7. `_ROLLBACK_TMP`: (02B-8.3.1 新增隱藏分頁) 災難復原交易快照暫存表。保存交易前 RAW_HISTORY A3:I5 (3x9) 與 HISTORY_LOG A3:K5 (3x11) 雙表實體鏡像、9 欄安全中繼資料與三層防篡改確定性 SHA-256 雜湊，作為系統崩潰或驗證失敗時之復原基準。
 
 ## ④ Function Library (核心函式索引)
+- **獨立交易快照引擎 (02B-8.3.1 ~ 02B-8.3.1.2)**:
+  - `createTransactionSnapshot_(options)`: 快照建立對外入口。具備單一鎖定責任模型（若外層未傳入 `lockAcquired: true` 則主動申請 30s `LockService` 悲觀鎖，執行完畢於 `finally` 安全釋放，杜絕不可重入鎖衝突）。
+  - `createTransactionSnapshotCore_(options)`: 內部核心函式。採嚴格 Fail-Closed 閉鎖架構，強制拒絕覆蓋任何既有 `CORRUPTED` 快照或未完成之 `IN_USE`/`CREATING` 快照；相同 transactionId 則以冪等性安全沿用原凍結基準。
+  - `readTransactionSnapshot_(options)`: 實體解析 `_ROLLBACK_TMP` 之 9 大中繼資料與雙表實體網格物件。
+  - `validateSnapshotIntegrity_(options)`: 驗證必備中繼資料、二維維度（3x9 與 3x11）及 RawRow3、HistRow3、IntegrityHash 三層 SHA-256 防篡改比對。
+  - `calculateSnapshotHash_(gridCells)`: 跨平台確定性 SHA-256 矩陣雜湊計算器（GAS 與 Node.js 100% 一致）。
+  - `escapeSnapshotString_(str)`: 快照字串跳脫處理器，嚴格跳脫分號 (`;`)、直線 (`|`)、反斜線 (`\`) 與換行符 (`\n`)，杜絕結構性碰撞。
+  - `canonicalizeCellForSnapshot_(cell)`: 儲存格資料標準化與無歧義代碼生成器（公式優先 `F:`、原始數值 `V:N_`、字串 `V:S_`、空值 `V:EMPTY`、備註 `NOTE:`）。
+  - `updateSnapshotLifecycle_(newStatus, info)`: 快照五大生命週期（`CREATING` / `VERIFIED` / `IN_USE` / `RELEASED` / `CORRUPTED`）雙重持久化同步更新（實體表 + ScriptProperties）。
+  - `inspectSnapshotState_(options)`: 快照狀態探測，優先以實體 `_ROLLBACK_TMP` 為 Single Source of Truth，達成 Properties 遺失時之自癒讀取。
+  - `forceClearCorruptedSnapshotState_(options)`: 人工解除損毀閉鎖專用函式，必須顯式傳入 `forceConfirm: true` 與審核原因 `reason`，嚴禁日常自動呼叫。
+  - *【重要功能邊界聲明】*：目前快照引擎為獨立就緒模組，**尚未整合至每日收盤流程 `updateAfternoonMarketEngine()`，亦尚未實作復原引擎 `rollbackTransactionSnapshot_()` 與原子提交器 `commitDailyTradingRow()`**。
 - **門檻定義與位階判定單一來源**:
   - `getThresholdConfig(sheet)`: 從 `THRESHOLD_CONFIG` 動態提取 P10/P25/P75/P90 百分比，確保全站單一門檻來源。
   - `classifyPhase(dist60, thresholdConfig)`: 模組化單一出口，精準劃分 T1~T5 位階，杜絕各模組各自硬編碼。
@@ -156,7 +169,7 @@
   - (8) **下一步開發起點（Next Up）**：
     1. 實作 `commitDailyTradingRow()` 安全原子提交機制（整合 02B-7.2 之 `applyRawHistoryRow3Formulas` 與 `applyHistoryLogRow3Formulas`、前置驗證、30s `LockService`、快照回滾、移除 `realData.twii || prevTwii`）並為排程加入 Gemini 執行時間預算保護。
     2. 執行正式環境 `HISTORY_LOG!A3:I4501` 修復、公式防漂移套用與 `verifyLabBacktest()` 對帳，並清理演練用測試副本。
-- **🚀 目前停止位置**: `feature/data-lifecycle-hardening`（02B-1 ~ 02B-8.3.1 本地程式碼完成並經隔離副本實測驗證，正式線上仍維持 `v2.9.1` / `@152`）
+- **🚀 目前停止位置**: `feature/data-lifecycle-hardening`（02B-1 ~ 02B-8.3.1.2 本地加固與測試完畢，正式線上仍維持 `v2.9.1` / `@152`）
 - **🎯 下一步施工目標 (Milestone 8 / v3.0.0)**:
   - **施工單 02B-8.3.2**: 實作每日收盤前置驗證閘門 (Pre-Commit Validation Gate) 與 10.5% 雙向熔斷器。
   - **策略對決模擬器進階互動擴充**: 提供定期定額每月扣款與彈藥池投入比例之即時自選試算。
@@ -193,3 +206,4 @@
 | **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-7.5.1~7.5.2) | **Dist60 空白值型別陷阱查核、位階公式 ISNUMBER 防護修正與頂端插列防漂移驗證**：(1) 02B-7.5.1：查明 2008 年初最早 9 個交易日（2008-01-02 ~ 2008-01-14）因均線樣本不足 10 天而回傳空字串 `""`，因 Google Sheets 比較規則中「文字 > 數字」（`"" > 0.0664` 求值為 TRUE）被誤判為 T5 狂熱（致使 T5 自 474 天虛增至 483 天）；排除 9 筆空白後，4,490 筆有效 Dist60 精準收斂至 `451 / 669 / 2,228 / 668 / 474`，差值全數為 0；(2) 02B-7.5.2：於 `Market_Engine_GAS.js` 之 `applyHistoryLogFormulas()` 與 `applyHistoryLogRow3Formulas()` 前置檢查加入 `NOT(ISNUMBER(C{row}))` 防護，9 筆空白 Dist60 全數正確回傳空字串；(3) 於隔離副本驗證：`LAB_BACKTEST` B9 精準收斂為 **4,490 天**（T1: 451, T2: 669, T3: 2,228, T4: 668, T5: 474），有效交易日母體 4,499 天保持不變，J/K 欄 100% 原始保留；(4) 連續 3 次 `insertRowBefore(3)` 實證：新 Row 3 公式自動具備 `NOT(ISNUMBER(C3))` 防護且正確求值（極度恐慌/恐慌），`THRESHOLD_CONFIG` (F54:F~F56:F) 0 漂移 (0.00% 變動)，`LAB_BACKTEST` 動態累加（4,490 -> 4,491 -> 4,492 -> 4,493），無任何 #REF! 錯誤。 |
 | **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-7.6~7.8) | **LAB_BACKTEST 全歷史回測可信度驗證、乾淨基準副本封存與自我驗證邏輯修正**：(1) 02B-7.6~7.6.1：全量歷史回測可信度檢驗通過，釐清前瞻報酬樣本邊界（4,241 筆有效回測樣本）及人工插列提前解鎖效應，確定純歷史基準（T1: 451/+26.69%/82.43%, T2: 669/+14.63%/71.02%, T3: 2,228/+8.51%/68.66%, T4: 668/+7.30%/66.23%, T5: 474/+15.35%/74.85%）；(2) 02B-7.7：自正式備份建立全新乾淨基準副本 `Market_Engine_V3_CLEAN_BASELINE_02B-7.7` (`1E5qyBRSVCXULp3U1JHW3rDPTKg8fstbvXx4KaTr3GJY`)，完成全量 4,499 筆資料對齊、0 個 `#REF!`、J/K 欄 100% 原始保留，指標與基準百分百吻合並正式封存；(3) 02B-7.8：修正 `verifyLabBacktest()` Audit 1 邏輯盲區，分離計算 `rawDateCount` (4,499)、`validDist60Count` (4,490)、`blankDist60Count` (9) 與 `backtestPhaseCount` (4,490)，嚴密驗證母體完整性 ($4499 = 4490 + 9$)、位階計數 ($4490 = 4490$)、空白位階防護與有效位階完整性；(4) 於 02B-7.8 工作副本驗證全 4 大 Audit 100% 通過（橫幅顯示綠色通過標籤），並於可丟棄副本完成「有效資料漏位階」與「空白資料偽出 T5」兩大反向測試，精確捕捉違規判定失敗並成功復原。 |
 | **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-8.1~8.3.1) | **每日收盤安全原子提交架構設計定案、獨立交易快照引擎實作與 10 項故障注入實測完工**：(1) 02B-8.1~8.2.3：完成每日收盤靜態盤點與原子提交架構設計，確立核心收盤寫入與 AI/新聞/Crash/月度回測後處理徹底解耦；定案以 `_ROLLBACK_TMP` 實體隱藏 Sheet（3x9 與 3x11 完整雙表鏡像）為第一持久化容器、搭配 ScriptProperties 快取，擺脫 9KB 限制；確立確定性 SHA-256 雜湊演算法與 10.5% 雙向熔斷器三態判定；(2) 02B-8.3.1：於本地實作獨立交易快照引擎 6 大核心函式（`createTransactionSnapshot_`、`readTransactionSnapshot_`、`validateSnapshotIntegrity_`、`calculateSnapshotHash_`、`updateSnapshotLifecycle_`、`inspectSnapshotState_`），實裝公式字串優先提取、型別標準化與生命週期流轉；(3) 於全新測試副本 `Market_Engine_V3_TEST_SNAPSHOT_02B-8.3.1` 完成全套 10 項故障注入實測，100% 通過（正常建立與讀回、儲存格篡改攔截、中繼資料缺欄位攔截、全量 Integrity Hash 篡改攔截、Properties 遺失自 `_ROLLBACK_TMP` 自癒重建、未驗證狀態防護、並發舊快照互斥鎖定、J/K 備註與 AI 文字敏感度、公式與靜態值隔離、重複交易冪等性沿用）；(4) 原母體 RAW_HISTORY (4,499列)、HISTORY_LOG (4,499列) 與 LAB_BACKTEST (B9=4,490) 100% 原始保留，零修改零損害。 |
+| **2026-11-14** | `v2.9.2` (`feature/data-lifecycle-hardening` / 02B-8.3.1.2) | **快照引擎安全加固、CORRUPTED 閉鎖、單一責任鎖定與 Hash 轉義完工**：(1) 修正 CORRUPTED 閉鎖與 Fail-Closed 防護：強制阻斷覆蓋任何損毀快照（新舊交易 ID 均無法覆蓋），中繼資料不完整或雜湊不符一律拒絕建立新快照，建立管理員專用人工解除函式 `forceClearCorruptedSnapshotState_()`；(2) 單一責任鎖定架構：對外入口 `createTransactionSnapshot_()` 自帶 30s `LockService` 悲觀鎖（`try...finally` 釋放），並支援外層協調器傳入 `lockAcquired: true` 直接調用核心 `createTransactionSnapshotCore_()`，徹底杜絕不可重入鎖衝突；(3) 確定性 Hash 序列化加固：實裝 `escapeSnapshotString_()` 轉義分號 (`;`)、直線 (`|`)、反斜線 (`\`) 與換行符 (`\n`)，杜絕結構性字串碰撞；(4) 補齊 `HANDBOOK.md` 第 ③ 節 `_ROLLBACK_TMP` 職責與第 ④ 節快照函式庫索引；(5) 於測試副本完成原有 10 項測試及新增 8 項安全加固測試，100% PASS。 |

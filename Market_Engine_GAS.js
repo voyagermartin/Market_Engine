@@ -5884,16 +5884,33 @@ function getFinNewsCombinedPayload(options) {
 // ============================================================================
 
 /**
+ * 快照字串跳脫處理，杜絕分號 (;)、直線 (|)、反斜線 (\) 與換行符 (\n, \r) 產生的結構性碰撞
+ * @param {string|any} str
+ * @return {string} 跳脫後的安全字串
+ */
+function escapeSnapshotString_(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/;/g, '\\;')
+    .replace(/\r\n/g, '\\n')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\n');
+}
+
+/**
  * 儲存格資料標準化與代碼生成
  * 嚴格遵循 02B-8.2.2 規格：若有公式，以公式字串為準，排除動態計算值，防止因試算表背景求值微差產生誤報
+ * 02B-8.3.1.2 加固：引入全字串跳脫，明確區隔公式 (F:)、原始數值 (V:N_)、文字 (V:S_)、空值 (V:EMPTY) 與備註 (NOTE:)
  */
 function canonicalizeCellForSnapshot_(cell) {
   if (!cell) return 'EMPTY';
   const parts = [];
 
-  // 1. 若有公式，以公式字串為準 (最高優先權，排除動態求值漂移)
+  // 1. 若有公式，以公式字串為準 (最高優先權，排除動態求值漂移，字串轉義保護)
   if (cell.formula && String(cell.formula).trim() !== '') {
-    parts.push('F:' + String(cell.formula).trim());
+    parts.push('F:' + escapeSnapshotString_(String(cell.formula).trim()));
   } else {
     // 2. 無公式時，保存原始儲存值與型別標準化
     const rawVal = cell.value;
@@ -5904,13 +5921,13 @@ function canonicalizeCellForSnapshot_(cell) {
     } else if (typeof rawVal === 'number') {
       parts.push('V:N_' + (Number.isInteger(rawVal) ? rawVal.toString() : rawVal.toFixed(6)));
     } else {
-      parts.push('V:S_' + String(rawVal).trim());
+      parts.push('V:S_' + escapeSnapshotString_(String(rawVal).trim()));
     }
   }
 
-  // 3. 備註文字 (Note / Comments)
+  // 3. 備註文字 (Note / Comments，字串轉義保護)
   if (cell.note && String(cell.note).trim() !== '') {
-    parts.push('NOTE:' + String(cell.note).trim());
+    parts.push('NOTE:' + escapeSnapshotString_(String(cell.note).trim()));
   }
 
   return parts.join('|');
@@ -5942,11 +5959,40 @@ function calculateSnapshotHash_(gridCells) {
 }
 
 /**
- * 建立交易前快照 (保存至 _ROLLBACK_TMP 隱藏工作表及 ScriptProperties)
- * @param {Object} [options] 自訂參數 (如 tradeDate, transactionId, targetSs)
+ * 建立交易前快照 (對外公開入口，具備單一責任互斥鎖保護)
+ * @param {Object} [options] 自訂參數 (如 tradeDate, transactionId, targetSs, lockAcquired)
  * @return {Object} 建立結果包含 snapshotId, hashes, status
  */
 function createTransactionSnapshot_(options) {
+  const opt = options || {};
+
+  // 若呼叫方 (如未來外層交易協調器) 已持有 ScriptLock，直接執行內部核心，防止不可重入鎖衝突
+  if (opt.lockAcquired === true) {
+    return createTransactionSnapshotCore_(opt);
+  }
+
+  // 獨立呼叫時，由快照函式承擔 30s LockService 鎖定責任
+  const lock = LockService.getScriptLock();
+  const acquired = lock.tryLock(30000);
+  if (!acquired) {
+    throw new Error('[Lock Conflict] 無法取得交易快照互斥鎖 (等待 30 秒逾時)，另一程序正在進行操作！');
+  }
+
+  try {
+    return createTransactionSnapshotCore_(opt);
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (e) {}
+  }
+}
+
+/**
+ * 建立交易前快照核心函式 (假定處於互斥鎖保護下)
+ * @param {Object} [options]
+ * @return {Object}
+ */
+function createTransactionSnapshotCore_(options) {
   const opt = options || {};
   const ss = opt.spreadsheet || getSpreadsheet();
   if (!ss) throw new Error('找不到目標試算表');
@@ -5968,11 +6014,51 @@ function createTransactionSnapshot_(options) {
     tmpSheet.hideSheet();
   }
 
-  // 2. 檢查現有快照狀態，防止覆蓋正在使用 (IN_USE) 的未完成快照
-  const existingState = inspectSnapshotState_({ spreadsheet: ss });
-  if (existingState && (existingState.snapshotStatus === 'IN_USE' || existingState.snapshotStatus === 'CREATING')) {
-    if (existingState.transactionId !== transactionId) {
-      throw new Error(`[Snapshot Error] 存在未完成的舊快照 (TX: ${existingState.transactionId}, Status: ${existingState.snapshotStatus})，禁止覆蓋！`);
+  // 2. 檢查現有快照狀態 (全面 Fail-Closed 閉鎖保護)
+  if (tmpSheet && tmpSheet.getLastRow() >= 3) {
+    const existingSnap = readTransactionSnapshot_({ spreadsheet: ss });
+    if (!existingSnap || !existingSnap.metadata || !existingSnap.metadata.snapshotStatus) {
+      throw new Error('[Snapshot Corrupted Lock] 實體 _ROLLBACK_TMP 工作表存在但中繼資料不完整或無法解析，觸發 Fail-Closed 安全閉鎖！禁止覆蓋，需人工介入排查。');
+    }
+
+    const meta = existingSnap.metadata;
+
+    // 2.1 任何 CORRUPTED 狀態嚴禁被任何新交易覆蓋
+    if (meta.snapshotStatus === 'CORRUPTED') {
+      throw new Error(`[Snapshot CORRUPTED Lock] 偵測到既有快照處於損毀狀態 (TX: ${meta.transactionId}, SnapId: ${meta.snapshotId})！為保護歷史資料與現場證據，嚴格禁止自動覆蓋。必須由管理員確認歷史母體安全並執行人工解除流程後方可重設。`);
+    }
+
+    // 2.2 未完成的交易 (IN_USE / CREATING) 互斥保護
+    if (meta.snapshotStatus === 'IN_USE' || meta.snapshotStatus === 'CREATING') {
+      if (meta.transactionId !== transactionId) {
+        throw new Error(`[Snapshot Error] 存在未完成的舊快照 (TX: ${meta.transactionId}, Status: ${meta.snapshotStatus})，禁止新交易覆蓋！`);
+      }
+    }
+
+    // 2.3 既有快照若標記為 VERIFIED，檢查是否為相同 transactionId 之重試 (冪等性沿用)
+    if (meta.snapshotStatus === 'VERIFIED' && meta.transactionId === transactionId) {
+      const val = validateSnapshotIntegrity_({ spreadsheet: ss });
+      if (val.isValid) {
+        return {
+          success: true,
+          reused: true,
+          transactionId: meta.transactionId,
+          snapshotId: meta.snapshotId,
+          tradeDate: meta.tradeDate,
+          snapshotStatus: 'VERIFIED',
+          originalRawRow3Hash: meta.originalRawRow3Hash,
+          originalHistoryRow3Hash: meta.originalHistoryRow3Hash,
+          snapshotIntegrityHash: meta.snapshotIntegrityHash
+        };
+      } else {
+        updateSnapshotLifecycle_('CORRUPTED', { spreadsheet: ss, transactionId: meta.transactionId, snapshotId: meta.snapshotId, reason: val.message });
+        throw new Error(`[Snapshot Integrity Failure] 既有快照實體雜湊校驗失敗 (${val.message})，快照已鎖定為 CORRUPTED，禁止新交易建立！`);
+      }
+    }
+
+    // 2.4 如果既有快照不是 RELEASED (且不是同一筆交易)，拒絕覆蓋
+    if (meta.snapshotStatus !== 'RELEASED' && meta.transactionId !== transactionId) {
+      throw new Error(`[Snapshot Conflict] 既有快照狀態為 [${meta.snapshotStatus}] (非 RELEASED)，禁止覆蓋！`);
     }
   }
 
@@ -6313,5 +6399,34 @@ function inspectSnapshotState_(options) {
   } catch (e) {}
 
   return null;
+}
+
+/**
+ * 人工解除快照損毀閉鎖 (專供管理員人工修復後解鎖，嚴禁日常自動觸發)
+ * @param {Object} options 必須包含 forceConfirm: true 與 reason
+ * @return {Object} 解除結果
+ */
+function forceClearCorruptedSnapshotState_(options) {
+  const opt = options || {};
+  if (opt.forceConfirm !== true || !opt.reason || String(opt.reason).trim() === '') {
+    throw new Error('[Manual Unlock Error] 解除 CORRUPTED 閉鎖必須明確提供 forceConfirm: true 與具體審核原因 (reason)！');
+  }
+
+  const ss = opt.spreadsheet || getSpreadsheet();
+  if (!ss) throw new Error('找不到目標試算表');
+
+  const tmpSheet = ss.getSheetByName('_ROLLBACK_TMP');
+  if (tmpSheet && tmpSheet.getLastRow() >= 3) {
+    tmpSheet.getRange('I3').setValue('RELEASED');
+    tmpSheet.getRange('A1').setValue(`[SNAPSHOT MANUALLY RELEASED: ${Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')} | Reason: ${opt.reason}]`);
+    SpreadsheetApp.flush();
+  }
+
+  try {
+    const props = PropertiesService.getScriptProperties();
+    props.deleteProperty('TX_ACTIVE_SNAPSHOT_STATE');
+  } catch (e) {}
+
+  return { success: true, message: '已成功人工解除快照閉鎖，狀態轉為 RELEASED' };
 }
 
