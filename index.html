@@ -1123,7 +1123,7 @@
             </div>
           </div>
 
-          <!-- 三核心指標卡片格 (Dist60 / Dist240 / VIX) -->
+          <!-- 雙核心估值指標卡片格 (Dist60 / Dist240) -->
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 18px;">
             <!-- Dist60 Card -->
             <div style="background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 16px;">
@@ -1173,32 +1173,6 @@
                 <div style="display: flex; justify-content: space-between;">
                   <span>P90 (歷史極端警戒線):</span>
                   <strong id="calP90Dist240" style="color: #f87171;">--</strong>
-                </div>
-              </div>
-            </div>
-
-            <!-- VIX Card -->
-            <div style="background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(251, 191, 36, 0.25); border-radius: 12px; padding: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-                <span style="font-size: 0.9rem; font-weight: 700; color: #94a3b8;">VIX 恐慌指數</span>
-                <span id="calRankVix" style="font-size: 12px; color: #fbbf24; font-weight: 700; background: rgba(251, 191, 36, 0.15); padding: 2px 8px; border-radius: 6px;">P--</span>
-              </div>
-              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
-                <span id="calCurValVix" style="font-size: 1.55rem; font-weight: 800; color: #f8fafc; font-family: 'Outfit', sans-serif;">--</span>
-                <span id="calCurValVixLabel" style="font-size: 12px; color: #94a3b8;">資料載入中</span>
-              </div>
-              <div style="font-size: 12px; color: #cbd5e1; line-height: 1.7; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px;">
-                <div style="display: flex; justify-content: space-between;">
-                  <span>P10 / P25 (平穩分位):</span>
-                  <strong id="calP10P25Vix" style="color: #34d399;">-- / --</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                  <span>P50 (中位) / P75 (恐慌警戒):</span>
-                  <strong id="calP50P75Vix" style="color: #fbbf24;">-- / --</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                  <span>P90 (極端海嘯恐慌分位):</span>
-                  <strong id="calP90Vix" style="color: #f87171;">--</strong>
                 </div>
               </div>
             </div>
@@ -2613,12 +2587,7 @@
     // 預設備援三窗口校準數據 (零延遲即時呈現，防呆防空白)
     const FALLBACK_CALIBRATION_DATA = {
       base_date: "2026-10-16",
-      current_values: { dist60: 0.0481, dist240: 0.5520, vix: null },
-      vix_observation_status: {
-        available: false,
-        statusCode: "LOADING",
-        statusMessage: "資料載入中"
-      },
+      current_values: { dist60: 0.0481, dist240: 0.5520 },
       windows: {
         "18Y": {
           calibration_window: "18Y",
@@ -2644,22 +2613,11 @@
               min: -0.4503, max: 0.5688, mean: 0.0487, median: 0.0505, std: 0.1265,
               percentiles: { p5: -0.1353, p10: -0.0918, p20: -0.0264, p25: -0.0035, p50: 0.0505, p75: 0.0944, p80: 0.1140, p90: 0.1998, p95: 0.2672, p99: 0.4315 },
               current_percentile_rank: 99.98
-            },
-            vix: {
-              metric_name: "VIX (恐慌指數)",
-              current_value: null,
-              observation_available: false,
-              observation_status: "LOADING",
-              sample_count: 4204,
-              min: 9.14, max: 82.69, mean: 19.66, median: 17.17, std: 8.82,
-              percentiles: { p5: 11.49, p10: 12.39, p20: 13.45, p25: 14.01, p50: 17.17, p75: 22.37, p80: 24.14, p90: 29.51, p95: 35.76, p99: 57.08 },
-              current_percentile_rank: null
             }
           },
           experimental_thresholds: {
             dist60: { p10: -0.0458, p25: -0.0121, p75: 0.0421, p90: 0.0707 },
-            dist240: { p10: -0.0918, p25: -0.0035, p75: 0.0944, p90: 0.1998 },
-            vix: { p10: 12.39, p25: 14.01, p75: 22.37, p90: 29.51 }
+            dist240: { p10: -0.0918, p25: -0.0035, p75: 0.0944, p90: 0.1998 }
           },
           experimental_market_phase: "過熱",
           phase_performance: {
@@ -2737,22 +2695,11 @@
               min: -0.2218, max: 0.5688, mean: 0.0773, median: 0.0685, std: 0.1199,
               percentiles: { p5: -0.1084, p10: -0.0761, p20: 0.0011, p25: 0.0164, p50: 0.0685, p75: 0.1226, p80: 0.1493, p90: 0.2255, p95: 0.2937, p99: 0.4825 },
               current_percentile_rank: 99.96
-            },
-            vix: {
-              metric_name: "VIX (恐慌指數)",
-              current_value: null,
-              observation_available: false,
-              observation_status: "LOADING",
-              sample_count: 2299,
-              min: 9.14, max: 82.69, mean: 18.68, median: 16.98, std: 7.38,
-              percentiles: { p5: 10.65, p10: 11.87, p20: 13.12, p25: 13.73, p50: 16.98, p75: 21.66, p80: 23.02, p90: 27.55, p95: 31.06, p99: 43.86 },
-              current_percentile_rank: null
             }
           },
           experimental_thresholds: {
             dist60: { p10: -0.0372, p25: -0.0083, p75: 0.0494, p90: 0.0818 },
-            dist240: { p10: -0.0761, p25: 0.0164, p75: 0.1226, p90: 0.2255 },
-            vix: { p10: 11.87, p25: 13.73, p75: 21.66, p90: 27.55 }
+            dist240: { p10: -0.0761, p25: 0.0164, p75: 0.1226, p90: 0.2255 }
           },
           experimental_market_phase: "順風/中性",
           phase_performance: {
@@ -2830,22 +2777,11 @@
               min: -0.2218, max: 0.5688, mean: 0.0882, median: 0.0739, std: 0.1475,
               percentiles: { p5: -0.1323, p10: -0.0942, p20: -0.0269, p25: 0.0077, p50: 0.0739, p75: 0.1574, p80: 0.1812, p90: 0.2818, p95: 0.3959, p99: 0.5028 },
               current_percentile_rank: 99.91
-            },
-            vix: {
-              metric_name: "VIX (恐慌指數)",
-              current_value: null,
-              observation_available: false,
-              observation_status: "LOADING",
-              sample_count: 1118,
-              min: 11.86, max: 52.33, mean: 19.22, median: 17.80, std: 5.36,
-              percentiles: { p5: 12.91, p10: 13.50, p20: 14.75, p25: 15.34, p50: 17.80, p75: 21.95, p80: 23.51, p90: 27.20, p95: 30.18, p99: 33.61 },
-              current_percentile_rank: null
             }
           },
           experimental_thresholds: {
             dist60: { p10: -0.0474, p25: -0.0110, p75: 0.0607, p90: 0.0959 },
-            dist240: { p10: -0.0942, p25: 0.0077, p75: 0.1574, p90: 0.2818 },
-            vix: { p10: 13.50, p25: 15.34, p75: 21.95, p90: 27.20 }
+            dist240: { p10: -0.0942, p25: 0.0077, p75: 0.1574, p90: 0.2818 }
           },
           experimental_market_phase: "順風/中性",
           phase_performance: {
@@ -2903,13 +2839,11 @@
       differences_vs_18y: {
         "10Y": {
           dist60: { sample_count_diff: -1968, abs_diff_p25: 0.0038, abs_diff_p50: 0.0035, abs_diff_p75: 0.0073, abs_diff_p90: 0.0111, rank_diff: -5.22 },
-          dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 },
-          vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: null }
+          dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 }
         },
         "5Y": {
           dist60: { sample_count_diff: -3186, abs_diff_p25: 0.0011, abs_diff_p50: 0.0123, abs_diff_p75: 0.0186, abs_diff_p90: 0.0252, rank_diff: -13.01 },
-          dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 },
-          vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: null }
+          dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 }
         }
       },
       sensitivity_analysis: {
@@ -3025,52 +2959,6 @@
         if (p90) p90.textContent = formatCalPct(d240.percentiles.p90);
       }
 
-      // VIX 卡 (嚴禁將 null 轉成 0.00 或 0%；無有效最新 VIX 時仍正常顯示歷史分位數)
-      const vix = curWin.metrics && curWin.metrics.vix;
-      if (vix) {
-        const vixObsMeta = calData.vix_observation_status || {};
-        const isLoadingVix = (vixObsMeta.statusCode === 'LOADING' || vix.observation_status === 'LOADING');
-        const hasFiniteVixVal = (vix.current_value !== null && vix.current_value !== undefined && vix.current_value !== '' && isFinite(Number(vix.current_value)));
-        const hasFiniteVixRank = (vix.current_percentile_rank !== null && vix.current_percentile_rank !== undefined && vix.current_percentile_rank !== '' && isFinite(Number(vix.current_percentile_rank)));
-        const obsAllowedByMeta = (vixObsMeta.available !== false) && (vix.observation_available !== false);
-        const obsAllowedByTopLevel = (!effectiveVixState || effectiveVixState.isUsable === true || effectiveVixState.hasObservationObject === false);
-        const showCurrentVix = hasFiniteVixVal && obsAllowedByMeta && obsAllowedByTopLevel;
-
-        const rankEl = document.getElementById('calRankVix');
-        if (rankEl) {
-          if (isLoadingVix) {
-            rankEl.textContent = '資料載入中';
-          } else if (showCurrentVix && hasFiniteVixRank) {
-            rankEl.textContent = formatCalRank(vix.current_percentile_rank);
-          } else {
-            rankEl.textContent = '資料暫不可用';
-          }
-        }
-        const valEl = document.getElementById('calCurValVix');
-        const valLabelEl = document.getElementById('calCurValVixLabel');
-        if (valEl) {
-          if (isLoadingVix) {
-            valEl.textContent = '--';
-            valEl.style.color = '#94a3b8';
-            if (valLabelEl) valLabelEl.textContent = '資料載入中';
-          } else if (showCurrentVix) {
-            valEl.textContent = formatCalNum(vix.current_value);
-            valEl.style.color = '#f8fafc';
-            if (valLabelEl) valLabelEl.textContent = '最新實體值';
-          } else {
-            valEl.textContent = '資料暫不可用';
-            valEl.style.color = '#9ca3af';
-            if (valLabelEl) valLabelEl.textContent = '無有效最新觀測（保留歷史統計）';
-          }
-        }
-        const p1025 = document.getElementById('calP10P25Vix');
-        if (p1025 && vix.percentiles) p1025.textContent = `${formatCalNum(vix.percentiles.p10)} / ${formatCalNum(vix.percentiles.p25)}`;
-        const p5075 = document.getElementById('calP50P75Vix');
-        if (p5075 && vix.percentiles) p5075.textContent = `${formatCalNum(vix.percentiles.p50)} / ${formatCalNum(vix.percentiles.p75)}`;
-        const p90 = document.getElementById('calP90Vix');
-        if (p90 && vix.percentiles) p90.textContent = formatCalNum(vix.percentiles.p90);
-      }
-
       // 實驗性位階標籤
       const expPhase = curWin.experimental_market_phase;
       const expTag = document.getElementById('calExpPhaseTag');
@@ -3101,12 +2989,6 @@
         const m240_5 = win5.metrics.dist240.percentiles;
         const d240_10 = diff10.dist240 || {};
         const d240_5 = diff5.dist240 || {};
-
-        const mvix_18 = win18.metrics.vix.percentiles;
-        const mvix_10 = win10.metrics.vix.percentiles;
-        const mvix_5 = win5.metrics.vix.percentiles;
-        const dvix_10 = diff10.vix || {};
-        const dvix_5 = diff5.vix || {};
 
         tbody.innerHTML = `
           <!-- Dist60 區塊 -->
@@ -3181,43 +3063,6 @@
             <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalPct(m240_5.p90)}</td>
             <td>${formatCalDiffPct(d240_10.abs_diff_p90)}</td>
             <td>${formatCalDiffPct(d240_5.abs_diff_p90)}</td>
-          </tr>
-
-          <!-- VIX 區塊 -->
-          <tr style="border-top: 2px solid rgba(255,255,255,0.08);">
-            <td rowspan="4" style="font-weight: 800; color: #fbbf24; vertical-align: middle; background: rgba(251, 191, 36, 0.04);">
-              VIX<br><span style="font-size: 11px; color: #94a3b8; font-weight: normal;">恐慌指數</span>
-            </td>
-            <td>P25 (平穩分位)</td>
-            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_18.p25)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_10.p25)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_5.p25)}</td>
-            <td>${formatCalDiffNum(dvix_10.abs_diff_p25)}</td>
-            <td>${formatCalDiffNum(dvix_5.abs_diff_p25)}</td>
-          </tr>
-          <tr>
-            <td>P50 (中位數)</td>
-            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_18.p50)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_10.p50)}</td>
-            <td style="font-family: monospace; font-weight: 600;">${formatCalNum(mvix_5.p50)}</td>
-            <td>${formatCalDiffNum(dvix_10.abs_diff_p50)}</td>
-            <td>${formatCalDiffNum(dvix_5.abs_diff_p50)}</td>
-          </tr>
-          <tr>
-            <td style="color: #fbbf24; font-weight: 700;">P75 (警戒分位)</td>
-            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${formatCalNum(mvix_18.p75)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${formatCalNum(mvix_10.p75)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #fbbf24;">${formatCalNum(mvix_5.p75)}</td>
-            <td>${formatCalDiffNum(dvix_10.abs_diff_p75)}</td>
-            <td>${formatCalDiffNum(dvix_5.abs_diff_p75)}</td>
-          </tr>
-          <tr>
-            <td style="color: #f87171; font-weight: 700;">P90 (海嘯恐慌)</td>
-            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalNum(mvix_18.p90)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalNum(mvix_10.p90)}</td>
-            <td style="font-family: monospace; font-weight: 700; color: #f87171;">${formatCalNum(mvix_5.p90)}</td>
-            <td>${formatCalDiffNum(dvix_10.abs_diff_p90)}</td>
-            <td>${formatCalDiffNum(dvix_5.abs_diff_p90)}</td>
           </tr>
 
           <!-- 樣本數與位階推算行 -->

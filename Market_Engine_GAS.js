@@ -757,7 +757,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
       `=RAW_HISTORY!B${rawRow}`,
       `=RAW_HISTORY!F${rawRow}`,
       `=RAW_HISTORY!G${rawRow}`,
-      `=RAW_HISTORY!C${rawRow}`,
+      rawRow === 3 ? '' : `=RAW_HISTORY!C${rawRow}`, // ANTI-83418: 新列第 3 列 Col E 停止注入 VIX 公式，保持空白
       `=IF(OR(ISBLANK(A${i}), WEEKDAY(A${i}, 2)>5, NOT(ISNUMBER(C${i}))), "", IFERROR(IFS(C${i}<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C${i}<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C${i}>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C${i}>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))`,
       `=RAW_HISTORY!H${rawRow}`,
       `=RAW_HISTORY!I${rawRow}`,
@@ -775,7 +775,7 @@ function applyHistoryLogFormulas(sheet, startRow, endRow) {
 
 /**
  * 寫入 HISTORY_LOG 新 Row 3 之標準日誌公式包 (A:I 欄)
- * 涵蓋 Date、TWII、Dist60、Dist240、VIX、今日位階、MA60_Slope、Dist60_Delta、1年前瞻報酬率
+ * 涵蓋 Date、TWII、Dist60、Dist240、VIX (留空)、今日位階、MA60_Slope、Dist60_Delta、1年前瞻報酬率
  * @param {Sheet} [sheet] 可選指定工作表，預設開啟 HISTORY_LOG
  */
 function applyHistoryLogRow3Formulas(sheet) {
@@ -787,7 +787,7 @@ function applyHistoryLogRow3Formulas(sheet) {
     '=RAW_HISTORY!B3',
     '=RAW_HISTORY!F3',
     '=RAW_HISTORY!G3',
-    '=RAW_HISTORY!C3',
+    '', // ANTI-83418: 停止向 HISTORY_LOG 新列 E 欄注入 VIX 公式，保持空白
     '=IF(OR(ISBLANK(A3), WEEKDAY(A3, 2)>5, NOT(ISNUMBER(C3))), "", IFERROR(IFS(C3<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C3<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C3>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C3>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))',
     '=RAW_HISTORY!H3',
     '=RAW_HISTORY!I3',
@@ -1906,12 +1906,39 @@ function updateDailyMarketEngine() {
 }
 
 /**
+ * 計算指定日期的下一個日曆日 (yyyy-MM-dd)
+ */
+function getNextCalendarDay_(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const parts = dateStr.trim().split('-').map(Number);
+  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return '';
+  const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * 計算兩個日期字串 (yyyy-MM-dd) 之間的日曆天數差 (d2 - d1)
+ */
+function getCalendarDaysDiff_(d1Str, d2Str) {
+  if (!d1Str || !d2Str) return 0;
+  const p1 = String(d1Str).trim().split('-').map(Number);
+  const p2 = String(d2Str).trim().split('-').map(Number);
+  if (p1.length < 3 || p2.length < 3) return 0;
+  const t1 = Date.UTC(p1[0], p1[1] - 1, p1[2]);
+  const t2 = Date.UTC(p2[0], p2[1] - 1, p2[2]);
+  return Math.round((t2 - t1) / (86400 * 1000));
+}
+
+/**
  * 從 Yahoo Finance chart meta 安全擷取交易日期、報價時間與交易所時區。
  * @param {Object|null} meta Yahoo Finance chart.result[0].meta 物件
  * @return {{tradeDate: string|null, tradeTime: string|null, exchangeTimezone: string|null}}
  */
 function extractOverseasTradeTimestamp_(meta) {
-  const empty = { tradeDate: null, tradeTime: null, exchangeTimezone: null };
+  const empty = { tradeDate: null, tradeTime: null, exchangeTimezone: null, epochMs: null, taipeiDateTime: null };
   if (!meta) return empty;
 
   const rawEpochSec = meta.regularMarketTime;
@@ -1930,7 +1957,9 @@ function extractOverseasTradeTimestamp_(meta) {
     return {
       tradeDate: Utilities.formatDate(tradeDateObj, tz, 'yyyy-MM-dd'),
       tradeTime: Utilities.formatDate(tradeDateObj, tz, 'HH:mm:ss'),
-      exchangeTimezone: tz
+      exchangeTimezone: tz,
+      epochMs: rawEpochSec * 1000,
+      taipeiDateTime: Utilities.formatDate(tradeDateObj, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')
     };
   } catch (e) {
     Logger.log('[Market Engine Timezone Warning] 無法解析交易所時區 (' + tz + '): ' + e.message);
@@ -1942,9 +1971,11 @@ function extractOverseasTradeTimestamp_(meta) {
  * 即時金融行情對接器：從官方/國際金融 API (Yahoo Finance / GOOGLEFINANCE) 讀取真實市場行情
  * (替代所有歷史模擬亂數，含交易時間戳防呆與健康狀態指標)
  */
-function fetchRealMarketData() {
+function fetchRealMarketData(options) {
+  const opt = (options && typeof options === 'object') ? options : {};
+  const ignoreCache = (opt.ignoreCache === true);
   const cache = CacheService.getScriptCache();
-  const cachedJson = cache.get("REAL_MARKET_DATA_CACHE");
+  const cachedJson = ignoreCache ? null : cache.get("REAL_MARKET_DATA_CACHE");
   if (cachedJson) {
     try {
       const cachedData = JSON.parse(cachedJson);
@@ -1962,12 +1993,17 @@ function fetchRealMarketData() {
   }
 
   let twii = null;
+  let twiiClose = null;
+  let twiiTradingPeriodEnd = null;
   let vix = null;
   let ewtChange = null;
   let regularMarketTime = null;
   let vixTradeDate = null;
   let vixTradeTime = null;
   let vixExchangeTimezone = null;
+  let vixEpochMs = null;
+  let vixTaipeiDateTime = null;
+  let vixBars = [];
   let ewtTradeDate = null;
   let ewtTradeTime = null;
   let ewtExchangeTimezone = null;
@@ -1975,7 +2011,7 @@ function fetchRealMarketData() {
 
   const requests = [
     { url: 'https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true },
-    { url: 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true },
+    { url: 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true },
     { url: 'https://query1.finance.yahoo.com/v8/finance/chart/EWT?interval=1d', headers: { 'User-Agent': 'Mozilla/5.0' }, muteHttpExceptions: true }
   ];
 
@@ -1985,7 +2021,8 @@ function fetchRealMarketData() {
     // 1. 抓取台股加權指數 (TWII / ^TWII)
     if (responses[0] && responses[0].getResponseCode() === 200) {
       const json = JSON.parse(responses[0].getContentText());
-      const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+      const resultObj = json && json.chart && json.chart.result && json.chart.result[0];
+      const meta = resultObj && resultObj.meta;
       if (meta) {
         if (meta.regularMarketPrice && meta.regularMarketPrice > 0) {
           twii = Math.round(meta.regularMarketPrice * 100) / 100;
@@ -1993,13 +2030,28 @@ function fetchRealMarketData() {
         if (meta.regularMarketTime) {
           regularMarketTime = new Date(meta.regularMarketTime * 1000);
         }
+        if (meta.currentTradingPeriod && meta.currentTradingPeriod.regular && meta.currentTradingPeriod.regular.end) {
+          twiiTradingPeriodEnd = new Date(meta.currentTradingPeriod.regular.end * 1000);
+        }
+      }
+      if (resultObj && resultObj.indicators && resultObj.indicators.quote && resultObj.indicators.quote[0]) {
+        const quoteCloseArr = resultObj.indicators.quote[0].close;
+        if (Array.isArray(quoteCloseArr) && quoteCloseArr.length > 0) {
+          for (let i = quoteCloseArr.length - 1; i >= 0; i--) {
+            if (typeof quoteCloseArr[i] === 'number' && !isNaN(quoteCloseArr[i]) && quoteCloseArr[i] > 0) {
+              twiiClose = Math.round(quoteCloseArr[i] * 100) / 100;
+              break;
+            }
+          }
+        }
       }
     }
 
     // 2. 抓取 VIX 恐慌指數 (^VIX)
     if (responses[1] && responses[1].getResponseCode() === 200) {
       const json = JSON.parse(responses[1].getContentText());
-      const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+      const rObj = json && json.chart && json.chart.result && json.chart.result[0];
+      const meta = rObj && rObj.meta;
       if (meta) {
         if (meta.regularMarketPrice && meta.regularMarketPrice > 0) {
           vix = Math.round(meta.regularMarketPrice * 100) / 100;
@@ -2008,6 +2060,31 @@ function fetchRealMarketData() {
         vixTradeDate = vixTs.tradeDate;
         vixTradeTime = vixTs.tradeTime;
         vixExchangeTimezone = vixTs.exchangeTimezone;
+        vixEpochMs = vixTs.epochMs;
+        vixTaipeiDateTime = vixTs.taipeiDateTime;
+      }
+      if (rObj && Array.isArray(rObj.timestamp) && rObj.indicators && rObj.indicators.quote && Array.isArray(rObj.indicators.quote[0].close)) {
+        const tArr = rObj.timestamp;
+        const cArr = rObj.indicators.quote[0].close;
+        const tz = (meta && meta.exchangeTimezoneName) ? meta.exchangeTimezoneName.trim() : 'America/Chicago';
+        for (let i = 0; i < tArr.length; i++) {
+          if (typeof cArr[i] === 'number' && !isNaN(cArr[i]) && cArr[i] > 0) {
+            const barDateObj = new Date(tArr[i] * 1000);
+            const usDate = Utilities.formatDate(barDateObj, tz, 'yyyy-MM-dd');
+            // CBOE VIX 日線 timestamp 為 02:00:00 當地時間，收盤為 15:15:00 當地時間 (+47,700s)
+            let closeEpochSec = tArr[i] + 47700;
+            if (i === tArr.length - 1 && meta && typeof meta.regularMarketTime === 'number' && meta.regularMarketTime > tArr[i]) {
+              closeEpochSec = meta.regularMarketTime;
+            }
+            vixBars.push({
+              tradeDate: usDate,
+              close: Math.round(cArr[i] * 100) / 100,
+              epochSec: tArr[i],
+              closeEpochMs: closeEpochSec * 1000,
+              timezone: tz
+            });
+          }
+        }
       }
     }
 
@@ -2055,12 +2132,17 @@ function fetchRealMarketData() {
 
   const payload = {
     twii,
+    twiiClose,
+    twiiTradingPeriodEnd,
     vix,
     ewtChange,
     regularMarketTime,
     vixTradeDate,
     vixTradeTime,
     vixExchangeTimezone,
+    vixEpochMs,
+    vixTaipeiDateTime,
+    vixBars,
     ewtTradeDate,
     ewtTradeTime,
     ewtExchangeTimezone,
@@ -2524,69 +2606,593 @@ function updateMorningMarketEngine() {
 }
 
 /**
- * 盤後更新 (每日 16:30 Asia/Taipei - 小羅午茶時光值班)
+ * 計算美股 VIX 日線 bar 的實際收盤毫秒時間戳 (epoch ms) 與台北時間字串 (ANTI-83415)
+ *
+ * 優先順序：
+ * 1. 若 bar 具備 closeEpochMs / epochMs，直接採用實際時間戳
+ * 2. 若 bar 具備 epochSec (Yahoo bar timestamp)：
+ *    - 若為交易時段起始 (約 02:00 local)，加上 47,700 秒 (13h 15m) 至 15:15 local 收盤
+ *    - 若已為收盤時間或 regularMarketTime，直接使用
+ * 3. 若僅有 tradeDate：依美股夏令時間 (CDT/EDT) 或冬令時間 (CST/EST) 動態計算：
+ *    - 夏令 (CDT): 收盤台北時間為次日 04:15:00 (UTC 20:15)
+ *    - 冬令 (CST): 收盤台北時間為次日 05:15:00 (UTC 21:15)
+ * 嚴禁以固定 UTC+8 05:15 推算全年收盤。
+ *
+ * @param {Object} bar VIX bar 物件 ({ tradeDate, close, epochSec, closeEpochMs, timezone })
+ * @param {string} fallbackTz 交易所時區 (預設 'America/Chicago')
+ * @return {{ closeEpochMs: number|null, closeTaipeiStr: string|null, isDst: boolean }}
  */
-function updateAfternoonMarketEngine() {
-  const ss = getSpreadsheet();
-  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
-  if (!rawSheet || !historyLogSheet) return;
+function resolveVixBarCloseTiming_(bar, fallbackTz) {
+  const tz = (bar && typeof bar.timezone === 'string' && bar.timezone.trim() !== '')
+    ? bar.timezone.trim()
+    : (fallbackTz || 'America/Chicago');
+  let closeEpochMs = null;
 
-  const status = isMarketOpen(new Date());
-  if (!status.isOpen) {
-    Logger.log(`[Afternoon Update] 今日台股休市 (${status.reason})，略過歷史資料維護，僅生成休市 AI 導航。`);
-    generateAfternoonNavigation();
-    return;
-  }
-
-  // 檢查今日數據是否已存在於 Row 3
-  const today = new Date();
-  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
-  const lastDateCell = rawSheet.getRange(3, 1).getValue();
-  const lastDateStr = (lastDateCell instanceof Date) ? Utilities.formatDate(lastDateCell, 'Asia/Taipei', 'yyyy-MM-dd') : '';
-
-  if (todayStr !== lastDateStr) {
-    // 萬一盤前更新未執行，此處補插入今日資料列
-    rawSheet.insertRowBefore(3);
-    rawSheet.getRange(3, 1).setValue(today);
-    if (historyLogSheet) {
-      historyLogSheet.insertRowBefore(3);
+  // 1. 優先使用精確收盤 epoch 毫秒
+  if (bar && typeof bar.closeEpochMs === 'number' && bar.closeEpochMs > 0) {
+    closeEpochMs = bar.closeEpochMs;
+  } else if (bar && typeof bar.epochMs === 'number' && bar.epochMs > 0) {
+    closeEpochMs = bar.epochMs;
+  } else if (bar && typeof bar.epochSec === 'number' && bar.epochSec > 0) {
+    // 2. 使用 Yahoo bar 原始 epochSec
+    const rawEpochMs = bar.epochSec * 1000;
+    const testDate = new Date(rawEpochMs);
+    let localHour = 2;
+    try {
+      const hhStr = Utilities.formatDate(testDate, tz, 'HH');
+      localHour = parseInt(hhStr, 10);
+    } catch (e) {
+      localHour = 2;
+    }
+    // CBOE VIX regular market closes at 15:15 local time.
+    // If epochSec is bar session start (<= 04:00 local), add 47,700s (13h 15m)
+    if (localHour <= 4) {
+      closeEpochMs = (bar.epochSec + 47700) * 1000;
+    } else {
+      closeEpochMs = rawEpochMs;
     }
   }
 
-  // 盤後更新：對接真實金融行情 (免隨機亂數)
-  const realData = fetchRealMarketData();
-  const prevTwii = rawSheet.getRange(4, 2).getValue() || 43119.75;
-  const prevVix = rawSheet.getRange(4, 3).getValue() || 18.58;
-
-  const actualTwii = realData.twii || prevTwii;
-  const actualVix = realData.vix || prevVix;
-
-  // 寫入當日真實行情收盤價
-  rawSheet.getRange(3, 2, 1, 2).setValues([[actualTwii, actualVix]]);
-
-  // 重新按最新列數更新頂部算式 (極速更新前 15 列即可)
-  const topRows = Math.min(15, rawSheet.getLastRow());
-  applyRawHistoryFormulas(rawSheet, 3, topRows);
-  applyHistoryLogFormulas(historyLogSheet, 3, topRows);
-
-  // 自動觸發小羅盤後 AI 導航生成與近 2 日千點大跌緊急防禦檢查
-  generateAfternoonNavigation();
-  try {
-    checkCrashEmergencyDefense();
-  } catch (e) {
-    Logger.log('Crash defense check error: ' + e.message);
+  // 3. 若無 epoch timestamp，僅有 tradeDate，依美股夏令/冬令動態計算
+  if (!closeEpochMs && bar && typeof bar.tradeDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bar.tradeDate)) {
+    const probe = new Date(bar.tradeDate + 'T18:00:00Z');
+    let isSummerDst = false;
+    try {
+      const hhStr = Utilities.formatDate(probe, tz, 'HH');
+      // UTC 18:00 在 America/Chicago: CDT (UTC-5) 為 13:00, CST (UTC-6) 為 12:00
+      isSummerDst = (parseInt(hhStr, 10) === 13);
+    } catch (e) {
+      const m = parseInt(bar.tradeDate.substring(5, 7), 10);
+      isSummerDst = (m >= 4 && m <= 10);
+    }
+    const utcCloseIso = isSummerDst ? (bar.tradeDate + 'T20:15:00.000Z') : (bar.tradeDate + 'T21:15:00.000Z');
+    closeEpochMs = new Date(utcCloseIso).getTime();
   }
 
-  // ⚡ 每月初歷史回測自癒檢查：若當前月份尚未執行月度歷史回測，自動觸發 updateMonthlyLabBacktest()
+  if (!closeEpochMs || isNaN(closeEpochMs)) {
+    return { closeEpochMs: null, closeTaipeiStr: null, isDst: false };
+  }
+
+  const closeDateObj = new Date(closeEpochMs);
+  let closeTaipeiStr = null;
   try {
-    checkAndAutoRunMonthlyLabBacktest(ss);
+    closeTaipeiStr = Utilities.formatDate(closeDateObj, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
   } catch (e) {
-    Logger.log('[Monthly Backtest Auto Check] ' + e.message);
+    closeTaipeiStr = closeDateObj.toISOString();
+  }
+
+  let isDst = false;
+  try {
+    const tzStr = Utilities.formatDate(closeDateObj, tz, 'z');
+    isDst = (tzStr === 'CDT' || tzStr === 'EDT' || tzStr === 'PDT' || tzStr === 'MDT');
+  } catch (e) {
+    const m = closeDateObj.getUTCMonth() + 1;
+    isDst = (m >= 4 && m <= 10);
+  }
+
+  return { closeEpochMs: closeEpochMs, closeTaipeiStr: closeTaipeiStr, isDst: isDst };
+}
+
+/**
+ * 盤後行情資料驗證器 (Afternoon Market Data Validator)
+ * 驗證 TWII、VIX 報價與交易日期時間戳是否合法且為當日正式收盤行情。
+ *
+ * 嚴格阻斷規則：
+ * 1. realData 為空或非物件 -> REJECTED_MARKET_DATA_MISSING
+ * 2. TWII 缺漏 (null/undefined/'') -> REJECTED_TWII_MISSING
+ * 3. TWII 非數字、NaN、Infinity、<= 0 -> REJECTED_TWII_INVALID
+ * 4. VIX 缺漏 (null/undefined/'') -> REJECTED_VIX_MISSING
+ * 5. VIX 非數字、NaN、Infinity、<= 0 -> REJECTED_VIX_INVALID
+ * 6. regularMarketTime 缺漏或無法解析 -> REJECTED_TRADE_DATE_UNKNOWN
+ * 7. 交易日期與目標交易日不符 -> REJECTED_TRADE_DATE_MISMATCH
+ * 8. 時間戳早於收盤時間 (13:30:00 Asia/Taipei) -> REJECTED_NOT_CLOSING_DATA
+ *
+ * VIX 資料日期辨識規則 (ANTI-83411)：
+ * - 取得 VIX 日線實際交易日期 (vixTradeDate)
+ * - 若 vixTradeDate !== targetDateStr，保留可用數值 (不阻斷)，但標示實際資料日期及 stale 狀態
+ * - 若 vixTradeDate === targetDateStr，標記為同日新鮮資料
+ * - 絕不將美股前一日數值冒充為台股當日 VIX
+ *
+ * 資料來源限制聲明 (ANTI-83411)：
+ * - 報價來自 Yahoo Finance 第三方 API，非臺灣證券交易所官方結算系統，不具法定收盤憑證效力。
+ *
+ * @param {Object} realData fetchRealMarketData() 回傳物件
+ * @param {Date|string} targetDate 目標交易日 (預設為當前台北時間日期)
+ * @return {Object} { isValid: boolean, status: string, reason: string, twii?: number, vix?: number, vixDetails?: Object, tradeDate?: string, marketTimestamp?: Date, sourceLimitation?: string }
+ */
+function validateAfternoonMarketData_(realData, targetDate) {
+  if (!realData || typeof realData !== 'object') {
+    return {
+      isValid: false,
+      status: 'REJECTED_MARKET_DATA_MISSING',
+      reason: '行情資料回傳為空 (null 或 undefined) 或非物件'
+    };
+  }
+
+  // 1. TWII 驗證
+  if (realData.twii === null || realData.twii === undefined || realData.twii === '') {
+    return {
+      isValid: false,
+      status: 'REJECTED_TWII_MISSING',
+      reason: '缺少台股加權指數 (TWII) 報價資料'
+    };
+  }
+  const rawTwii = realData.twii;
+  let parsedTwii = null;
+  if (typeof rawTwii === 'number') {
+    parsedTwii = rawTwii;
+  } else if (typeof rawTwii === 'string') {
+    const cleaned = rawTwii.replace(/,/g, '').trim();
+    if (cleaned !== '') parsedTwii = Number(cleaned);
+  }
+  if (typeof rawTwii === 'boolean' || parsedTwii === null || typeof parsedTwii !== 'number' || isNaN(parsedTwii) || !isFinite(parsedTwii) || parsedTwii <= 0) {
+    return {
+      isValid: false,
+      status: 'REJECTED_TWII_INVALID',
+      reason: `TWII 報價數值無效 (原始值: ${rawTwii})，必須為大於 0 之有限數值 (嚴禁 0, 負數, NaN, Infinity)`
+    };
+  }
+
+  // 2. 交易日期與收盤時間戳驗證 (前置決定目標日以做時間基準防視偏誤)
+  let targetDateObj = null;
+  if ((targetDate instanceof Date || (targetDate && typeof targetDate.getTime === 'function')) && !isNaN(targetDate.getTime())) {
+    targetDateObj = targetDate;
+  } else if (typeof targetDate === 'string' && targetDate.trim() !== '') {
+    targetDateObj = new Date(targetDate.trim() + (targetDate.indexOf('T') === -1 ? 'T00:00:00+08:00' : ''));
+  } else {
+    targetDateObj = new Date();
+  }
+  if (isNaN(targetDateObj.getTime())) {
+    return {
+      isValid: false,
+      status: 'REJECTED_TARGET_DATE_INVALID',
+      reason: `目標交易日無效: ${targetDate}`
+    };
+  }
+  const targetDateStr = Utilities.formatDate(targetDateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+  const twCutoffMs = new Date(targetDateStr + 'T13:30:00+08:00').getTime();
+
+  // 3. VIX 驗證、時間基準與前視偏誤防護 (ANTI-83414)
+  // 美股當日收盤在台股 13:30 收盤時尚未產生，必須回退至台股收盤前最新可用的已結算美股收盤資料
+  let resolvedVix = null;
+  let vixDetails = null;
+  const vixTimezone = (typeof realData.vixExchangeTimezone === 'string' && realData.vixExchangeTimezone.trim() !== '')
+    ? realData.vixExchangeTimezone.trim()
+    : 'America/Chicago';
+
+  // 3.1 若有提供歷史日線 bars (來自 Yahoo range=5d)，由最新往回檢索合格交易日
+  if (Array.isArray(realData.vixBars) && realData.vixBars.length > 0) {
+    for (let i = realData.vixBars.length - 1; i >= 0; i--) {
+      const bar = realData.vixBars[i];
+      if (!bar || typeof bar.close !== 'number' || isNaN(bar.close) || bar.close <= 0) continue;
+
+      // 若美股交易日 >= 台股目標日，其收盤在台北時間必定晚於 targetDateStr 13:30 (次日清晨 04:15~05:15)
+      if (bar.tradeDate >= targetDateStr) {
+        continue; // 嚴防前視偏誤，略過尚未產生的未來美股收盤
+      }
+
+      // 使用實際 epoch timestamp 與夏冬令動態換算美股收盤時間 (ANTI-83415)
+      const timing = resolveVixBarCloseTiming_(bar, vixTimezone);
+      const closeEpochMs = timing.closeEpochMs;
+
+      if (closeEpochMs && closeEpochMs <= twCutoffMs) {
+        const daysDiff = getCalendarDaysDiff_(bar.tradeDate, targetDateStr);
+        const isStale = true; // 美股收盤皆為前一交易日，非台股同日曆日
+        resolvedVix = bar.close;
+        vixDetails = {
+          value: bar.close,
+          actualTradeDate: bar.tradeDate,
+          targetTradeDate: targetDateStr,
+          isStale: isStale,
+          status: (daysDiff > 1) ? 'STALE_US_HOLIDAY_OR_WEEKEND' : 'STALE_PREVIOUS_US_CLOSE',
+          timezone: vixTimezone,
+          generationTimeTaipei: timing.closeTaipeiStr,
+          lookaheadAvoided: true,
+          isDst: timing.isDst
+        };
+        break;
+      }
+    }
+  }
+
+  // 3.2 若無 bars 或 bars 均未命中，檢驗單一報價 realData.vix (ANTI-83418: 僅作即時觀測，不阻斷 TWII 歷史更新)
+  if (resolvedVix === null) {
+    if (realData.vix === null || realData.vix === undefined || realData.vix === '') {
+      resolvedVix = null;
+      vixDetails = {
+        value: null,
+        actualTradeDate: null,
+        targetTradeDate: targetDateStr,
+        isStale: true,
+        status: 'VIX_MISSING',
+        timezone: vixTimezone,
+        generationTimeTaipei: null,
+        lookaheadAvoided: true
+      };
+    } else {
+      const rawVix = realData.vix;
+      let parsedVix = null;
+      if (typeof rawVix === 'number') {
+        parsedVix = rawVix;
+      } else if (typeof rawVix === 'string') {
+        const cleaned = rawVix.replace(/,/g, '').trim();
+        if (cleaned !== '') parsedVix = Number(cleaned);
+      }
+      if (typeof rawVix === 'boolean' || parsedVix === null || typeof parsedVix !== 'number' || isNaN(parsedVix) || !isFinite(parsedVix) || parsedVix <= 0) {
+        resolvedVix = null;
+        vixDetails = {
+          value: null,
+          actualTradeDate: null,
+          targetTradeDate: targetDateStr,
+          isStale: true,
+          status: 'VIX_INVALID',
+          timezone: vixTimezone,
+          generationTimeTaipei: null,
+          lookaheadAvoided: true
+        };
+      } else {
+        const rawVixDate = (typeof realData.vixTradeDate === 'string' && realData.vixTradeDate.trim() !== '')
+          ? realData.vixTradeDate.trim()
+          : null;
+
+        if (!rawVixDate) {
+          resolvedVix = parsedVix;
+          vixDetails = {
+            value: parsedVix,
+            actualTradeDate: 'UNKNOWN',
+            targetTradeDate: targetDateStr,
+            isStale: true,
+            status: 'MISSING_DATE_TIMESTAMP',
+            timezone: vixTimezone,
+            generationTimeTaipei: 'UNKNOWN',
+            lookaheadAvoided: false
+          };
+        } else if (rawVixDate >= targetDateStr) {
+          let allowed = false;
+          if (realData.vixEpochMs && realData.vixEpochMs <= twCutoffMs) {
+            allowed = true;
+          }
+          resolvedVix = parsedVix;
+          vixDetails = {
+            value: parsedVix,
+            actualTradeDate: rawVixDate,
+            targetTradeDate: targetDateStr,
+            isStale: !allowed,
+            status: allowed ? 'SAME_CALENDAR_DATE' : 'LOOKAHEAD_UNVERIFIED_REFERENCE',
+            timezone: vixTimezone,
+            generationTimeTaipei: realData.vixTaipeiDateTime || `${rawVixDate} 13:30:00`,
+            lookaheadAvoided: allowed
+          };
+        } else {
+          const daysDiff = getCalendarDaysDiff_(rawVixDate, targetDateStr);
+          const isStale = true;
+          const rawTiming = resolveVixBarCloseTiming_({
+            tradeDate: rawVixDate,
+            epochMs: realData.vixEpochMs,
+            timezone: vixTimezone
+          }, vixTimezone);
+          resolvedVix = parsedVix;
+          vixDetails = {
+            value: parsedVix,
+            actualTradeDate: rawVixDate,
+            targetTradeDate: targetDateStr,
+            isStale: isStale,
+            status: (daysDiff > 1) ? 'STALE_US_HOLIDAY_OR_WEEKEND' : 'STALE_PREVIOUS_US_CLOSE',
+            timezone: vixTimezone,
+            generationTimeTaipei: rawTiming.closeTaipeiStr || `${getNextCalendarDay_(rawVixDate)} 05:15:00`,
+            lookaheadAvoided: false,
+            isDst: rawTiming.isDst
+          };
+        }
+      }
+    }
+  }
+
+  if (!realData.regularMarketTime) {
+    return {
+      isValid: false,
+      status: 'REJECTED_TRADE_DATE_UNKNOWN',
+      reason: '來源未提供交易時間戳 (regularMarketTime)，無法確認行情交易日期與是否收盤，依規定視為 UNKNOWN 並停止更新',
+      vixDetails: vixDetails
+    };
+  }
+
+  let marketDateObj = null;
+  if (realData.regularMarketTime instanceof Date || (realData.regularMarketTime && typeof realData.regularMarketTime.getTime === 'function')) {
+    marketDateObj = realData.regularMarketTime;
+  } else if (typeof realData.regularMarketTime === 'number') {
+    const numVal = realData.regularMarketTime;
+    if (numVal <= 0 || !isFinite(numVal)) {
+      return {
+        isValid: false,
+        status: 'REJECTED_TRADE_DATE_UNKNOWN',
+        reason: `交易時間戳數值異常 (${numVal})，視為 UNKNOWN 並停止更新`,
+        vixDetails: vixDetails
+      };
+    }
+    marketDateObj = new Date(numVal > 1e11 ? numVal : numVal * 1000);
+  } else if (typeof realData.regularMarketTime === 'string') {
+    marketDateObj = new Date(realData.regularMarketTime);
+  } else {
+    return {
+      isValid: false,
+      status: 'REJECTED_TRADE_DATE_UNKNOWN',
+      reason: `交易時間戳型別無法辨識 (${typeof realData.regularMarketTime})，視為 UNKNOWN 並停止更新`,
+      vixDetails: vixDetails
+    };
+  }
+
+  if (isNaN(marketDateObj.getTime())) {
+    return {
+      isValid: false,
+      status: 'REJECTED_TRADE_DATE_UNKNOWN',
+      reason: '交易時間戳轉為 Date 後為 Invalid Date，視為 UNKNOWN 並停止更新',
+      vixDetails: vixDetails
+    };
+  }
+
+  const marketDateStr = Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+  const marketTimeStr = Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'HH:mm:ss');
+
+  if (marketDateStr !== targetDateStr) {
+    return {
+      isValid: false,
+      status: 'REJECTED_TRADE_DATE_MISMATCH',
+      reason: `行情交易日期 (${marketDateStr}) 與目標交易日 (${targetDateStr}) 不一致，非今日收盤行情`,
+      vixDetails: vixDetails
+    };
+  }
+
+  const hour = parseInt(Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'HH'), 10);
+  const minute = parseInt(Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'mm'), 10);
+  const second = parseInt(Utilities.formatDate(marketDateObj, 'Asia/Taipei', 'ss'), 10);
+  const timeInt = hour * 10000 + minute * 100 + second;
+
+  if (timeInt < 133000) {
+    return {
+      isValid: false,
+      status: 'REJECTED_NOT_CLOSING_DATA',
+      reason: `行情時間 (${marketTimeStr}) 早於台股收盤時間 (13:30:00)，非盤後收盤資料`,
+      vixDetails: vixDetails
+    };
+  }
+
+  return {
+    isValid: true,
+    status: 'ACCEPTED',
+    reason: '盤後行情資料通過 TWII 與收盤交易日時間戳檢驗 (VIX/EWT 解耦為即時海外參考指標，不參與歷史寫入門檻；資料來源為 Yahoo Finance 第三方 API，非 TWSE 官方法定結算憑證)',
+    twii: parsedTwii,
+    vix: resolvedVix,
+    vixDetails: vixDetails,
+    tradeDate: targetDateStr,
+    marketTimestamp: marketDateObj,
+    sourceLimitation: 'Yahoo Finance 第三方報價，非 TWSE 交易所官方清算證明'
+  };
+}
+
+/**
+ * 盤後更新 (每日 16:30 Asia/Taipei - 小羅午茶時光值班)
+ * 嚴格遵循：先取得並驗證行情，資料有效才修改試算表；資料失敗或不可信時立即停止更新，零插列、零覆寫。
+ * 具備跨工作表寫入前防呆、寫入例外阻斷與寫入後對稱性核對防護 (ANTI-83411)。
+ *
+ * @param {Object} [options] 測試或自訂參數物件 (相容 GAS trigger event 物件)
+ * @param {Spreadsheet} [options.spreadsheet] 目標 Spreadsheet (預設 getSpreadsheet())
+ * @param {Object} [options.marketData] 注入測試行情資料 (若未提供則呼叫 fetchRealMarketData({ ignoreCache: true }))
+ * @param {Date|string} [options.targetDate] 目標交易日 (預設 new Date())
+ * @param {boolean} [options.skipNavigation] 是否略過 AI 導航與防禦檢查 (測試環境使用)
+ * @return {Object} 執行結果摘要 { success: boolean, status: string, reason: string, inserted: boolean, twii?: number, vix?: number, vixDetails?: Object, sourceLimitation?: string }
+ */
+function updateAfternoonMarketEngine(options) {
+  const opt = (options && typeof options === 'object' && !options.triggerUid && !options.authMode)
+    ? ((options instanceof Date || typeof options.getTime === 'function') ? { targetDate: options } : options)
+    : {};
+  const ss = opt.spreadsheet || getSpreadsheet();
+  const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
+  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
+  if (!rawSheet || !historyLogSheet) {
+    Logger.log('[Afternoon Update] 找不到 RAW_HISTORY 或 HISTORY_LOG 工作表，終止更新。');
+    return { success: false, status: 'SHEET_NOT_FOUND', reason: '找不到必要的工作表 (RAW_HISTORY 或 HISTORY_LOG)', inserted: false };
+  }
+
+  // 1. 交易日開休市檢查
+  const targetDate = ((opt.targetDate instanceof Date || (opt.targetDate && typeof opt.targetDate.getTime === 'function')) && !isNaN(opt.targetDate.getTime()))
+    ? opt.targetDate
+    : (typeof opt.targetDate === 'string' && opt.targetDate.trim() !== ''
+        ? new Date(opt.targetDate.trim() + (opt.targetDate.indexOf('T') === -1 ? 'T00:00:00+08:00' : ''))
+        : new Date());
+
+  const status = isMarketOpen(targetDate);
+  if (!status.isOpen) {
+    Logger.log(`[Afternoon Update] 目標日期台股休市 (${status.reason})，略過歷史資料維護，僅生成休市 AI 導航。`);
+    if (!opt.skipNavigation) {
+      generateAfternoonNavigation();
+    }
+    return { success: false, status: 'MARKET_CLOSED', reason: `台股休市 (${status.reason})`, inserted: false };
+  }
+
+  // 2. 先取得行情 (嚴格於修改試算表之前執行)
+  let realData = null;
+  try {
+    realData = (opt.marketData !== undefined)
+      ? opt.marketData
+      : fetchRealMarketData({ ignoreCache: true });
+  } catch (err) {
+    Logger.log('[Afternoon Update] 行情擷取過程發生例外: ' + err.message);
+    return {
+      success: false,
+      status: 'FETCH_EXCEPTION',
+      reason: '行情擷取過程發生未預期例外: ' + err.message,
+      inserted: false
+    };
+  }
+
+  // 3. 嚴格驗證行情有效性、數值合法性與收盤時間戳 (禁止舊值冒充，標示 VIX 實際日期)
+  const validation = validateAfternoonMarketData_(realData, targetDate);
+  if (!validation.isValid) {
+    Logger.log(`[Afternoon Update] 行情資料驗證未通過 [${validation.status}]: ${validation.reason}。停止更新，維持原表不變。`);
+    return {
+      success: false,
+      status: validation.status,
+      reason: validation.reason,
+      inserted: false
+    };
+  }
+
+  const actualTwii = validation.twii;
+  const actualVix = validation.vix;
+  const todayStr = validation.tradeDate;
+  const vixInfo = validation.vixDetails || {};
+
+  // 4. 跨工作表寫入前防呆檢查：確認 RAW_HISTORY 與 HISTORY_LOG 基準列非空白且對稱 (ANTI-83411 & ANTI-83412)
+  const rawLastCell = rawSheet.getRange(3, 1).getValue();
+  const histLastCell = historyLogSheet.getRange(3, 1).getValue();
+  const rawLastDate = (rawLastCell instanceof Date || (rawLastCell && typeof rawLastCell.getTime === 'function'))
+    ? Utilities.formatDate(rawLastCell, 'Asia/Taipei', 'yyyy-MM-dd')
+    : (typeof rawLastCell === 'string' ? rawLastCell.trim() : '');
+  const histLastDate = (histLastCell instanceof Date || (histLastCell && typeof histLastCell.getTime === 'function'))
+    ? Utilities.formatDate(histLastCell, 'Asia/Taipei', 'yyyy-MM-dd')
+    : (typeof histLastCell === 'string' ? histLastCell.trim() : '');
+
+  // 4.1 空白列 / 不完整列檢查 (ANTI-83412): 第 3 列日期為空說明先前插列後未寫入即中斷
+  if (rawLastDate === '' || histLastDate === '') {
+    const blankMsg = `[CRITICAL] 雙表第 3 列日期存在空白 (RAW: '${rawLastDate}', HIST: '${histLastDate}')，偵測到中斷殘留空白列，立即停止寫入，嚴禁再次插列或覆寫。`;
+    Logger.log(blankMsg);
+    return {
+      success: false,
+      status: 'PRE_WRITE_BLANK_ROW_DETECTED',
+      reason: blankMsg,
+      inserted: false
+    };
+  }
+
+  // 4.2 雙表日期對稱檢查 (ANTI-83411)
+  if (rawLastDate !== histLastDate) {
+    const asymmMsg = `[CRITICAL] 雙表頂部基準日期不對稱 (RAW: ${rawLastDate}, HIST: ${histLastDate})，存在中斷未癒狀態，立即停止寫入。`;
+    Logger.log(asymmMsg);
+    return {
+      success: false,
+      status: 'PRE_WRITE_ASYMMETRY_DETECTED',
+      reason: asymmMsg,
+      inserted: false
+    };
+  }
+
+  // 5. 跨工作表寫入保護：包覆獨立 try-catch，任何步驟出錯立即明確失敗並終止後續流程
+  let rowInserted = false;
+  try {
+    if (todayStr !== rawLastDate) {
+      // 今日尚無資料列，插入新列 (先 RAW，緊接 HIST)
+      rawSheet.insertRowBefore(3);
+      rawSheet.getRange(3, 1).setValue(targetDate);
+      historyLogSheet.insertRowBefore(3);
+      rowInserted = true;
+    }
+
+    // 寫入當日真實行情收盤價 (ANTI-83418: 僅寫入 TWII，停止向 Col 3 寫入 VIX 與 Note，停止向 Col 10 寫入 EWT)
+    rawSheet.getRange(3, 2).setValue(actualTwii).setNumberFormat('#,##0.00');
+
+    // 保留海外最新觀測至 ScriptProperties，不寫入 RAW_HISTORY 歷史資料庫
+    try {
+      saveOverseasObservation_(realData);
+    } catch (e) {
+      Logger.log('[Afternoon Update] 海外市場觀測快取儲存失敗: ' + e.message);
+    }
+
+    // 重新按最新列數更新頂部算式
+    const topRows = Math.min(15, rawSheet.getLastRow());
+    applyRawHistoryFormulas(rawSheet, 3, topRows);
+    applyHistoryLogFormulas(historyLogSheet, 3, topRows);
+  } catch (writeErr) {
+    Logger.log(`[CRITICAL] 跨工作表寫入中途失敗: ${writeErr.message}。停止後續所有 AI 導航與回測流程。`);
+    try {
+      PropertiesService.getScriptProperties().setProperty('AFTERNOON_UPDATE_WRITE_ERROR', JSON.stringify({
+        error: writeErr.message,
+        tradeDate: todayStr,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (e) {}
+
+    return {
+      success: false,
+      status: 'WRITE_ABORTED_MIDWAY',
+      reason: `跨工作表寫入中途發生例外: ${writeErr.message}`,
+      inserted: rowInserted
+    };
+  }
+
+  // 6. 跨工作表寫入後一致性核對 (ANTI-83411)
+  const verifyRawCell = rawSheet.getRange(3, 1).getValue();
+  const verifyHistFormula = (typeof historyLogSheet.getRange(3, 1).getFormula === 'function')
+    ? historyLogSheet.getRange(3, 1).getFormula()
+    : '';
+  const verifyHistCell = historyLogSheet.getRange(3, 1).getValue();
+  const verifyRawDate = (verifyRawCell instanceof Date || (verifyRawCell && typeof verifyRawCell.getTime === 'function')) ? Utilities.formatDate(verifyRawCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(verifyRawCell || '').trim();
+  const verifyHistDate = (verifyHistCell instanceof Date || (verifyHistCell && typeof verifyHistCell.getTime === 'function')) ? Utilities.formatDate(verifyHistCell, 'Asia/Taipei', 'yyyy-MM-dd') : String(verifyHistCell || '').trim();
+  const verifyTwii = rawSheet.getRange(3, 2).getValue();
+
+  const isHistAligned = (verifyHistDate === todayStr || verifyHistFormula.toUpperCase() === '=RAW_HISTORY!A3');
+
+  if (verifyRawDate !== todayStr || !isHistAligned || verifyTwii !== actualTwii) {
+    Logger.log('[CRITICAL] 寫入後雙表資料或日期核對不一致，停止後續 AI 導航與回測流程。');
+    return {
+      success: false,
+      status: 'POST_WRITE_VERIFICATION_FAILED',
+      reason: `寫入後核對不一致 (RAW: ${verifyRawDate}, HIST Date: ${verifyHistDate}, HIST Formula: ${verifyHistFormula}, TWII: ${verifyTwii})`,
+      inserted: rowInserted
+    };
+  }
+
+  // 7. 自動觸發小羅盤後 AI 導航生成與近 2 日千點大跌緊急防禦檢查 (僅在完整驗證與寫入成功後觸發)
+  if (!opt.skipNavigation) {
+    generateAfternoonNavigation();
+    try {
+      checkCrashEmergencyDefense();
+    } catch (e) {
+      Logger.log('Crash defense check error: ' + e.message);
+    }
+
+    // ⚡ 每月初歷史回測自癒檢查：若當前月份尚未執行月度歷史回測，自動觸發 updateMonthlyLabBacktest()
+    try {
+      checkAndAutoRunMonthlyLabBacktest(ss);
+    } catch (e) {
+      Logger.log('[Monthly Backtest Auto Check] ' + e.message);
+    }
   }
 
   SpreadsheetApp.flush();
-  Logger.log('Afternoon Market Engine update (16:30 - 小羅午茶值班) completed for ' + todayStr);
+  Logger.log(`Afternoon Market Engine update (16:30 - 小羅午茶值班) completed for ${todayStr}: TWII=${actualTwii}, VIX=${actualVix} (VIX Date: ${vixInfo.actualTradeDate}, Stale: ${vixInfo.isStale}), inserted=${rowInserted}`);
+
+  return {
+    success: true,
+    status: 'UPDATED',
+    reason: '盤後行情驗證通過並完成歷史資料更新',
+    inserted: rowInserted,
+    twii: actualTwii,
+    vix: actualVix,
+    vixDetails: vixInfo,
+    tradeDate: todayStr,
+    sourceLimitation: validation.sourceLimitation
+  };
 }
 
 /**
@@ -3663,7 +4269,6 @@ function calculateCalibrationWindows(rawSheet, baseDateStr, latestValues) {
       if (!dateStr || dateStr.length < 10) continue;
 
       const twiiRaw = parseFloat(String(row[1]).replace(/,/g, '').trim());
-      const vixRaw = parseFloat(String(row[2]).replace(/,/g, '').trim());
       const d60Raw = parseDistValue(row[5]);
       const d240Raw = parseDistValue(row[6]);
 
@@ -3671,8 +4276,7 @@ function calculateCalibrationWindows(rawSheet, baseDateStr, latestValues) {
         date: dateStr,
         twii: isNaN(twiiRaw) || twiiRaw <= 0 ? null : twiiRaw,
         dist60: isNaN(d60Raw) ? null : d60Raw,
-        dist240: isNaN(d240Raw) ? null : d240Raw,
-        vix: isNaN(vixRaw) || vixRaw <= 0 ? null : vixRaw
+        dist240: isNaN(d240Raw) ? null : d240Raw
       });
     }
 
@@ -3688,16 +4292,11 @@ function calculateCalibrationWindows(rawSheet, baseDateStr, latestValues) {
 }
 
 /**
- * 依據清洗後的歷史序列，切片 18Y / 10Y / 5Y 並計算分位數與敏感度分析
+ * 依據清洗後的歷史序列，切片 18Y / 10Y / 5Y 並計算分位數與敏感度分析 (ANTI-83418: 專注 Dist60 / Dist240 核心位階門檻)
  */
 function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
   const curD60 = latestValues && !isNaN(latestValues.dist60) ? latestValues.dist60 : 0.0481;
   const curD240 = latestValues && !isNaN(latestValues.dist240) ? latestValues.dist240 : 0.5520;
-  const hasLatestVix = !!(latestValues && typeof latestValues.vix === 'number' && isFinite(latestValues.vix) && latestValues.vix > 0);
-  const curVix = hasLatestVix ? latestValues.vix : null;
-  const vixStatusCode = (latestValues && latestValues.vixStatusCode)
-    ? latestValues.vixStatusCode
-    : (hasLatestVix ? 'FRESH_VALID' : 'NO_VALID_OBSERVATION');
 
   // 基準日對齊：若未傳入則使用第一筆有效日期
   const effectiveBaseDate = baseDateStr || (rows.length > 0 ? rows[0].date : '2026-10-16');
@@ -3726,7 +4325,6 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
     // 分別統計各指標（處理獨立有效樣本數，不互相抹煞）
     const statsD60 = calculateMetricStats(slice.map(function(r) { return r.dist60; }), curD60, true);
     const statsD240 = calculateMetricStats(slice.map(function(r) { return r.dist240; }), curD240, true);
-    const statsVix = calculateMetricStats(slice.map(function(r) { return r.vix; }), curVix, false);
 
     const expThresholds = {
       dist60: {
@@ -3740,12 +4338,6 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
         p25: statsD240.percentiles.p25,
         p75: statsD240.percentiles.p75,
         p90: statsD240.percentiles.p90
-      },
-      vix: {
-        p10: statsVix.percentiles.p10,
-        p25: statsVix.percentiles.p25,
-        p75: statsVix.percentiles.p75,
-        p90: statsVix.percentiles.p90
       }
     };
 
@@ -3766,13 +4358,7 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
       sample_count: slice.length,
       metrics: {
         dist60: Object.assign({ metric_name: 'Dist60 (季線乖離率)', current_value: curD60 }, statsD60),
-        dist240: Object.assign({ metric_name: 'Dist240 (年線乖離率)', current_value: curD240 }, statsD240),
-        vix: Object.assign({
-          metric_name: 'VIX (恐慌指數)',
-          current_value: curVix,
-          observation_available: hasLatestVix,
-          observation_status: vixStatusCode
-        }, statsVix)
+        dist240: Object.assign({ metric_name: 'Dist240 (年線乖離率)', current_value: curD240 }, statsD240)
       },
       experimental_thresholds: expThresholds,
       experimental_market_phase: expPhase,
@@ -3810,13 +4396,7 @@ function buildCalibrationWindowsResult(rows, baseDateStr, latestValues) {
     base_date: effectiveBaseDate,
     current_values: {
       dist60: curD60,
-      dist240: curD240,
-      vix: curVix
-    },
-    vix_observation_status: {
-      available: hasLatestVix,
-      statusCode: vixStatusCode,
-      statusMessage: (latestValues && latestValues.vixStatusMessage) || (hasLatestVix ? '有效最新觀測' : '目前沒有有效 VIX 觀測')
+      dist240: curD240
     },
     windows: windowsResult,
     differences_vs_18y: diffs,
@@ -4041,7 +4621,7 @@ function calculatePhaseForwardPerformance(slice, threshold) {
  */
 function calculateWindowDifferences(targetWin, base18Win) {
   if (!targetWin || !base18Win) return {};
-  const metrics = ['dist60', 'dist240', 'vix'];
+  const metrics = ['dist60', 'dist240'];
   const res = {};
 
   for (let i = 0; i < metrics.length; i++) {
@@ -4094,20 +4674,10 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
   const dStr = baseDateStr || '2026-10-16';
   const curD60 = latestValues && !isNaN(latestValues.dist60) ? latestValues.dist60 : 0.0481;
   const curD240 = latestValues && !isNaN(latestValues.dist240) ? latestValues.dist240 : 0.5520;
-  const hasLatestVix = !!(latestValues && typeof latestValues.vix === 'number' && isFinite(latestValues.vix) && latestValues.vix > 0);
-  const curVix = hasLatestVix ? latestValues.vix : null;
-  const vixStatusCode = (latestValues && latestValues.vixStatusCode)
-    ? latestValues.vixStatusCode
-    : (hasLatestVix ? 'FRESH_VALID' : 'NO_VALID_OBSERVATION');
 
   return {
     base_date: dStr,
-    current_values: { dist60: curD60, dist240: curD240, vix: curVix },
-    vix_observation_status: {
-      available: hasLatestVix,
-      statusCode: vixStatusCode,
-      statusMessage: (latestValues && latestValues.vixStatusMessage) || (hasLatestVix ? '有效最新觀測' : '目前沒有有效 VIX 觀測')
-    },
+    current_values: { dist60: curD60, dist240: curD240 },
     windows: {
       "18Y": {
         calibration_window: "18Y",
@@ -4163,37 +4733,11 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
               p99: 0.4315
             },
             current_percentile_rank: 99.98
-          },
-          vix: {
-            metric_name: "VIX (恐慌指數)",
-            current_value: curVix,
-            observation_available: hasLatestVix,
-            observation_status: vixStatusCode,
-            sample_count: 4204,
-            min: 9.14,
-            max: 82.69,
-            mean: 19.66,
-            median: 17.17,
-            std: 8.82,
-            percentiles: {
-              p5: 11.49,
-              p10: 12.39,
-              p20: 13.45,
-              p25: 14.01,
-              p50: 17.17,
-              p75: 22.37,
-              p80: 24.14,
-              p90: 29.51,
-              p95: 35.76,
-              p99: 57.08
-            },
-            current_percentile_rank: hasLatestVix ? 66.10 : null
           }
         },
         experimental_thresholds: {
           dist60: { p10: -0.0458, p25: -0.0121, p75: 0.0421, p90: 0.0707 },
-          dist240: { p10: -0.0918, p25: -0.0035, p75: 0.0944, p90: 0.1998 },
-          vix: { p10: 12.39, p25: 14.01, p75: 22.37, p90: 29.51 }
+          dist240: { p10: -0.0918, p25: -0.0035, p75: 0.0944, p90: 0.1998 }
         },
         experimental_market_phase: classifyPhase(curD60, { p10: -0.0458, p25: -0.0121, p75: 0.0421, p90: 0.0707 }),
         phase_performance: {
@@ -4301,37 +4845,11 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
               p99: 0.4825
             },
             current_percentile_rank: 99.96
-          },
-          vix: {
-            metric_name: "VIX (恐慌指數)",
-            current_value: curVix,
-            observation_available: hasLatestVix,
-            observation_status: vixStatusCode,
-            sample_count: 2299,
-            min: 9.14,
-            max: 82.69,
-            mean: 18.68,
-            median: 16.98,
-            std: 7.38,
-            percentiles: {
-              p5: 10.65,
-              p10: 11.87,
-              p20: 13.12,
-              p25: 13.73,
-              p50: 16.98,
-              p75: 21.66,
-              p80: 23.02,
-              p90: 27.55,
-              p95: 31.06,
-              p99: 43.86
-            },
-            current_percentile_rank: hasLatestVix ? 68.34 : null
           }
         },
         experimental_thresholds: {
           dist60: { p10: -0.0372, p25: -0.0083, p75: 0.0494, p90: 0.0818 },
-          dist240: { p10: -0.0761, p25: 0.0164, p75: 0.1226, p90: 0.2255 },
-          vix: { p10: 11.87, p25: 13.73, p75: 21.66, p90: 27.55 }
+          dist240: { p10: -0.0761, p25: 0.0164, p75: 0.1226, p90: 0.2255 }
         },
         experimental_market_phase: classifyPhase(curD60, { p10: -0.0372, p25: -0.0083, p75: 0.0494, p90: 0.0818 }),
         phase_performance: {
@@ -4439,37 +4957,11 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
               p99: 0.5028
             },
             current_percentile_rank: 99.91
-          },
-          vix: {
-            metric_name: "VIX (恐慌指數)",
-            current_value: curVix,
-            observation_available: hasLatestVix,
-            observation_status: vixStatusCode,
-            sample_count: 1118,
-            min: 11.86,
-            max: 52.33,
-            mean: 19.22,
-            median: 17.80,
-            std: 5.36,
-            percentiles: {
-              p5: 12.91,
-              p10: 13.50,
-              p20: 14.75,
-              p25: 15.34,
-              p50: 17.80,
-              p75: 21.95,
-              p80: 23.51,
-              p90: 27.20,
-              p95: 30.18,
-              p99: 33.61
-            },
-            current_percentile_rank: hasLatestVix ? 65.95 : null
           }
         },
         experimental_thresholds: {
           dist60: { p10: -0.0474, p25: -0.0110, p75: 0.0607, p90: 0.0959 },
-          dist240: { p10: -0.0942, p25: 0.0077, p75: 0.1574, p90: 0.2818 },
-          vix: { p10: 13.50, p25: 15.34, p75: 21.95, p90: 27.20 }
+          dist240: { p10: -0.0942, p25: 0.0077, p75: 0.1574, p90: 0.2818 }
         },
         experimental_market_phase: classifyPhase(curD60, { p10: -0.0474, p25: -0.0110, p75: 0.0607, p90: 0.0959 }),
         phase_performance: {
@@ -4527,13 +5019,11 @@ function getFallbackCalibrationWindows(baseDateStr, latestValues) {
     differences_vs_18y: {
       "10Y": {
         dist60: { sample_count_diff: -1968, abs_diff_p25: 0.0038, abs_diff_p50: 0.0035, abs_diff_p75: 0.0073, abs_diff_p90: 0.0111, rank_diff: -5.22 },
-        dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 },
-        vix: { sample_count_diff: -1905, abs_diff_p25: -0.28, abs_diff_p50: -0.19, abs_diff_p75: -0.71, abs_diff_p90: -1.96, rank_diff: hasLatestVix ? 2.24 : null }
+        dist240: { sample_count_diff: -1968, abs_diff_p25: 0.0199, abs_diff_p50: 0.0180, abs_diff_p75: 0.0282, abs_diff_p90: 0.0257, rank_diff: -0.02 }
       },
       "5Y": {
         dist60: { sample_count_diff: -3186, abs_diff_p25: 0.0011, abs_diff_p50: 0.0123, abs_diff_p75: 0.0186, abs_diff_p90: 0.0252, rank_diff: -13.01 },
-        dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 },
-        vix: { sample_count_diff: -3086, abs_diff_p25: 1.33, abs_diff_p50: 0.63, abs_diff_p75: -0.42, abs_diff_p90: -2.31, rank_diff: hasLatestVix ? -0.15 : null }
+        dist240: { sample_count_diff: -3186, abs_diff_p25: 0.0112, abs_diff_p50: 0.0234, abs_diff_p75: 0.0630, abs_diff_p90: 0.0820, rank_diff: -0.07 }
       }
     },
     sensitivity_analysis: {
@@ -4957,13 +5447,10 @@ function getMarketEngineData(skipCache, options) {
     Logger.log('Strategy backtest payload error: ' + e.message);
   }
 
-  // 🔬 載入 Milestone 7 (v2.9.0) 三窗口歷史位階校準與比較模組 (18Y / 10Y / 5Y Calibration Lab)
+  // 🔬 載入 Milestone 7 (v2.9.0) 三窗口歷史位階校準與比較模組 (18Y / 10Y / 5Y Calibration Lab，專注 Dist60 / Dist240 估值矩陣)
   const calibrationCurrentMetrics = {
     dist60: d60,
-    dist240: d240,
-    vix: vixEval.isUsable ? vixEval.value : null,
-    vixStatusCode: vixEval.statusCode,
-    vixStatusMessage: vixEval.statusMessage
+    dist240: d240
   };
   try {
     data.calibrationWindows = calculateCalibrationWindows(rawSheet, lastStockDataDate, calibrationCurrentMetrics);
@@ -5934,6 +6421,416 @@ function canonicalizeCellForSnapshot_(cell) {
 }
 
 /**
+ * 02B-8.4-E: 無歧義確定性規範化序列化函式 (Unambiguous Canonical Serialization - 徹底消除型別碰撞)
+ * 明確型別前綴：null (n:null), undefined (u:undefined), boolean (b:true/b:false),
+ *              number (num:val), string (s:"val"), Date (d:"yyyy-MM-dd"), Array [...], Object {...}
+ * 數值規範：-0 與 0 依 IEEE 754 數值語意視為相同 (num:0)；NaN (num:NaN)；±Infinity (num:±Infinity)
+ * 字典排序：物件屬性依 UTF-16 碼元字典序嚴格升冪排序
+ * @param {*} val
+ * @return {string}
+ */
+function canonicalSerialize_(val) {
+  if (val === null) return 'n:null';
+  if (val === undefined) return 'u:undefined';
+  if (typeof val === 'number') {
+    if (Number.isNaN(val)) return 'num:NaN';
+    if (val === Infinity) return 'num:Infinity';
+    if (val === -Infinity) return 'num:-Infinity';
+    if (Object.is(val, -0)) return 'num:0';
+    return 'num:' + String(val);
+  }
+  if (typeof val === 'boolean') return val ? 'b:true' : 'b:false';
+  if (val instanceof Date) {
+    const utcMs = val.getTime();
+    const taipeiMs = utcMs + 8 * 3600 * 1000;
+    const d = new Date(taipeiMs);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return 'd:"' + yyyy + '-' + mm + '-' + dd + '"';
+  }
+  if (typeof val === 'string') return 's:' + JSON.stringify(val);
+  if (Array.isArray(val)) {
+    return '[' + val.map(canonicalSerialize_).join(',') + ']';
+  }
+  if (typeof val === 'object') {
+    const keys = Object.keys(val).sort();
+    return '{' + keys.map(k => JSON.stringify(k) + ':' + canonicalSerialize_(val[k])).join(',') + '}';
+  }
+  return 's:' + JSON.stringify(String(val));
+}
+
+/**
+ * 跨平台確定性 SHA-256 十六進位字串計算
+ * @param {string|Buffer} strOrBuf
+ * @return {string} 64 字元十六進位 SHA-256
+ */
+function sha256Hex_(strOrBuf) {
+  if (typeof Utilities !== 'undefined' && Utilities.computeDigest) {
+    const rawStr = typeof strOrBuf === 'string' ? strOrBuf : (strOrBuf.toString ? strOrBuf.toString('utf8') : String(strOrBuf));
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, rawStr, Utilities.Charset.UTF_8);
+    return digest.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
+  } else if (typeof require !== 'undefined') {
+    const crypto = require('crypto');
+    const buf = Buffer.isBuffer(strOrBuf) ? strOrBuf : Buffer.from(String(strOrBuf), 'utf8');
+    return crypto.createHash('sha256').update(buf).digest('hex');
+  }
+  throw new Error('No crypto provider available');
+}
+
+/**
+ * 跨平台確定性 HMAC-SHA256 十六進位計算
+ * @param {string} str
+ * @param {string} secretKey
+ * @return {string} 64 字元十六進位 HMAC
+ */
+function hmacSha256Hex_(str, secretKey) {
+  if (typeof Utilities !== 'undefined' && Utilities.computeHmacSha256Signature) {
+    const sig = Utilities.computeHmacSha256Signature(str, secretKey, Utilities.Charset.UTF_8);
+    return sig.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
+  } else if (typeof require !== 'undefined') {
+    const crypto = require('crypto');
+    return crypto.createHmac('sha256', Buffer.from(secretKey, 'utf8')).update(Buffer.from(str, 'utf8')).digest('hex');
+  }
+  throw new Error('No HMAC provider available');
+}
+
+/**
+ * 計算二維儲存格網格確定性指紋 (排除呈現層 displayValue 雜訊，嚴格區隔公式、數值、格式與備註)
+ * @param {Array<Array<Object>>} grid
+ * @return {string} 64 字元十六進位指紋
+ */
+function computeGridFingerprint_(grid) {
+  if (!grid || !Array.isArray(grid)) return sha256Hex_('[]');
+  const normalizedGrid = grid.map(row => (row || []).map(cell => {
+    const f = (cell && cell.formula) || '';
+    return {
+      formula: f,
+      note: (cell && cell.note) || '',
+      numberFormat: (cell && cell.numberFormat) || '',
+      value: f !== '' ? null : ((cell && cell.value !== undefined) ? cell.value : null)
+    };
+  }));
+  return sha256Hex_(canonicalSerialize_(normalizedGrid));
+}
+
+/**
+ * 02B-8.4-C: 計算 Snapshot 實體防篡改完整性雜湊 (Snapshot Integrity Hash)
+ * 嚴格涵蓋 RAW_HISTORY A:J、HISTORY_LOG A:K 網格資料與必備中繼資料
+ * @param {Object} metadata 快照中繼資料
+ * @param {Array<Array<Object>>} rawGrid RAW_HISTORY 3x10 儲存格網格
+ * @param {Array<Array<Object>>} histGrid HISTORY_LOG 3x11 儲存格網格
+ * @return {string} 64 字元十六進位 SHA-256
+ */
+function computeSnapshotIntegrityHash_(metadata, rawGrid, histGrid) {
+  const normMeta = {
+    keyId: String((metadata && metadata.keyId) || 'k1'),
+    preHistFingerprint: String((metadata && metadata.preHistFingerprint) || ''),
+    preRawFingerprint: String((metadata && metadata.preRawFingerprint) || ''),
+    snapshotId: String((metadata && metadata.snapshotId) || ''),
+    snapshotVersion: String((metadata && metadata.snapshotVersion) || '1.0'),
+    tradeDate: String((metadata && metadata.tradeDate) || ''),
+    transactionId: String((metadata && metadata.transactionId) || '')
+  };
+
+  const normRaw = (rawGrid || []).map(row => (row || []).map(cell => ({
+    formula: (cell && cell.formula) || '',
+    note: (cell && cell.note) || '',
+    numberFormat: (cell && cell.numberFormat) || '',
+    value: ((cell && cell.formula) || '') !== '' ? null : ((cell && cell.value !== undefined) ? cell.value : null)
+  })));
+
+  const normHist = (histGrid || []).map(row => (row || []).map(cell => ({
+    formula: (cell && cell.formula) || '',
+    note: (cell && cell.note) || '',
+    numberFormat: (cell && cell.numberFormat) || '',
+    value: ((cell && cell.formula) || '') !== '' ? null : ((cell && cell.value !== undefined) ? cell.value : null)
+  })));
+
+  const payload = {
+    histGrid: normHist,
+    metadata: normMeta,
+    rawGrid: normRaw
+  };
+  return sha256Hex_(canonicalSerialize_(payload));
+}
+
+/**
+ * 02B-8.4-G: 檢驗公式解析與結構安全性
+ * 若公式包含儲存格錯誤識別碼 (#REF!、#VALUE! 等)、未閉合引號、未閉合括號等無法安全解析之結構，
+ * 立即拋出例外阻斷 (Fail-Closed)，嚴禁產生看似有效之錯誤公式。
+ * @param {string} formula
+ * @return {boolean}
+ */
+function validateFormulaSafety_(formula) {
+  if (typeof formula !== 'string' || !formula.startsWith('=')) {
+    throw new Error('INVALID_FORMULA_FORMAT: Formula must be a string starting with "="');
+  }
+
+  // 1. 檢驗儲存格錯誤指示字元 (#REF!, #VALUE!, #NAME?, #DIV/0!, #N/A, #ERROR!)
+  if (/#(?:REF!|VALUE!|NAME\?|DIV\/0!|N\/A|ERROR!)/i.test(formula)) {
+    throw new Error('UNSAFE_FORMULA_ERROR_TOKEN: Formula contains error token (#REF! or similar)');
+  }
+
+  // 2. 檢驗引號完整性與括號平衡 (忽略字串常數與工作表名稱內的括號)
+  let inDoubleQuote = false;
+  let inSingleQuote = false;
+  let parenDepth = 0;
+
+  for (let i = 0; i < formula.length; i++) {
+    const ch = formula[i];
+    if (ch === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+    } else if (ch === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+    } else if (!inDoubleQuote && !inSingleQuote) {
+      if (ch === '(') parenDepth++;
+      else if (ch === ')') {
+        parenDepth--;
+        if (parenDepth < 0) {
+          throw new Error('UNSAFE_FORMULA_UNBALANCED_PARENS: Unexpected closing parenthesis in formula');
+        }
+      }
+    }
+  }
+
+  if (inDoubleQuote || inSingleQuote) {
+    throw new Error('UNSAFE_FORMULA_UNCLOSED_QUOTE: Formula contains unclosed quote');
+  }
+  if (parenDepth !== 0) {
+    throw new Error('UNSAFE_FORMULA_UNBALANCED_PARENS: Unclosed opening parenthesis in formula');
+  }
+
+  return true;
+}
+
+/**
+ * 02B-8.4-G: Google Sheets 原生插列公式位移模擬器 (加固正則與安全性閘門)
+ * 依據 Google Sheets 運算規則，當在第 3 列插列時，原第 3 列下移至第 4 列。
+ * 其公式中對 >= minRow (預設 3) 之非絕對參照 ($) 且非字串常數 ("...") 之列號將產生 +delta 位移。
+ * 加固重點：
+ *   1. 前置安全檢驗：呼叫 validateFormulaSafety_，遇到無法安全解析之公式立即阻斷 (Fail-Closed)。
+ *   2. 正則表達式強化：加上 (?!\\s*\\() 負向前瞻，杜絕 LOG10( 或 DEC2BIN( 等函數名稱數字被誤認為儲存格列號。
+ *   3. 精確過濾字串常數 ("...") 與工作表前綴 ('Sheet'! 或 Sheet!)。
+ *   4. 支援絕對參照 ($A$3)、混合參照 ($A3, A$3) 與相對參照 (A3)。
+ * @param {string} formula 原始公式
+ * @param {number} delta 列位移量 (例如插一列為 +1)
+ * @param {number} [minRow=3] 起始受影響列號
+ * @param {string} [targetSheet] 'LOCAL_ONLY' | 指定工作表名稱 (如 'RAW_HISTORY') | undefined (全量)
+ * @return {string} 位移後的預期公式字串
+ */
+function shiftFormulaRows_(formula, delta, minRow, targetSheet) {
+  if (!formula || typeof formula !== 'string' || !formula.startsWith('=')) {
+    return formula || '';
+  }
+
+  // 02B-8.4-G: 執行公式安全性校驗，若結構損毀或含錯誤指示碼立即 Fail-Closed 阻斷
+  validateFormulaSafety_(formula);
+
+  if (delta === 0) return formula;
+
+  const minR = minRow !== undefined ? minRow : 3;
+  // 正則結構說明：
+  // Group 1 ("[^"]*"|'[^']*'): 完整捕捉雙引號或單引號字串常數，防止內部字元被篡改
+  // Group 2 ((?:'[^']+'|[A-Za-z0-9_]+)!): 工作表名稱前綴 (含驚嘆號)
+  // Group 3 (\$?[A-Za-z]+): 欄位英文字母 (可選 $)
+  // Group 4 (\$): 列號前面的絕對參照標記 $ (若存在則不位移)
+  // Group 5 (\d+): 列號數值
+  // 結尾 (?!\s*\(): 負向前瞻，防止匹配函數調用 (例如 LOG10(, DEC2BIN() 等非儲存格參照)
+  const regex = /("[^"]*")|((?:'[^']+'|[A-Za-z0-9_]+)!)?(\$?[A-Za-z]+)(\$?)(\d+)\b(?!\s*\()/g;
+
+  return formula.replace(regex, (match, strLit, sheetPrefixWithExcl, colPart, rowDollar, rowNumStr) => {
+    if (strLit) return strLit; // 字串常數原樣返回
+    if (rowDollar === '$') return match; // 絕對列參照 ($) 不位移
+
+    if (targetSheet === 'LOCAL_ONLY') {
+      if (sheetPrefixWithExcl) return match; // 若限定本地，跳過帶有工作表前綴之跨表參照
+    } else if (targetSheet && typeof targetSheet === 'string') {
+      const cleanPrefix = sheetPrefixWithExcl ? sheetPrefixWithExcl.replace(/[!']/g, '') : '';
+      if (cleanPrefix !== targetSheet) return match; // 若限定特定工作表，僅處理該表參照
+    }
+
+    const rowNum = parseInt(rowNumStr, 10);
+    if (rowNum >= minR) {
+      const shiftedRow = rowNum + delta;
+      return (sheetPrefixWithExcl || '') + colPart + rowDollar + shiftedRow;
+    }
+    return match;
+  });
+}
+
+/**
+ * 02B-8.4-C: HISTORY_LOG 專用跨表與本地公式位移計算器
+ * @param {string} formula
+ * @param {number} rawDelta RAW_HISTORY 的插列位移量 (0 或 1)
+ * @param {number} histDelta HISTORY_LOG 的插列位移量 (0 或 1)
+ * @return {string}
+ */
+function shiftHistoryLogFormula_(formula, rawDelta, histDelta) {
+  if (!formula || typeof formula !== 'string' || !formula.startsWith('=')) return formula || '';
+  let res = formula;
+  if (rawDelta !== 0) {
+    res = shiftFormulaRows_(res, rawDelta, 3, 'RAW_HISTORY');
+  }
+  if (histDelta !== 0) {
+    res = shiftFormulaRows_(res, histDelta, 3, 'LOCAL_ONLY');
+  }
+  return res;
+}
+
+/**
+ * 02B-8.4-C: HISTORY_LOG 完整列證據比對函式 (精確隔離跨表與本地公式位移)
+ * @param {Array<Object>} physRow
+ * @param {Array<Object>} snapRow
+ * @param {number} rawDelta
+ * @param {number} histDelta
+ * @return {boolean}
+ */
+function isHistRowMatchingSnapshotRow_(physRow, snapRow, rawDelta, histDelta) {
+  if (!physRow || !snapRow || physRow.length !== snapRow.length) return false;
+
+  for (let c = 0; c < snapRow.length; c++) {
+    const p = physRow[c] || {};
+    const s = snapRow[c] || {};
+
+    const sFormula = s.formula || '';
+    if (sFormula !== '') {
+      const expectedFormula = shiftHistoryLogFormula_(sFormula, rawDelta, histDelta);
+      const pFormula = p.formula || '';
+      if (pFormula !== expectedFormula) {
+        return false;
+      }
+    } else {
+      if ((p.formula || '') !== '') return false;
+
+      const sVal = s.value;
+      const pVal = p.value;
+
+      const sDate = formatCellDateString_(sVal);
+      const pDate = formatCellDateString_(pVal);
+      if (sDate !== '' && pDate !== '') {
+        if (sDate !== pDate) return false;
+      } else if (typeof sVal === 'number' && typeof pVal === 'number') {
+        if (Math.abs(sVal - pVal) > 1e-6) return false;
+      } else {
+        const sStr = sVal === null || sVal === undefined ? '' : String(sVal).trim();
+        const pStr = pVal === null || pVal === undefined ? '' : String(pVal).trim();
+        if (sStr !== pStr) return false;
+      }
+    }
+
+    const sFmt = String(s.numberFormat || '').trim();
+    const pFmt = String(p.numberFormat || '').trim();
+    if (sFmt !== pFmt) {
+      return false;
+    }
+
+    const sNote = String(s.note || '').trim();
+    const pNote = String(p.note || '').trim();
+    if (sNote !== pNote) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * 02B-8.4-C: 重新讀取實體工作表網格 (值、公式、格式、Note)
+ * @param {Sheet} sheet
+ * @param {number} startRow
+ * @param {number} startCol
+ * @param {number} numRows
+ * @param {number} numCols
+ * @return {Array<Array<Object>>}
+ */
+function readPhysicalGrid_(sheet, startRow, startCol, numRows, numCols) {
+  const range = sheet.getRange(startRow, startCol, numRows, numCols);
+  const values = range.getValues();
+  const formulas = range.getFormulas();
+  const formats = range.getNumberFormats();
+  const notes = range.getNotes();
+  const grid = [];
+  for (let r = 0; r < numRows; r++) {
+    const row = [];
+    for (let c = 0; c < numCols; c++) {
+      row.push({
+        formula: formulas[r][c] || '',
+        value: values[r][c],
+        numberFormat: formats[r][c] || '',
+        note: notes[r][c] || ''
+      });
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+/**
+ * 02B-8.4-C: 完整列證據比對函式 (涵蓋公式位移、數值、格式與 Note)
+ * @param {Array<Object>} physRow 實體工作表讀出之一列儲存格物件陣列
+ * @param {Array<Object>} snapRow 快照基準之一列儲存格物件陣列
+ * @param {number} delta 公式預期位移量 (0 或 +1)
+ * @param {Object} [options]
+ * @return {boolean} 100% 吻合回傳 true，任一屬性不符回傳 false
+ */
+function isRowMatchingSnapshotRow_(physRow, snapRow, delta, options) {
+  if (!physRow || !snapRow || physRow.length !== snapRow.length) return false;
+  const d = delta || 0;
+
+  for (let c = 0; c < snapRow.length; c++) {
+    const p = physRow[c] || {};
+    const s = snapRow[c] || {};
+
+    // 1. 公式比對 (若快照列含公式，經 shiftFormulaRows_ 位移後必須精確一致)
+    const sFormula = s.formula || '';
+    if (sFormula !== '') {
+      const expectedFormula = shiftFormulaRows_(sFormula, d, 3);
+      const pFormula = p.formula || '';
+      if (pFormula !== expectedFormula) {
+        return false;
+      }
+    } else {
+      // 若快照無公式，實體列亦不得包含公式
+      if ((p.formula || '') !== '') return false;
+
+      // 2. 數值/字串比對
+      const sVal = s.value;
+      const pVal = p.value;
+
+      // 日期物件/字串正規化比對
+      const sDate = formatCellDateString_(sVal);
+      const pDate = formatCellDateString_(pVal);
+      if (sDate !== '' && pDate !== '') {
+        if (sDate !== pDate) return false;
+      } else if (typeof sVal === 'number' && typeof pVal === 'number') {
+        if (Math.abs(sVal - pVal) > 1e-6) return false;
+      } else {
+        const sStr = sVal === null || sVal === undefined ? '' : String(sVal).trim();
+        const pStr = pVal === null || pVal === undefined ? '' : String(pVal).trim();
+        if (sStr !== pStr) return false;
+      }
+    }
+
+    // 3. 儲存格 numberFormat 比對
+    const sFmt = String(s.numberFormat || '').trim();
+    const pFmt = String(p.numberFormat || '').trim();
+    if (sFmt !== pFmt) {
+      return false;
+    }
+
+    // 4. Note 備註比對
+    const sNote = String(s.note || '').trim();
+    const pNote = String(p.note || '').trim();
+    if (sNote !== pNote) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * 計算指定區域或列的 SHA-256 確定性雜湊 (Deterministic SHA-256)
  * @param {Array<Array<Object>>} gridCells 二維儲存格物件陣列
  * @return {string} 64 字元十六進位 SHA-256 摘要
@@ -6065,8 +6962,8 @@ function createTransactionSnapshotCore_(options) {
   // 3. 標記狀態為 CREATING
   updateSnapshotLifecycle_('CREATING', { spreadsheet: ss, transactionId, snapshotId, tradeDate });
 
-  // 4. 讀取 RAW_HISTORY A3:I5 (3列 x 9欄) 完整資料
-  const rawRange = rawSheet.getRange(3, 1, 3, 9);
+  // 4. 讀取 RAW_HISTORY A3:J5 (3列 x 10欄) 完整資料 (02B-8.4 升級：納入 J 欄 EWT_Change)
+  const rawRange = rawSheet.getRange(3, 1, 3, 10);
   const rawFormulas = rawRange.getFormulas();
   const rawValues = rawRange.getValues();
   const rawDisplayValues = rawRange.getDisplayValues();
@@ -6076,7 +6973,7 @@ function createTransactionSnapshotCore_(options) {
   const rawGrid = [];
   for (let r = 0; r < 3; r++) {
     const row = [];
-    for (let c = 0; c < 9; c++) {
+    for (let c = 0; c < 10; c++) {
       row.push({
         formula: rawFormulas[r][c] || '',
         value: rawValues[r][c],
@@ -6111,68 +7008,83 @@ function createTransactionSnapshotCore_(options) {
     histGrid.push(row);
   }
 
-  // 6. 計算各核心 Hash
+  // 6. 計算各核心 Hash 與即時 Pre-Fingerprints
+  const preRawFingerprint = computeGridFingerprint_(rawGrid);
+  const preHistFingerprint = computeGridFingerprint_(histGrid);
   const originalRawRow3Hash = calculateSnapshotHash_([rawGrid[0]]);
   const originalHistoryRow3Hash = calculateSnapshotHash_([histGrid[0]]);
-  const snapshotIntegrityHash = calculateSnapshotHash_(rawGrid.concat(histGrid));
 
-  // 7. 寫入 _ROLLBACK_TMP 實體工作表
+  // 7. 寫入 _ROLLBACK_TMP 實體工作表 (02B-8.4-C: 分離資料與公式儲存，完整保留原始 numberFormat 與 note)
   tmpSheet.clear();
 
   // Header 區
   tmpSheet.getRange('A1').setValue('[MARKET_ENGINE DISASTER RECOVERY ROLLBACK SNAPSHOT]');
   const metaHeaders = [
-    ['transactionId', 'tradeDate', 'snapshotId', 'snapshotCreatedAt', 'snapshotVersion', 'originalRawRow3Hash', 'originalHistoryRow3Hash', 'snapshotIntegrityHash', 'snapshotStatus']
+    ['transactionId', 'tradeDate', 'snapshotId', 'snapshotCreatedAt', 'snapshotVersion', 'originalRawRow3Hash', 'originalHistoryRow3Hash', 'snapshotIntegrityHash', 'snapshotStatus', 'preRawFingerprint', 'preHistFingerprint']
   ];
-  tmpSheet.getRange('A2:I2').setValues(metaHeaders).setFontWeight('bold');
+  tmpSheet.getRange('A2:K2').setValues(metaHeaders).setFontWeight('bold');
 
+  // 先以 PENDING 寫入 snapshotIntegrityHash，待實體資料就緒後讀回計算
   const metaValues = [
-    [transactionId, tradeDate, snapshotId, nowStr, snapshotVersion, originalRawRow3Hash, originalHistoryRow3Hash, snapshotIntegrityHash, 'CREATING']
+    [transactionId, tradeDate, snapshotId, nowStr, snapshotVersion, originalRawRow3Hash, originalHistoryRow3Hash, 'PENDING_INTEGRITY', 'CREATING', preRawFingerprint, preHistFingerprint]
   ];
-  tmpSheet.getRange('A3:I3').setValues(metaValues);
+  tmpSheet.getRange('A3:K3').setValues(metaValues);
 
-  // RAW 區塊 (Row 5 標題, Row 6~8 資料)
-  tmpSheet.getRange('A5').setValue('[RAW_HISTORY ROW 3~5 SNAPSHOT]').setFontWeight('bold');
+  // RAW 區塊 (Row 5 標題, Row 6~8 資料 A:J 3x10，值/格式/Note 保存在 Col 1~10，公式文字保存在 Col 12~21)
+  tmpSheet.getRange('A5').setValue('[RAW_HISTORY ROW 3~5 SNAPSHOT (A:J Data, L:U Formulas)]').setFontWeight('bold');
   for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 9; c++) {
+    for (let c = 0; c < 10; c++) {
       const cellTarget = tmpSheet.getRange(6 + r, 1 + c);
       const cellData = rawGrid[r][c];
-      if (cellData.formula) {
-        cellTarget.setFormula(cellData.formula);
-      } else {
-        cellTarget.setValue(cellData.value);
-      }
+      cellTarget.setValue(cellData.value);
       if (cellData.numberFormat) cellTarget.setNumberFormat(cellData.numberFormat);
       if (cellData.note) cellTarget.setNote(cellData.note);
+
+      // 公式鏡像以 Plain Text 字串儲存在 Col 12~21 (L~U)，防原生插列位移
+      const formulaTarget = tmpSheet.getRange(6 + r, 12 + c);
+      formulaTarget.setNumberFormat('@');
+      formulaTarget.setValue(cellData.formula || '');
     }
   }
 
-  // HIST 區塊 (Row 10 標題, Row 11~13 資料)
-  tmpSheet.getRange('A10').setValue('[HISTORY_LOG ROW 3~5 SNAPSHOT]').setFontWeight('bold');
+  // HIST 區塊 (Row 10 標題, Row 11~13 資料 A:K 3x11，值/格式/Note 保存在 Col 1~11，公式文字保存在 Col 12~22)
+  tmpSheet.getRange('A10').setValue('[HISTORY_LOG ROW 3~5 SNAPSHOT (A:K Data, L:V Formulas)]').setFontWeight('bold');
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 11; c++) {
       const cellTarget = tmpSheet.getRange(11 + r, 1 + c);
       const cellData = histGrid[r][c];
-      if (cellData.formula) {
-        cellTarget.setFormula(cellData.formula);
-      } else {
-        cellTarget.setValue(cellData.value);
-      }
+      cellTarget.setValue(cellData.value);
       if (cellData.numberFormat) cellTarget.setNumberFormat(cellData.numberFormat);
       if (cellData.note) cellTarget.setNote(cellData.note);
+
+      // 公式鏡像以 Plain Text 字串儲存在 Col 12~22 (L~V)，防原生插列位移
+      const formulaTarget = tmpSheet.getRange(11 + r, 12 + c);
+      formulaTarget.setNumberFormat('@');
+      formulaTarget.setValue(cellData.formula || '');
     }
   }
 
   SpreadsheetApp.flush();
 
-  // 8. 建立後立即讀回驗證 (Read-Back Verification)
+  // 8. 02B-8.4-C: 實體快照寫入後，重新自 _ROLLBACK_TMP 讀回並計算 Snapshot Integrity Hash
+  const physSnapForHash = readTransactionSnapshot_({ spreadsheet: ss });
+  if (!physSnapForHash || !physSnapForHash.metadata) {
+    throw new Error('FAILED_TO_READ_BACK_PHYSICAL_SNAPSHOT_FOR_HASH');
+  }
+  const snapshotIntegrityHash = computeSnapshotIntegrityHash_(physSnapForHash.metadata, physSnapForHash.rawGrid, physSnapForHash.histGrid);
+
+  // 寫入實體快照 Row 3 Col 8 (Col H)
+  tmpSheet.getRange('H3').setValue(snapshotIntegrityHash);
+  SpreadsheetApp.flush();
+
+  // 9. 建立後立即讀回驗證 (Read-Back Verification)
   const validationResult = validateSnapshotIntegrity_({ spreadsheet: ss, expectedSnapshotId: snapshotId });
   if (!validationResult.isValid) {
     updateSnapshotLifecycle_('CORRUPTED', { spreadsheet: ss, transactionId, snapshotId, tradeDate, reason: validationResult.message });
     throw new Error(`[Snapshot Verification Failed] 讀回快照完整性驗證失敗: ${validationResult.message}`);
   }
 
-  // 9. 驗證通過，轉為 VERIFIED
+  // 10. 驗證通過，轉為 VERIFIED
   updateSnapshotLifecycle_('VERIFIED', {
     spreadsheet: ss,
     transactionId,
@@ -6196,7 +7108,7 @@ function createTransactionSnapshotCore_(options) {
 }
 
 /**
- * 讀取並重構 _ROLLBACK_TMP 快照資料結構
+ * 讀取並重構 _ROLLBACK_TMP 快照資料結構 (02B-8.4-C: 支援雙欄分離式快照架構)
  * @param {Object} [options]
  * @return {Object|null} 快照物件 (包含 metadata, rawGrid, histGrid)
  */
@@ -6208,8 +7120,8 @@ function readTransactionSnapshot_(options) {
   const tmpSheet = ss.getSheetByName('_ROLLBACK_TMP');
   if (!tmpSheet || tmpSheet.getLastRow() < 3) return null;
 
-  // 1. 讀取 Metadata (Row 3, Col 1~9)
-  const metaVals = tmpSheet.getRange('A3:I3').getValues()[0] || [];
+  // 1. 讀取 Metadata (Row 3, Col 1~11)
+  const metaVals = tmpSheet.getRange('A3:K3').getValues()[0] || [];
   const metadata = {
     transactionId: String(metaVals[0] || ''),
     tradeDate: String(metaVals[1] || ''),
@@ -6219,23 +7131,29 @@ function readTransactionSnapshot_(options) {
     originalRawRow3Hash: String(metaVals[5] || ''),
     originalHistoryRow3Hash: String(metaVals[6] || ''),
     snapshotIntegrityHash: String(metaVals[7] || ''),
-    snapshotStatus: String(metaVals[8] || '')
+    snapshotStatus: String(metaVals[8] || ''),
+    preRawFingerprint: String(metaVals[9] || ''),
+    preHistFingerprint: String(metaVals[10] || '')
   };
 
-  // 2. 讀取 RAW 鏡像 (Row 6~8, Col 1~9)
-  const rawRange = tmpSheet.getRange(6, 1, 3, 9);
-  const rawFormulas = rawRange.getFormulas();
-  const rawValues = rawRange.getValues();
-  const rawDisplayValues = rawRange.getDisplayValues();
-  const rawNumberFormats = rawRange.getNumberFormats();
-  const rawNotes = rawRange.getNotes();
+  // 2. 讀取 RAW 鏡像 (Row 6~8: Col 1~10 資料，Col 12~21 公式文字)
+  const rawDataRange = tmpSheet.getRange(6, 1, 3, 10);
+  const rawValues = rawDataRange.getValues();
+  const rawDisplayValues = rawDataRange.getDisplayValues();
+  const rawNumberFormats = rawDataRange.getNumberFormats();
+  const rawNotes = rawDataRange.getNotes();
+
+  const rawFormulaRange = tmpSheet.getRange(6, 12, 3, 10);
+  const rawFormulaValues = rawFormulaRange.getValues();
 
   const rawGrid = [];
   for (let r = 0; r < 3; r++) {
     const row = [];
-    for (let c = 0; c < 9; c++) {
+    for (let c = 0; c < 10; c++) {
+      const fVal = rawFormulaValues[r][c];
+      const formStr = fVal ? String(fVal).trim() : '';
       row.push({
-        formula: rawFormulas[r][c] || '',
+        formula: formStr,
         value: rawValues[r][c],
         displayValue: rawDisplayValues[r][c] || '',
         numberFormat: rawNumberFormats[r][c] || '',
@@ -6245,20 +7163,24 @@ function readTransactionSnapshot_(options) {
     rawGrid.push(row);
   }
 
-  // 3. 讀取 HIST 鏡像 (Row 11~13, Col 1~11)
-  const histRange = tmpSheet.getRange(11, 1, 3, 11);
-  const histFormulas = histRange.getFormulas();
-  const histValues = histRange.getValues();
-  const histDisplayValues = histRange.getDisplayValues();
-  const histNumberFormats = histRange.getNumberFormats();
-  const histNotes = histRange.getNotes();
+  // 3. 讀取 HIST 鏡像 (Row 11~13: Col 1~11 資料，Col 12~22 公式文字)
+  const histDataRange = tmpSheet.getRange(11, 1, 3, 11);
+  const histValues = histDataRange.getValues();
+  const histDisplayValues = histDataRange.getDisplayValues();
+  const histNumberFormats = histDataRange.getNumberFormats();
+  const histNotes = histDataRange.getNotes();
+
+  const histFormulaRange = tmpSheet.getRange(11, 12, 3, 11);
+  const histFormulaValues = histFormulaRange.getValues();
 
   const histGrid = [];
   for (let r = 0; r < 3; r++) {
     const row = [];
     for (let c = 0; c < 11; c++) {
+      const fVal = histFormulaValues[r][c];
+      const formStr = fVal ? String(fVal).trim() : '';
       row.push({
-        formula: histFormulas[r][c] || '',
+        formula: formStr,
         value: histValues[r][c],
         displayValue: histDisplayValues[r][c] || '',
         numberFormat: histNumberFormats[r][c] || '',
@@ -6276,7 +7198,7 @@ function readTransactionSnapshot_(options) {
 }
 
 /**
- * 校驗快照完整性與防篡改雜湊
+ * 校驗快照完整性與防篡改雜湊 (02B-8.4-C: 重新讀回計算全量 Snapshot Integrity Hash)
  * @param {Object} [options]
  * @return {Object} { isValid: boolean, message: string, computedHash: string }
  */
@@ -6287,20 +7209,34 @@ function validateSnapshotIntegrity_(options) {
   }
 
   const meta = snapshotData.metadata;
-  // 檢查必備欄位
-  const requiredFields = ['transactionId', 'tradeDate', 'snapshotId', 'originalRawRow3Hash', 'originalHistoryRow3Hash', 'snapshotIntegrityHash'];
+  // 檢查必備欄位 (02B-8.4 規格：納入 preRawFingerprint 與 preHistFingerprint)
+  const requiredFields = [
+    'transactionId', 'tradeDate', 'snapshotId',
+    'originalRawRow3Hash', 'originalHistoryRow3Hash',
+    'snapshotIntegrityHash', 'preRawFingerprint', 'preHistFingerprint'
+  ];
   for (let f of requiredFields) {
     if (!meta[f] || String(meta[f]).trim() === '') {
       return { isValid: false, message: `快照中繼資料缺漏必要欄位 [${f}]` };
     }
   }
 
-  // 驗證二維陣列維度
-  if (!snapshotData.rawGrid || snapshotData.rawGrid.length !== 3 || snapshotData.rawGrid[0].length !== 9) {
-    return { isValid: false, message: 'RAW_HISTORY 快照網格維度不正確 (須為 3x9)' };
+  // 驗證二維陣列維度 (02B-8.4 規格：RAW 須為 3x10 涵蓋 A:J，HIST 須為 3x11 涵蓋 A:K)
+  if (!snapshotData.rawGrid || snapshotData.rawGrid.length !== 3 || snapshotData.rawGrid[0].length !== 10) {
+    return { isValid: false, message: 'RAW_HISTORY 快照網格維度不正確 (須為 3x10，涵蓋 A 至 J 欄)' };
   }
   if (!snapshotData.histGrid || snapshotData.histGrid.length !== 3 || snapshotData.histGrid[0].length !== 11) {
-    return { isValid: false, message: 'HISTORY_LOG 快照網格維度不正確 (須為 3x11)' };
+    return { isValid: false, message: 'HISTORY_LOG 快照網格維度不正確 (須為 3x11，涵蓋 A 至 K 欄)' };
+  }
+
+  // 嚴格驗證實體讀回之 Pre-Fingerprints (防篡改)
+  const computedPreRaw = computeGridFingerprint_(snapshotData.rawGrid);
+  if (computedPreRaw !== meta.preRawFingerprint) {
+    return { isValid: false, message: `RAW Pre-Fingerprint 雜湊不一致 (快照標記: ${meta.preRawFingerprint}, 實體重算: ${computedPreRaw})`, computedHash: computedPreRaw };
+  }
+  const computedPreHist = computeGridFingerprint_(snapshotData.histGrid);
+  if (computedPreHist !== meta.preHistFingerprint) {
+    return { isValid: false, message: `HIST Pre-Fingerprint 雜湊不一致 (快照標記: ${meta.preHistFingerprint}, 實體重算: ${computedPreHist})`, computedHash: computedPreHist };
   }
 
   // 重新計算 RAW Row 3 雜湊比對
@@ -6323,9 +7259,8 @@ function validateSnapshotIntegrity_(options) {
     };
   }
 
-  // 重新計算全量 Integrity Hash
-  const allGrid = snapshotData.rawGrid.concat(snapshotData.histGrid);
-  const computedIntegrityHash = calculateSnapshotHash_(allGrid);
+  // 02B-8.4-C: 重新讀回計算全量 Snapshot Integrity Hash (涵蓋 metadata, rawGrid, histGrid)
+  const computedIntegrityHash = computeSnapshotIntegrityHash_(meta, snapshotData.rawGrid, snapshotData.histGrid);
   if (computedIntegrityHash !== meta.snapshotIntegrityHash) {
     return {
       isValid: false,
@@ -6968,4 +7903,932 @@ function validateDailyCloseData_(realData, previousValidClose, targetDate, optio
     marketTimestampTaipei: timestampTaipeiStr
   };
 }
+
+// ============================================================================
+// 02B-8.4: Transaction & Recovery Engine (實體驗證版)
+// 包含交易協調、雙表 A:J/A:K 範圍保護、HMAC 來源簽章、原子提交、冪等復原與中斷自癒
+// ============================================================================
+
+/**
+ * 計算交易來源簽章 (Transaction Origin Signature via HMAC-SHA256)
+ * @param {Object} sigPayload 包含 txId, targetDate, actionType, preRawFingerprint, preHistFingerprint, terminalRawFingerprint, terminalHistFingerprint 等
+ * @param {string} secretKey HMAC 私鑰
+ * @return {string} 'SIG:HMAC256:{keyId}:{hmacHex}'
+ */
+function computeTransactionOriginSignature_(sigPayload, secretKey) {
+  if (!sigPayload || typeof sigPayload !== 'object') throw new Error('Invalid signature payload');
+  const canonicalStr = canonicalSerialize_(sigPayload);
+  const hmacHex = hmacSha256Hex_(canonicalStr, secretKey);
+  return `SIG:HMAC256:${sigPayload.keyId || 'k1'}:${hmacHex}`;
+}
+
+/**
+ * 校驗交易來源簽章有效性
+ * @param {string} sigString 簽章字串
+ * @param {Object} expectedPayload 預期承載中繼資料
+ * @param {string} secretKey HMAC 私鑰
+ * @return {boolean}
+ */
+function verifyTransactionOriginSignature_(sigString, expectedPayload, secretKey) {
+  if (!sigString || typeof sigString !== 'string' || !sigString.startsWith('SIG:HMAC256:')) return false;
+  const expectedSig = computeTransactionOriginSignature_(expectedPayload, secretKey);
+  return sigString === expectedSig;
+}
+
+/**
+ * 建立終態持久收據 (Durable Terminal Receipt - Single Source of Truth)
+ * @param {string} actionType 'COMMIT' | 'RECOVERY'
+ * @param {Object} data 收據承載資料
+ * @return {Object} 包含完整性雜湊之 Receipt 物件
+ */
+function createTerminalReceipt_(actionType, data) {
+  if (!['COMMIT', 'RECOVERY'].includes(actionType)) {
+    throw new Error('INVALID_RECEIPT_ACTION_TYPE: ' + actionType);
+  }
+  const receipt = {
+    schemaVersion: '1.0',
+    actionType: actionType,
+    terminalStatus: actionType === 'COMMIT' ? 'COMMITTED' : 'RECOVERED',
+    txId: data.txId,
+    targetDate: data.targetDate,
+    payloadHash: data.payloadHash || '',
+    snapshotHash: data.snapshotHash || '',
+    preRawFingerprint: data.preRawFingerprint,
+    preHistFingerprint: data.preHistFingerprint,
+    terminalRawFingerprint: data.terminalRawFingerprint,
+    terminalHistFingerprint: data.terminalHistFingerprint,
+    originSignature: data.originSignature,
+    keyId: data.keyId || 'k1',
+    verifiedAt: data.verifiedAt || (typeof Utilities !== 'undefined' ? Utilities.formatDate(new Date(), 'Asia/Taipei', "yyyy-MM-dd'T'HH:mm:ss.SSSXXX") : new Date().toISOString())
+  };
+
+  // 復原不變性守衛：Recovery 終態指紋必須嚴格等於 Pre-Fingerprint
+  if (actionType === 'RECOVERY') {
+    if (receipt.terminalRawFingerprint !== receipt.preRawFingerprint || receipt.terminalHistFingerprint !== receipt.preHistFingerprint) {
+      throw new Error('RECOVERY_RECEIPT_INVARIANT_VIOLATION: Terminal fingerprint must equal pre fingerprint');
+    }
+  }
+
+  const copy = { ...receipt };
+  receipt.receiptIntegrityHash = sha256Hex_(canonicalSerialize_(copy));
+  return receipt;
+}
+
+/**
+ * 校驗 Terminal Receipt 結構與完整性雜湊
+ * @param {Object} receipt
+ * @return {boolean}
+ */
+function verifyTerminalReceiptIntegrity_(receipt) {
+  if (!receipt || typeof receipt !== 'object') return false;
+  if (receipt.schemaVersion !== '1.0') return false;
+  if (!receipt.receiptIntegrityHash) return false;
+  const copy = { ...receipt };
+  delete copy.receiptIntegrityHash;
+  const expectedHash = sha256Hex_(canonicalSerialize_(copy));
+  return receipt.receiptIntegrityHash === expectedHash;
+}
+
+/**
+ * 記錄收據至滾動帳本與最新收據屬性 (Rolling Receipt Ledger)
+ * @param {Object} receipt
+ * @param {Object} [options]
+ */
+function recordReceiptInRollingLedger_(receipt, options) {
+  const props = (options && options.properties) || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (!props) return;
+  let ledger = [];
+  try {
+    const raw = props.getProperty('TX_ROLLING_LEDGER');
+    if (raw) ledger = JSON.parse(raw);
+  } catch (e) { ledger = []; }
+  if (!Array.isArray(ledger)) ledger = [];
+  ledger.unshift(receipt);
+  if (ledger.length > 20) ledger = ledger.slice(0, 20);
+  props.setProperty('TX_ROLLING_LEDGER', JSON.stringify(ledger));
+  props.setProperty('_LAST_TX_RECEIPT', JSON.stringify(receipt));
+}
+
+/**
+ * 儲存格日期值統一字串正規化 (yyyy-MM-dd)
+ * @param {*} val
+ * @return {string}
+ */
+function formatCellDateString_(val) {
+  if (val === null || val === undefined) return '';
+  if (val instanceof Date) {
+    if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
+      return Utilities.formatDate(val, 'Asia/Taipei', 'yyyy-MM-dd');
+    }
+    const utcMs = val.getTime();
+    const taipeiMs = utcMs + 8 * 3600 * 1000;
+    const d = new Date(taipeiMs);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return s;
+}
+
+/**
+ * 02B-8.4-F: 獨立檢驗 RAW_HISTORY 是否已插入本次交易列 (以完整列 10 欄證據辨認與最後一道 Fail-Closed 防護)
+ * 明確區分 INSERTED / NOT_INSERTED / UNKNOWN 三種狀態
+ * 核心準則：
+ *   1. 若資料列不足 (getLastRow < 3 或 < 4 或 < 5)，回傳 UNKNOWN，嚴禁視為 NOT_INSERTED。
+ *   2. 判定 NOT_INSERTED 必須具備充分證據：實體 Row 3, 4, 5 必須 100% 完整吻合快照 Row 3, 4, 5 (delta 0)，
+ *      且絕不能吻合任何位移後快照列 (delta 1)，且無任何交易 Note。
+ *   3. 任何模糊、資料受損、單欄/多欄遭竄改、日期異常或部分欄位不符情境，一律回傳 UNKNOWN，落實 Fail-Closed。
+ * @param {Sheet} rawSheet
+ * @param {Object} snap
+ * @param {string} txId
+ * @param {string} targetDateStr
+ * @return {{status: 'INSERTED'|'NOT_INSERTED'|'UNKNOWN', isInserted: boolean, reason: string}}
+ */
+function inspectRawInsertionStatus_(rawSheet, snap, txId, targetDateStr) {
+  // 1. 工作表列數防禦性檢查 (資料列不足必須回傳 UNKNOWN，不得視為 NOT_INSERTED)
+  const lastRow = rawSheet.getLastRow();
+  if (lastRow < 3) {
+    return { status: 'UNKNOWN', isInserted: false, reason: 'RAW_SHEET_ROW_COUNT_INSUFFICIENT_LESS_THAN_3' };
+  }
+  if (lastRow < 4) {
+    return { status: 'UNKNOWN', isInserted: false, reason: 'RAW_ROW4_DATA_MISSING_LESS_THAN_4_ROWS' };
+  }
+
+  const snapRow3 = snap.rawGrid[0]; // 原始第 3 列快照 (10 欄)
+  const snapRow4 = snap.rawGrid[1]; // 原始第 4 列快照 (10 欄)
+
+  const snapRow3DateStr = formatCellDateString_(snapRow3[0].value);
+
+  // 讀取實體第 3 列 (A3:J3)
+  const physGridRow3 = readPhysicalGrid_(rawSheet, 3, 1, 1, 10);
+  const physRow3 = physGridRow3[0];
+  const row3DateStr = formatCellDateString_(physRow3[0].value);
+  const row3Note = physRow3[0].note || '';
+
+  // 讀取實體第 4 列 (A4:J4)
+  const physGridRow4 = readPhysicalGrid_(rawSheet, 4, 1, 1, 10);
+  const physRow4 = physGridRow4[0];
+
+  // 檢查實體第 3 列是否有本次交易之 Note 證據 (TX_PENDING 或 originSignature)
+  const hasTxNote = row3Note === `TX_PENDING:${txId}` ||
+    (row3Note.startsWith('SIG:HMAC256:') && (row3Note.includes(txId) || row3Note === (snap.metadata && snap.metadata.originSignature)));
+  const hasConflictingTxNote = (row3Note.startsWith('TX_PENDING:') || row3Note.startsWith('SIG:HMAC256:')) && !hasTxNote;
+
+  let row3MatchesSnap0_d0 = false;
+  let row4MatchesSnap0_d1 = false;
+  let row4MatchesSnap1_d0 = false;
+  let row4MatchesSnap0_d0 = false;
+
+  try {
+    // 1. 實體 Row 3 是否吻合快照 Row 3 (delta 0)
+    row3MatchesSnap0_d0 = isRowMatchingSnapshotRow_(physRow3, snapRow3, 0);
+
+    // 2. 實體 Row 4 是否吻合快照 Row 3 經 +1 列位移 (插列狀態)
+    row4MatchesSnap0_d1 = isRowMatchingSnapshotRow_(physRow4, snapRow3, 1);
+
+    // 3. 實體 Row 4 是否吻合快照 Row 4 基準 0 位移 (未插列狀態)
+    row4MatchesSnap1_d0 = snapRow4 ? isRowMatchingSnapshotRow_(physRow4, snapRow4, 0) : false;
+
+    // 4. 實體 Row 4 是否吻合快照 Row 3 基準 0 位移 (連續相同列檢測)
+    row4MatchesSnap0_d0 = isRowMatchingSnapshotRow_(physRow4, snapRow3, 0);
+  } catch (err) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: `RAW_UNSAFE_FORMULA_PARSING_FAILED: ${err.message}`
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第一道防線：歧義與矛盾防護 (Ambiguity / Contradiction Guard)
+  // -------------------------------------------------------------
+  // A. Row 3 與 Row 4 同時吻合快照 Row 3 (+1 或 0 位移)，必須判定 UNKNOWN
+  if (row3MatchesSnap0_d0 && (row4MatchesSnap0_d1 || row4MatchesSnap0_d0)) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'AMBIGUOUS_BOTH_ROW3_AND_ROW4_MATCH_SNAPSHOT'
+    };
+  }
+
+  // B. Row 4 同時吻合插列位移 (snap0 d1) 與未插列基準 (snap1 d0)
+  if (row4MatchesSnap0_d1 && row4MatchesSnap1_d0) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'AMBIGUOUS_ROW4_MATCHES_BOTH_INSERTED_AND_UNINSERTED_SNAPSHOT'
+    };
+  }
+
+  // C. 衝突 TxID Note
+  if (hasConflictingTxNote) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'CONFLICTING_TX_NOTE_ON_ROW3'
+    };
+  }
+
+  // D. Note 與列內容矛盾 (Row 3 吻合未插列基準，卻帶有本次 TxID Note)
+  if (row3MatchesSnap0_d0 && hasTxNote) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'NOTE_CONTRADICTS_BASELINE_ROW_CONTENT'
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第二道防線：判定已插入 (INSERTED)
+  // 充分證據：
+  // 1. Row 4 100% 吻合快照 Row 3 (+1 位移)
+  // 2. Row 3 不吻合快照 Row 3 (delta 0)
+  // 3. Row 4 不吻合快照 Row 4 (delta 0)
+  // -------------------------------------------------------------
+  if (row4MatchesSnap0_d1 && !row3MatchesSnap0_d0 && !row4MatchesSnap1_d0) {
+    return {
+      status: 'INSERTED',
+      isInserted: true,
+      reason: 'ROW4_FULL_MATCHES_SNAPSHOT_ROW3_WITH_DELTA_1'
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第三道防線：判定未插入 (NOT_INSERTED)
+  // 02B-8.4-F 嚴格充分證據：
+  // 1. Row 3 100% 吻合快照 Row 3 (delta 0)
+  // 2. Row 4 100% 吻合快照 Row 4 (delta 0)
+  // 3. Row 4 絕不吻合快照 Row 3 (+1 位移)
+  // 4. 無本次交易 Note 亦無衝突 Note
+  // -------------------------------------------------------------
+  if (row3MatchesSnap0_d0 && row4MatchesSnap1_d0 && !row4MatchesSnap0_d1 && !hasTxNote) {
+    return {
+      status: 'NOT_INSERTED',
+      isInserted: false,
+      reason: 'ROWS_3_AND_4_FULL_MATCH_SNAPSHOT_BASELINE_AT_DELTA_0'
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第四道防線：無法明確證明未插列或已插列時，一律回傳 UNKNOWN (Fail-Closed)
+  // 包含：已插列但 Row 4 受損/單欄修改/多欄修改、Row 4 日期不符、Row 4 欄位不符等
+  // -------------------------------------------------------------
+  return {
+    status: 'UNKNOWN',
+    isInserted: false,
+    reason: `RAW_STATE_UNIDENTIFIABLE_OR_DAMAGED (Row3MatchSnap0_d0=${row3MatchesSnap0_d0}, Row4MatchSnap0_d1=${row4MatchesSnap0_d1}, Row4MatchSnap1_d0=${row4MatchesSnap1_d0})`
+  };
+}
+
+/**
+ * 02B-8.4-G: 獨立檢驗 HISTORY_LOG 是否已插入本次交易列 (明確三態傳遞與安全阻斷)
+ * 明確區分 INSERTED / NOT_INSERTED / UNKNOWN 三種狀態
+ * @param {Sheet} histSheet
+ * @param {Object} snap
+ * @param {string} txId
+ * @param {string} targetDateStr
+ * @param {string} rawInsertionStatus 必須顯式傳入已確認的 'INSERTED' 或 'NOT_INSERTED'
+ * @return {{status: 'INSERTED'|'NOT_INSERTED'|'UNKNOWN', isInserted: boolean, reason: string}}
+ */
+function inspectHistInsertionStatus_(histSheet, snap, txId, targetDateStr, rawInsertionStatus) {
+  // RAW 狀態三態安全防衛：必須為已明確確認的 'INSERTED' 或 'NOT_INSERTED'
+  if (rawInsertionStatus === 'UNKNOWN') {
+    throw new Error('HIST_INSPECTION_BLOCKED_RAW_STATUS_UNKNOWN: RAW 狀態為 UNKNOWN，HIST 判定嚴格禁止執行 (Fail-Closed)！');
+  }
+  if (rawInsertionStatus !== 'INSERTED' && rawInsertionStatus !== 'NOT_INSERTED') {
+    throw new Error(`HIST_INSPECTION_BLOCKED_INVALID_RAW_STATUS: rawInsertionStatus 必須明確為 'INSERTED' 或 'NOT_INSERTED'，收到非法值 [${rawInsertionStatus}]，觸發 Fail-Closed！`);
+  }
+
+  // 1. 工作表列數防禦性檢查
+  const lastRow = histSheet.getLastRow();
+  if (lastRow < 3) {
+    return { status: 'UNKNOWN', isInserted: false, reason: 'HIST_SHEET_ROW_COUNT_INSUFFICIENT_LESS_THAN_3' };
+  }
+  if (lastRow < 4) {
+    return { status: 'UNKNOWN', isInserted: false, reason: 'HIST_ROW4_DATA_MISSING_LESS_THAN_4_ROWS' };
+  }
+
+  const snapRow3 = snap.histGrid[0]; // 原始第 3 列快照 (11 欄)
+  const snapRow4 = snap.histGrid[1]; // 原始第 4 列快照 (11 欄)
+
+  const snapRow3DateStr = formatCellDateString_(snapRow3[0].value);
+
+  // 讀取實體第 3 列 (A3:K3)
+  const physGridRow3 = readPhysicalGrid_(histSheet, 3, 1, 1, 11);
+  const physRow3 = physGridRow3[0];
+  const row3DateStr = formatCellDateString_(physRow3[0].value);
+  const row3Note = physRow3[0].note || '';
+
+  // 讀取實體第 4 列 (A4:K4)
+  const physGridRow4 = readPhysicalGrid_(histSheet, 4, 1, 1, 11);
+  const physRow4 = physGridRow4[0];
+
+  // 檢查實體第 3 列是否有本次交易之 Note 證據
+  const hasTxNote = row3Note === `TX_PENDING:${txId}` ||
+    (row3Note.startsWith('SIG:HMAC256:') && (row3Note.includes(txId) || row3Note === (snap.metadata && snap.metadata.originSignature)));
+  const hasConflictingTxNote = (row3Note.startsWith('TX_PENDING:') || row3Note.startsWith('SIG:HMAC256:')) && !hasTxNote;
+
+  const rawDelta = (rawInsertionStatus === 'INSERTED') ? 1 : 0;
+
+  let row3MatchesSnap0_d0 = false;
+  let row4MatchesSnap0_d1 = false;
+  let row4MatchesSnap1_d0 = false;
+  let row4MatchesSnap0_d0 = false;
+
+  try {
+    // 1. 實體 Row 3 是否吻合快照 Row 3 (rawDelta, histDelta=0)
+    row3MatchesSnap0_d0 = isHistRowMatchingSnapshotRow_(physRow3, snapRow3, rawDelta, 0);
+
+    // 2. 實體 Row 4 是否吻合快照 Row 3 經 +1 位移 (rawDelta, histDelta=1)
+    row4MatchesSnap0_d1 = isHistRowMatchingSnapshotRow_(physRow4, snapRow3, rawDelta, 1);
+
+    // 3. 實體 Row 4 是否吻合快照 Row 4 基準 0 位移 (rawDelta, histDelta=0)
+    row4MatchesSnap1_d0 = snapRow4 ? isHistRowMatchingSnapshotRow_(physRow4, snapRow4, rawDelta, 0) : false;
+
+    // 4. 實體 Row 4 是否吻合快照 Row 3 基準 0 位移
+    row4MatchesSnap0_d0 = isHistRowMatchingSnapshotRow_(physRow4, snapRow3, rawDelta, 0);
+  } catch (err) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: `HIST_UNSAFE_FORMULA_PARSING_FAILED: ${err.message}`
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第一道防線：歧義與矛盾防護 (Ambiguity / Contradiction Guard)
+  // -------------------------------------------------------------
+  // A. Row 3 與 Row 4 同時吻合快照 Row 3 (+1 或 0 位移)，必須回傳 UNKNOWN
+  if (row3MatchesSnap0_d0 && (row4MatchesSnap0_d1 || row4MatchesSnap0_d0)) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'AMBIGUOUS_HIST_BOTH_ROW3_AND_ROW4_MATCH_SNAPSHOT'
+    };
+  }
+
+  // B. Row 4 同時吻合插列位移 (snap0 d1) 與未插列基準 (snap1 d0)
+  if (row4MatchesSnap0_d1 && row4MatchesSnap1_d0) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'AMBIGUOUS_HIST_ROW4_MATCHES_BOTH_INSERTED_AND_UNINSERTED_SNAPSHOT'
+    };
+  }
+
+  // C. 衝突 TxID Note
+  if (hasConflictingTxNote) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'CONFLICTING_TX_NOTE_ON_HIST_ROW3'
+    };
+  }
+
+  // D. Note 與列內容矛盾
+  if (row3MatchesSnap0_d0 && hasTxNote) {
+    return {
+      status: 'UNKNOWN',
+      isInserted: false,
+      reason: 'HIST_NOTE_CONTRADICTS_BASELINE_ROW_CONTENT'
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第二道防線：判定已插入 (INSERTED)
+  // -------------------------------------------------------------
+  if (row4MatchesSnap0_d1 && !row3MatchesSnap0_d0 && !row4MatchesSnap1_d0) {
+    return {
+      status: 'INSERTED',
+      isInserted: true,
+      reason: 'HIST_ROW4_FULL_MATCHES_SNAPSHOT_ROW3_WITH_DELTA_1'
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第三道防線：判定未插入 (NOT_INSERTED)
+  // 02B-8.4-F 嚴格充分證據：
+  // 1. Row 3 100% 吻合快照 Row 3 (rawDelta, histDelta=0)
+  // 2. Row 4 100% 吻合快照 Row 4 (rawDelta, histDelta=0)
+  // 3. Row 4 絕不吻合快照 Row 3 (rawDelta, histDelta=1)
+  // 4. 無本次交易 Note 亦無衝突 Note
+  // -------------------------------------------------------------
+  if (row3MatchesSnap0_d0 && row4MatchesSnap1_d0 && !row4MatchesSnap0_d1 && !hasTxNote) {
+    return {
+      status: 'NOT_INSERTED',
+      isInserted: false,
+      reason: 'HIST_ROWS_3_AND_4_FULL_MATCH_SNAPSHOT_BASELINE_AT_DELTA_0'
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 第四道防線：無法明確證明未插列或已插列時，一律回傳 UNKNOWN (Fail-Closed)
+  // -------------------------------------------------------------
+  return {
+    status: 'UNKNOWN',
+    isInserted: false,
+    reason: `HIST_STATE_UNIDENTIFIABLE_OR_DAMAGED (Row3MatchSnap0_d0=${row3MatchesSnap0_d0}, Row4MatchSnap0_d1=${row4MatchesSnap0_d1}, Row4MatchSnap1_d0=${row4MatchesSnap1_d0})`
+  };
+}
+
+/**
+ * 執行原子提交流程 (Atomic Commit Execution)
+ * @param {Object} options
+ * @return {Object}
+ */
+function executeTransactionCommit_(options) {
+  const opt = options || {};
+  const ss = opt.spreadsheet || (typeof getSpreadsheet === 'function' ? getSpreadsheet() : SpreadsheetApp.getActiveSpreadsheet());
+  if (!ss) throw new Error('找不到目標試算表');
+
+  const { transactionId, targetDate, marketData } = opt;
+  if (!transactionId || !targetDate || !marketData) {
+    throw new Error('INVALID_COMMIT_PARAMS: transactionId, targetDate 與 marketData 為必要參數');
+  }
+
+  // HMAC 密鑰安全防護：正式交易路徑不得使用預設密鑰，缺漏時 Fail-Closed 拒絕執行
+  const secretKey = opt.secretKey || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties().getProperty('HMAC_SECRET_KEY') : null);
+  if (!secretKey || typeof secretKey !== 'string' || secretKey.trim() === '') {
+    throw new Error('HMAC_KEY_MISSING: 未提供有效 HMAC 密鑰，交易引擎拒絕執行 (Fail-Closed)');
+  }
+  const keyId = opt.keyId || 'k1';
+
+  // 單一鎖定責任模型
+  let lock = null;
+  if (opt.lockAcquired !== true && typeof LockService !== 'undefined') {
+    lock = LockService.getScriptLock();
+    const acquired = lock.tryLock(30000);
+    if (!acquired) throw new Error('[Lock Conflict] 無法取得交易互斥鎖 (等待 30 秒逾時)！');
+  }
+
+  try {
+    // 1. 驗證快照有效性
+    const val = validateSnapshotIntegrity_({ spreadsheet: ss });
+    if (!val.isValid) {
+      throw new Error(`COMMIT_FAILED_SNAPSHOT_INVALID: ${val.message}`);
+    }
+    const snapMeta = val.metadata;
+    if (snapMeta.transactionId !== transactionId) {
+      throw new Error(`COMMIT_FAILED_TXID_MISMATCH: 快照 TxID (${snapMeta.transactionId}) 與提交 TxID (${transactionId}) 不符`);
+    }
+
+    // 標記快照狀態為 IN_USE
+    updateSnapshotLifecycle_('IN_USE', { spreadsheet: ss, transactionId, snapshotId: snapMeta.snapshotId, tradeDate: targetDate });
+
+    const rawSheet = ss.getSheetByName('RAW_HISTORY');
+    const histSheet = ss.getSheetByName('HISTORY_LOG');
+    if (!rawSheet || !histSheet) throw new Error('找不到 RAW_HISTORY 或 HISTORY_LOG 工作表');
+
+    // 2. 插入 RAW_HISTORY 第 3 列並即時標記 TX_PENDING Note (防中斷誤判)
+    rawSheet.insertRowBefore(3);
+    rawSheet.getRange(3, 1).setNote('TX_PENDING:' + transactionId);
+
+    // 寫入 RAW Row 3 資料 (A:J) (ANTI-83418: 僅寫入 TWII，停止向 Col 3 寫入 VIX，停止向 Col 10 寫入 EWT)
+    rawSheet.getRange(3, 1).setValue(targetDate).setNumberFormat('yyyy-MM-dd');
+    rawSheet.getRange(3, 2).setValue(marketData.twii).setNumberFormat('#,##0.00');
+    if (typeof applyRawHistoryRow3Formulas === 'function') {
+      applyRawHistoryRow3Formulas(rawSheet);
+    } else {
+      const rawFormulas = [[
+        '=IF(AND(ISNUMBER(B3), COUNT(B3:B62)>=10), AVERAGE(B3:B62), "")',
+        '=IF(AND(ISNUMBER(B3), COUNT(B3:B242)>=10), AVERAGE(B3:B242), "")',
+        '=IF(AND(ISNUMBER(B3), ISNUMBER(D3), D3>0), (B3-D3)/D3, "")',
+        '=IF(AND(ISNUMBER(B3), ISNUMBER(E3), E3>0), (B3-E3)/E3, "")',
+        '=IF(AND(ISNUMBER(D3), ISNUMBER(D8), D8>0), (D3-D8)/D8, "")',
+        '=IF(AND(ISNUMBER(F3), ISNUMBER(F8)), F3-F8, "")'
+      ]];
+      rawSheet.getRange(3, 4, 1, 6).setFormulas(rawFormulas);
+      rawSheet.getRange(3, 4, 1, 2).setNumberFormat('#,##0.00');
+      rawSheet.getRange(3, 6, 1, 4).setNumberFormat('+0.00%;-0.00%;0.00%');
+    }
+
+    // 3. 插入 HISTORY_LOG 第 3 列並即時標記 TX_PENDING Note (防中斷誤判)
+    histSheet.insertRowBefore(3);
+    histSheet.getRange(3, 1).setNote('TX_PENDING:' + transactionId);
+
+    const histFormulas = [[
+      '=RAW_HISTORY!A3',
+      '=RAW_HISTORY!B3',
+      '=RAW_HISTORY!F3',
+      '=RAW_HISTORY!G3',
+      '', // ANTI-83418: 停止向 HISTORY_LOG 新列 E 欄注入 VIX 公式，保持空白
+      '=IF(OR(ISBLANK(A3), WEEKDAY(A3, 2)>5, NOT(ISNUMBER(C3))), "", IFERROR(IFS(C3<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C3<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C3>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C3>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))',
+      '=RAW_HISTORY!H3',
+      '=RAW_HISTORY!I3',
+      '=IF(AND(ISNUMBER(B3), ISNUMBER(INDIRECT("B"&(ROW()-252))), B3>0), (INDIRECT("B"&(ROW()-252)) - B3) / B3, "")'
+    ]];
+    histSheet.getRange(3, 1, 1, 9).setFormulas(histFormulas);
+    histSheet.getRange(3, 1).setNumberFormat('yyyy-MM-dd');
+    histSheet.getRange(3, 2).setNumberFormat('#,##0.00');
+    histSheet.getRange(3, 3, 1, 2).setNumberFormat('+0.00%;-0.00%;0.00%');
+    histSheet.getRange(3, 5).setNumberFormat('0.00');
+    histSheet.getRange(3, 7, 1, 3).setNumberFormat('+0.00%;-0.00%;0.00%');
+    histSheet.getRange(3, 10).setValue(marketData.morningStory || '').setNumberFormat('@');
+    histSheet.getRange(3, 11).setValue(marketData.afternoonStory || '').setNumberFormat('@');
+
+    SpreadsheetApp.flush();
+
+    // 4. 計算終態實體指紋 Terminal Fingerprints (02B-8.4-C: 使用 readPhysicalGrid_ 統一讀取)
+    const termRawGrid = readPhysicalGrid_(rawSheet, 3, 1, 3, 10);
+    const termHistGrid = readPhysicalGrid_(histSheet, 3, 1, 3, 11);
+    const terminalRawFingerprint = computeGridFingerprint_(termRawGrid);
+    const terminalHistFingerprint = computeGridFingerprint_(termHistGrid);
+
+    // 5. 簽署交易來源簽章 (Origin Signature)
+    const payloadHash = sha256Hex_(canonicalSerialize_(marketData));
+    const sigPayload = {
+      actionType: 'COMMIT',
+      keyId: keyId,
+      preHistFingerprint: snapMeta.preHistFingerprint,
+      preRawFingerprint: snapMeta.preRawFingerprint,
+      schemaVersion: '1.0',
+      snapshotHash: snapMeta.snapshotHash,
+      targetDate: targetDate,
+      terminalHistFingerprint: terminalHistFingerprint,
+      terminalRawFingerprint: terminalRawFingerprint,
+      txId: transactionId
+    };
+    const originSignature = computeTransactionOriginSignature_(sigPayload, secretKey);
+
+    // 寫入儲存格 Note 終態簽章副本
+    rawSheet.getRange('A3').setNote(originSignature);
+    histSheet.getRange('A3').setNote(originSignature);
+
+    // 6. 建立與持久化 Terminal Receipt (SSoT)
+    const receipt = createTerminalReceipt_('COMMIT', {
+      txId: transactionId,
+      targetDate: targetDate,
+      payloadHash: payloadHash,
+      snapshotHash: snapMeta.snapshotHash,
+      preRawFingerprint: snapMeta.preRawFingerprint,
+      preHistFingerprint: snapMeta.preHistFingerprint,
+      terminalRawFingerprint: terminalRawFingerprint,
+      terminalHistFingerprint: terminalHistFingerprint,
+      originSignature: originSignature,
+      keyId: keyId
+    });
+
+    recordReceiptInRollingLedger_(receipt, opt);
+
+    // 7. 清理快照並釋放
+    const tmpSheet = ss.getSheetByName('_ROLLBACK_TMP');
+    if (tmpSheet) tmpSheet.clear();
+    try {
+      PropertiesService.getScriptProperties().deleteProperty('TX_ACTIVE_STATE');
+      PropertiesService.getScriptProperties().deleteProperty('TX_ACTIVE_SNAPSHOT_STATE');
+    } catch (e) {}
+
+    // 8. 驗證 DASHBOARD B12 公式維持 =INDIRECT("RAW_HISTORY!J3")
+    const dashSheet = ss.getSheetByName('DASHBOARD');
+    if (dashSheet) {
+      const b12Formula = dashSheet.getRange('B12').getFormula();
+      if (b12Formula !== '=INDIRECT("RAW_HISTORY!J3")') {
+        throw new Error(`DASHBOARD_FORMULA_INTEGRITY_VIOLATION: Expected =INDIRECT("RAW_HISTORY!J3") but got ${b12Formula}`);
+      }
+    }
+
+    return {
+      success: true,
+      transactionId: transactionId,
+      targetDate: targetDate,
+      terminalStatus: 'COMMITTED',
+      receipt: receipt,
+      originSignature: originSignature,
+      terminalRawFingerprint: terminalRawFingerprint,
+      terminalHistFingerprint: terminalHistFingerprint
+    };
+  } finally {
+    if (lock) {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+}
+
+/**
+ * 執行冪等復原流程 (Idempotent Recovery Flow)
+ * @param {Object} options
+ * @return {Object}
+ */
+function executeTransactionRecovery_(options) {
+  const opt = options || {};
+  const ss = opt.spreadsheet || (typeof getSpreadsheet === 'function' ? getSpreadsheet() : SpreadsheetApp.getActiveSpreadsheet());
+  if (!ss) throw new Error('找不到目標試算表');
+
+  const { transactionId, targetDate, reason } = opt;
+
+  // HMAC 密鑰安全防護：正式復原路徑不得使用預設密鑰，缺漏時 Fail-Closed 拒絕執行
+  const secretKey = opt.secretKey || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties().getProperty('HMAC_SECRET_KEY') : null);
+  if (!secretKey || typeof secretKey !== 'string' || secretKey.trim() === '') {
+    throw new Error('HMAC_KEY_MISSING: 未提供有效 HMAC 密鑰，復原流程拒絕執行 (Fail-Closed)');
+  }
+  const keyId = opt.keyId || 'k1';
+
+  // 1. 冪等性檢查：若已是 RECOVERED 終態，安全短路放行，絕不重複刪列
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const lastReceiptJson = props.getProperty('_LAST_TX_RECEIPT');
+    if (lastReceiptJson) {
+      const lastReceipt = JSON.parse(lastReceiptJson);
+      if (lastReceipt.txId === transactionId && lastReceipt.terminalStatus === 'RECOVERED') {
+        return {
+          success: true,
+          idempotentReplay: true,
+          terminalStatus: 'RECOVERED',
+          receipt: lastReceipt
+        };
+      }
+    }
+  } catch (e) {}
+
+  let lock = null;
+  if (opt.lockAcquired !== true && typeof LockService !== 'undefined') {
+    lock = LockService.getScriptLock();
+    const acquired = lock.tryLock(30000);
+    if (!acquired) throw new Error('[Lock Conflict] 無法取得復原互斥鎖！');
+  }
+
+  try {
+    // 2. 讀取快照並在執行任何回滾前，重新計算並驗證 Snapshot Integrity Hash (02B-8.4-C)
+    const snap = readTransactionSnapshot_({ spreadsheet: ss });
+    if (!snap || !snap.metadata || !snap.metadata.snapshotId) {
+      throw new Error('RECOVERY_FAILED_SNAPSHOT_MISSING: 找不到復原快照且無既有終態收據');
+    }
+    const meta = snap.metadata;
+    if (transactionId && meta.transactionId !== transactionId) {
+      throw new Error(`RECOVERY_FAILED_TXID_MISMATCH: 快照 TxID (${meta.transactionId}) 與請求 TxID (${transactionId}) 不符`);
+    }
+
+    // 在執行任何刪列或回滾前，驗證快照完整性 (防篡改)
+    const snapVal = validateSnapshotIntegrity_({ spreadsheet: ss });
+    if (!snapVal.isValid) {
+      throw new Error(`RECOVERY_FAILED_SNAPSHOT_INVALID: ${snapVal.message}`);
+    }
+
+    const rawSheet = ss.getSheetByName('RAW_HISTORY');
+    const histSheet = ss.getSheetByName('HISTORY_LOG');
+    if (!rawSheet || !histSheet) throw new Error('找不到 RAW_HISTORY 或 HISTORY_LOG 工作表');
+
+    // 3. 獨立檢查 RAW_HISTORY 與 HISTORY_LOG 是否各自完成目標交易插列 (以完整列證據)
+    const targetDateStr = targetDate || meta.tradeDate;
+    const rawStatus = inspectRawInsertionStatus_(rawSheet, snap, meta.transactionId, targetDateStr);
+    if (rawStatus.status === 'UNKNOWN') {
+      throw new Error(`RECOVERY_FAILED_RAW_STATE_UNKNOWN: RAW_HISTORY 插列狀態無法確認 (${rawStatus.reason})，TxID [${meta.transactionId}] 觸發 Fail-Closed 安全阻斷，嚴禁刪列或覆寫！`);
+    }
+
+    // 02B-8.4-G: 明確傳遞 RAW 三態確認狀態 (rawStatus.status 為 'INSERTED' 或 'NOT_INSERTED')
+    const histStatus = inspectHistInsertionStatus_(histSheet, snap, meta.transactionId, targetDateStr, rawStatus.status);
+    if (histStatus.status === 'UNKNOWN') {
+      throw new Error(`RECOVERY_FAILED_HIST_STATE_UNKNOWN: HISTORY_LOG 插列狀態無法確認 (${histStatus.reason})，TxID [${meta.transactionId}] 觸發 Fail-Closed 安全阻斷，嚴禁刪列或覆寫！`);
+    }
+
+    // 4. 嚴格依各自判定結果獨立執行刪列，絕不以一張表的狀態推定另一張表
+    if (histStatus.status === 'INSERTED') {
+      if (histSheet.getLastRow() >= 3) {
+        histSheet.deleteRow(3);
+      }
+    }
+    if (rawStatus.status === 'INSERTED') {
+      if (rawSheet.getLastRow() >= 3) {
+        rawSheet.deleteRow(3);
+      }
+    }
+    SpreadsheetApp.flush();
+
+    // 刪列完成後，實體試算表原生依賴已 de-shift 歸位，再次執行快照完整性嚴格驗證 (含 snapshotIntegrityHash)
+    const postSnapVal = validateSnapshotIntegrity_({ spreadsheet: ss });
+    if (!postSnapVal.isValid) {
+      throw new Error(`RECOVERY_FAILED_SNAPSHOT_INVALID: ${postSnapVal.message}`);
+    }
+
+    // 5. 02B-8.4-E: 重新自實體工作表讀回 RAW_HISTORY A3:J5 與 HISTORY_LOG A3:K5 (值、公式、格式、Note)
+    let currRawGrid = readPhysicalGrid_(rawSheet, 3, 1, 3, 10);
+    let currHistGrid = readPhysicalGrid_(histSheet, 3, 1, 3, 11);
+
+    let currRawFingerprint = computeGridFingerprint_(currRawGrid);
+    let currHistFingerprint = computeGridFingerprint_(currHistGrid);
+
+    // 若刪列後指紋仍未完全恢復 (例如原地被改動、公式或格式/Note 受損)，啟動網格就地覆寫復原保證
+    let needsOverWriteFlush = false;
+    if (meta.preRawFingerprint && currRawFingerprint !== meta.preRawFingerprint) {
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 10; c++) {
+          const target = rawSheet.getRange(3 + r, 1 + c);
+          const orig = snap.rawGrid[r][c];
+          if (orig.formula) target.setFormula(orig.formula);
+          else target.setValue(orig.value);
+          // 02B-8.4-E: 無論原始格式或 Note 是否為空，均強制還原，徹底清空受損殘留！
+          target.setNumberFormat(orig.numberFormat || '');
+          target.setNote(orig.note || '');
+        }
+      }
+      needsOverWriteFlush = true;
+    }
+
+    if (meta.preHistFingerprint && currHistFingerprint !== meta.preHistFingerprint) {
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 11; c++) {
+          const target = histSheet.getRange(3 + r, 1 + c);
+          const orig = snap.histGrid[r][c];
+          if (orig.formula) target.setFormula(orig.formula);
+          else target.setValue(orig.value);
+          // 02B-8.4-E: 無論原始格式或 Note 是否為空，均強制還原，徹底清空受損殘留！
+          target.setNumberFormat(orig.numberFormat || '');
+          target.setNote(orig.note || '');
+        }
+      }
+      needsOverWriteFlush = true;
+    }
+
+    if (needsOverWriteFlush) {
+      SpreadsheetApp.flush();
+      // 02B-8.4-C: 覆寫後強制重新讀取實體資料並重算指紋，嚴禁直接使用舊記憶體變數！
+      currRawGrid = readPhysicalGrid_(rawSheet, 3, 1, 3, 10);
+      currHistGrid = readPhysicalGrid_(histSheet, 3, 1, 3, 11);
+      currRawFingerprint = computeGridFingerprint_(currRawGrid);
+      currHistFingerprint = computeGridFingerprint_(currHistGrid);
+    }
+
+    // 嚴格校驗：實體指紋必須 100% 吻合 Pre-Fingerprint，否則 Fail-Closed 拒絕清除快照！
+    if (meta.preRawFingerprint && currRawFingerprint !== meta.preRawFingerprint) {
+      throw new Error(`RECOVERY_FAILED_PRE_FINGERPRINT_MISMATCH: RAW_HISTORY 實體復原後指紋 (${currRawFingerprint}) 與快照前指紋 (${meta.preRawFingerprint}) 不符，快照保留嚴禁清除！`);
+    }
+    if (meta.preHistFingerprint && currHistFingerprint !== meta.preHistFingerprint) {
+      throw new Error(`RECOVERY_FAILED_PRE_FINGERPRINT_MISMATCH: HISTORY_LOG 實體復原後指紋 (${currHistFingerprint}) 與快照前指紋 (${meta.preHistFingerprint}) 不符，快照保留嚴禁清除！`);
+    }
+
+    // 6. 簽署復原來源簽章 (注意：Recovery 不依賴已刪除之 Row 3 Note)
+    const sigPayload = {
+      actionType: 'RECOVERY',
+      keyId: keyId,
+      preHistFingerprint: meta.preHistFingerprint,
+      preRawFingerprint: meta.preRawFingerprint,
+      schemaVersion: '1.0',
+      snapshotHash: meta.snapshotHash,
+      targetDate: targetDateStr,
+      terminalHistFingerprint: currHistFingerprint,
+      terminalRawFingerprint: currRawFingerprint,
+      txId: meta.transactionId
+    };
+    const recoverySignature = computeTransactionOriginSignature_(sigPayload, secretKey);
+
+    // 7. 建立 Recovery Terminal Receipt
+    const receipt = createTerminalReceipt_('RECOVERY', {
+      txId: meta.transactionId,
+      targetDate: targetDateStr,
+      payloadHash: sha256Hex_(canonicalSerialize_({ reason: reason || 'ABORT_RECOVERY' })),
+      snapshotHash: meta.snapshotHash,
+      preRawFingerprint: meta.preRawFingerprint,
+      preHistFingerprint: meta.preHistFingerprint,
+      terminalRawFingerprint: currRawFingerprint,
+      terminalHistFingerprint: currHistFingerprint,
+      originSignature: recoverySignature,
+      keyId: keyId
+    });
+
+    recordReceiptInRollingLedger_(receipt, opt);
+
+    // 8. 原始資料確認安全復原後，方可清理快照工作表與臨時狀態
+    const tmpSheet = ss.getSheetByName('_ROLLBACK_TMP');
+    if (tmpSheet) tmpSheet.clear();
+    try {
+      PropertiesService.getScriptProperties().deleteProperty('TX_ACTIVE_STATE');
+      PropertiesService.getScriptProperties().deleteProperty('TX_ACTIVE_SNAPSHOT_STATE');
+    } catch (e) {}
+
+    // 9. 驗證 DASHBOARD B12
+    const dashSheet = ss.getSheetByName('DASHBOARD');
+    if (dashSheet) {
+      const b12 = dashSheet.getRange('B12').getFormula();
+      if (b12 !== '=INDIRECT("RAW_HISTORY!J3")') {
+        throw new Error('DASHBOARD_FORMULA_INTEGRITY_VIOLATION_AFTER_RECOVERY');
+      }
+    }
+
+    return {
+      success: true,
+      transactionId: meta.transactionId,
+      terminalStatus: 'RECOVERED',
+      receipt: receipt,
+      originSignature: recoverySignature
+    };
+  } finally {
+    if (lock) {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+}
+
+/**
+ * 系統啟動中斷自癒處理器 (Startup Interruption Self-Healing)
+ * @param {Object} [options]
+ * @return {Object}
+ */
+function handleInterruptedTransaction_(options) {
+  const opt = options || {};
+  const ss = opt.spreadsheet || (typeof getSpreadsheet === 'function' ? getSpreadsheet() : SpreadsheetApp.getActiveSpreadsheet());
+  if (!ss) return { status: 'NO_SPREADSHEET', action: 'NO_OP' };
+
+  let activeState = null;
+  try {
+    const activeStateJson = PropertiesService.getScriptProperties().getProperty('TX_ACTIVE_STATE');
+    if (activeStateJson) activeState = JSON.parse(activeStateJson);
+  } catch (e) {}
+
+  const snap = readTransactionSnapshot_({ spreadsheet: ss });
+
+  // 狀況 1: 完全乾淨 IDLE
+  if (!activeState && (!snap || !snap.metadata || !snap.metadata.snapshotId)) {
+    return { status: 'CLEAN_IDLE', action: 'NO_OP' };
+  }
+
+  // 狀況 2: 快照已完成且存在未結交易，啟動復原
+  if (snap && snap.metadata && snap.metadata.snapshotId) {
+    const txId = snap.metadata.transactionId;
+    const rec = executeTransactionRecovery_({
+      spreadsheet: ss,
+      transactionId: txId,
+      targetDate: snap.metadata.tradeDate,
+      reason: 'INTERRUPTED_TRANSACTION_AUTO_RECOVERY',
+      lockAcquired: opt.lockAcquired,
+      secretKey: opt.secretKey,
+      keyId: opt.keyId
+    });
+    return { status: 'RECOVERED_INTERRUPTED_TX', action: 'ROLLBACK_EXECUTED', receipt: rec.receipt };
+  }
+
+  // 狀況 3: Properties 殘留但實體快照已清理
+  if (activeState && (!snap || !snap.metadata)) {
+    try {
+      PropertiesService.getScriptProperties().deleteProperty('TX_ACTIVE_STATE');
+      PropertiesService.getScriptProperties().deleteProperty('TX_ACTIVE_SNAPSHOT_STATE');
+    } catch (e) {}
+    return { status: 'CLEARED_ORPHAN_PROPERTIES', action: 'CLEANUP' };
+  }
+
+  return { status: 'UNKNOWN_INTERRUPTED_STATE', action: 'FAIL_CLOSED' };
+}
+
+/**
+ * 交易完成後資料與公式完整性全面檢驗
+ * @param {Object} [options]
+ * @return {Object}
+ */
+function validateEngineDataAndFormulaIntegrity_(options) {
+  const opt = options || {};
+  const ss = opt.spreadsheet || (typeof getSpreadsheet === 'function' ? getSpreadsheet() : SpreadsheetApp.getActiveSpreadsheet());
+  if (!ss) return { isValid: false, reason: 'SPREADSHEET_NOT_FOUND' };
+
+  // 1. DASHBOARD B12
+  const dashSheet = ss.getSheetByName('DASHBOARD');
+  if (!dashSheet) return { isValid: false, reason: 'DASHBOARD_SHEET_MISSING' };
+  const b12Formula = dashSheet.getRange('B12').getFormula();
+  if (b12Formula !== '=INDIRECT("RAW_HISTORY!J3")') {
+    return { isValid: false, reason: `DASHBOARD_B12_FORMULA_ALTERED: ${b12Formula}` };
+  }
+
+  // 2. RAW_HISTORY A3:J5 欄位與結構保護
+  const rawSheet = ss.getSheetByName('RAW_HISTORY');
+  if (!rawSheet) return { isValid: false, reason: 'RAW_HISTORY_SHEET_MISSING' };
+  const rawRange = rawSheet.getRange(3, 1, 3, 10);
+  const rawVals = rawRange.getValues();
+  for (let r = 0; r < 3; r++) {
+    // 日期有效性
+    if (!rawVals[r][0]) return { isValid: false, reason: `RAW_ROW_${3 + r}_DATE_MISSING` };
+    // TWII > 0
+    if (typeof rawVals[r][1] !== 'number' || rawVals[r][1] <= 0) return { isValid: false, reason: `RAW_ROW_${3 + r}_TWII_INVALID` };
+    // ANTI-83418: 解耦後新列 (r === 0) 容許留空；若存在數值則必須為有效正數
+    const vixVal = rawVals[r][2];
+    if (vixVal !== '' && vixVal !== null && vixVal !== undefined) {
+      if (typeof vixVal !== 'number' || vixVal <= 0 || isNaN(vixVal)) {
+        return { isValid: false, reason: `RAW_ROW_${3 + r}_VIX_INVALID` };
+      }
+    } else if (r > 0) {
+      return { isValid: false, reason: `RAW_ROW_${3 + r}_VIX_INVALID` };
+    }
+    // ANTI-83418: J 欄 EWT_Change 新列 (r === 0) 容許留空；若存在數值則必須為有限數字
+    const ewt = rawVals[r][9];
+    if (ewt !== '' && ewt !== null && ewt !== undefined) {
+      if (typeof ewt !== 'number' || isNaN(ewt)) {
+        return { isValid: false, reason: `RAW_ROW_${3 + r}_EWT_CHANGE_MISSING_OR_NOT_NUMBER` };
+      }
+    } else if (r > 0) {
+      return { isValid: false, reason: `RAW_ROW_${3 + r}_EWT_CHANGE_MISSING_OR_NOT_NUMBER` };
+    }
+  }
+
+  // 3. HISTORY_LOG A3:K5 公式完整性
+  const histSheet = ss.getSheetByName('HISTORY_LOG');
+  if (!histSheet) return { isValid: false, reason: 'HISTORY_LOG_SHEET_MISSING' };
+  const histForms = histSheet.getRange(3, 1, 1, 9).getFormulas()[0];
+  // ANTI-83418: HISTORY_LOG 新列 E 欄 (histForms[4]) 停止注入公式，容許為空字串或相容 legacy '=RAW_HISTORY!C3'
+  if (histForms[0] !== '=RAW_HISTORY!A3' || histForms[1] !== '=RAW_HISTORY!B3' || (histForms[4] !== '' && histForms[4] !== '=RAW_HISTORY!C3')) {
+    return { isValid: false, reason: 'HISTORY_LOG_ROW3_CROSS_SHEET_FORMULA_BROKEN' };
+  }
+
+  return { isValid: true, message: '資料與跨表公式完整性 100% 驗證通過' };
+}
+
 
