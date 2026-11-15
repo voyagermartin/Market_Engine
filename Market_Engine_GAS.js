@@ -2360,27 +2360,33 @@ function saveOverseasObservation_(realData) {
   if (vixValid) {
     obs.vix = {
       value: data.vix,
-      tradeDate: data.vixTradeDate || null,
-      tradeTime: data.vixTradeTime || null,
-      exchangeTimezone: data.vixExchangeTimezone || null,
+      tradeDate: data.vixTradeDate || (obs.vix && obs.vix.tradeDate) || null,
+      tradeTime: data.vixTradeTime || (obs.vix && obs.vix.tradeTime) || null,
+      exchangeTimezone: data.vixExchangeTimezone || (obs.vix && obs.vix.exchangeTimezone) || null,
       fetchedAt: attemptAt,
       lastFetchOk: true
     };
   } else {
-    obs.vix.lastFetchOk = false;
+    // 嚴格保留最後成功資料，不得因更新失敗而覆蓋或清除數值與交易日
+    if (obs.vix) {
+      obs.vix.lastFetchOk = false;
+    }
   }
 
   if (ewtValid) {
     obs.ewt = {
       change: data.ewtChange,
-      tradeDate: data.ewtTradeDate || null,
-      tradeTime: data.ewtTradeTime || null,
-      exchangeTimezone: data.ewtExchangeTimezone || null,
+      tradeDate: data.ewtTradeDate || (obs.ewt && obs.ewt.tradeDate) || null,
+      tradeTime: data.ewtTradeTime || (obs.ewt && obs.ewt.tradeTime) || null,
+      exchangeTimezone: data.ewtExchangeTimezone || (obs.ewt && obs.ewt.exchangeTimezone) || null,
       fetchedAt: attemptAt,
       lastFetchOk: true
     };
   } else {
-    obs.ewt.lastFetchOk = false;
+    // 嚴格保留最後成功資料，不得因更新失敗而覆蓋或清除數值與交易日
+    if (obs.ewt) {
+      obs.ewt.lastFetchOk = false;
+    }
   }
 
   obs.schemaVersion = 1;
@@ -2505,29 +2511,30 @@ function evaluateOverseasMetric_(rawItem, kind, nowDate) {
     ? (isEwt
       ? ((numericVal >= 0 ? '+' : '') + (numericVal * 100).toFixed(2) + '%')
       : Number(numericVal).toFixed(2))
-    : 'N/A';
+    : '尚無可用資料';
 
   if (!lastFetchOk && hasValue) {
     statusCode = 'FETCH_FAILED_WITH_CACHED';
     isStale = true;
     isUsable = false;
-    statusMessage = `本次更新失敗，保留最後成功取得資料（非最新行情）：${formattedVal}` +
-      (tradeDate ? ` (原美股交易日: ${tradeDate})` : ' (缺少交易時間戳)');
+    statusMessage = `本次更新失敗，以下為最後有效資料：${formattedVal}` +
+      (tradeDate ? `（最後有效交易日：${tradeDate}）` : '');
   } else if (!lastFetchOk || !hasValue) {
     statusCode = 'FETCH_FAILED_NO_DATA';
     isStale = true;
     isUsable = false;
-    statusMessage = `本次 ${label} 更新失敗，無有效資料 (N/A)`;
+    statusMessage = '尚無可用資料';
   } else if (!hasTradeTimestamp) {
     statusCode = 'MISSING_TIMESTAMP';
     isStale = true;
     isUsable = false;
-    statusMessage = `${formattedVal} (缺少交易時間戳，不作為有效訊號)`;
+    statusMessage = `${formattedVal}（缺少交易時間戳，非最新有效行情）`;
   } else if (!isFetchDayValid || isTradeDateExpired) {
     statusCode = 'STALE_DATA';
     isStale = true;
     isUsable = false;
-    statusMessage = `${formattedVal} (資料已過期，原美股交易日: ${tradeDate}，非當日有效更新)`;
+    statusMessage = `本次更新失敗，以下為最後有效資料：${formattedVal}` +
+      (tradeDate ? `（最後有效交易日：${tradeDate}）` : '');
   } else {
     statusCode = 'FRESH_VALID';
     isStale = false;
@@ -5092,15 +5099,59 @@ function getMarketEngineData(skipCache, options) {
     }
   }
 
-  // 0.5 讀取並獨立評估海外最新觀測 (VIX 與 EWT 分別判斷)
-  const overseasRaw = getOverseasObservation_();
+  // 先取得即時行情 (包含 Yahoo TWII, VIX, EWT 最新報價與健康狀態)
+  const liveHealth = fetchRealMarketData();
+
+  // 0.5 讀取並獨立評估海外最新觀測 (VIX 與 EWT 分別獨立處理)
+  let overseasRaw = getOverseasObservation_();
+  let overseasModified = false;
+  if (liveHealth && typeof liveHealth === 'object') {
+    const vixValid = (typeof liveHealth.vix === 'number' && isFinite(liveHealth.vix) && liveHealth.vix > 0);
+    const ewtValid = (typeof liveHealth.ewtChange === 'number' && isFinite(liveHealth.ewtChange));
+    const attemptAt = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+
+    if (vixValid) {
+      overseasRaw.vix = {
+        value: liveHealth.vix,
+        tradeDate: liveHealth.vixTradeDate || (overseasRaw.vix && overseasRaw.vix.tradeDate) || null,
+        tradeTime: liveHealth.vixTradeTime || (overseasRaw.vix && overseasRaw.vix.tradeTime) || null,
+        exchangeTimezone: liveHealth.vixExchangeTimezone || (overseasRaw.vix && overseasRaw.vix.exchangeTimezone) || null,
+        fetchedAt: attemptAt,
+        lastFetchOk: true
+      };
+      overseasModified = true;
+    } else if (overseasRaw.vix && overseasRaw.vix.hasValue !== false && overseasRaw.vix.value !== null) {
+      // 本次 VIX 抓取失敗，保留前次成功數值與交易日，僅標記本次失敗
+      overseasRaw.vix.lastFetchOk = false;
+    }
+
+    if (ewtValid) {
+      overseasRaw.ewt = {
+        change: liveHealth.ewtChange,
+        tradeDate: liveHealth.ewtTradeDate || (overseasRaw.ewt && overseasRaw.ewt.tradeDate) || null,
+        tradeTime: liveHealth.ewtTradeTime || (overseasRaw.ewt && overseasRaw.ewt.tradeTime) || null,
+        exchangeTimezone: liveHealth.ewtExchangeTimezone || (overseasRaw.ewt && overseasRaw.ewt.exchangeTimezone) || null,
+        fetchedAt: attemptAt,
+        lastFetchOk: true
+      };
+      overseasModified = true;
+    } else if (overseasRaw.ewt && overseasRaw.ewt.hasValue !== false && overseasRaw.ewt.change !== null) {
+      // 本次 EWT 抓取失敗，保留前次成功數值與交易日，僅標記本次失敗
+      overseasRaw.ewt.lastFetchOk = false;
+    }
+
+    if (overseasModified && !isReadOnly) {
+      try { saveOverseasObservation_(liveHealth); } catch (e) {}
+    }
+  }
+
   const overseasEval = evaluateOverseasObservation_(overseasRaw, now);
   const vixEval = overseasEval.vix;
   const ewtEval = overseasEval.ewt;
-  const vixDisplayVal = vixEval.hasValue ? Number(vixEval.value).toFixed(2) : 'N/A';
+  const vixDisplayVal = vixEval.hasValue ? Number(vixEval.value).toFixed(2) : '尚無可用資料';
   const ewtDisplayVal = ewtEval.hasValue
     ? ((ewtEval.change >= 0 ? '+' : '') + (ewtEval.change * 100).toFixed(2) + '%')
-    : 'N/A';
+    : '尚無可用資料';
 
   // 1. 使用 Asia/Taipei 台北時區精準判定時分與值班狀態
   const currentHourStr = Utilities.formatDate(now, 'Asia/Taipei', 'HH');
@@ -5111,7 +5162,6 @@ function getMarketEngineData(skipCache, options) {
   const isMorning = (timeInMins >= 450 && timeInMins < 990);
   const navMode = isMorning ? '🌅 盤前模式 (07:30 老巴早餐值班)' : '☕ 盤後模式 (16:30 小羅午茶值班)';
 
-  const liveHealth = fetchRealMarketData();
   const status = isMarketOpen(now);
   const marketStatusPayload = {
     isOpen: status.isOpen,
@@ -5269,8 +5319,8 @@ function getMarketEngineData(skipCache, options) {
         data.twii,
         data.phase,
         data.dist60,
-        ewtEval.isUsable ? data.ewtChange : 'N/A',
-        vixEval.isUsable ? data.vix : 'N/A',
+        ewtEval.hasValue ? data.ewtChange : '尚無可用資料',
+        vixEval.hasValue ? data.vix : '尚無可用資料',
         {
           ewtText: ewtEval.statusMessage,
           vixText: vixEval.statusMessage,
@@ -5288,8 +5338,8 @@ function getMarketEngineData(skipCache, options) {
         data.twii,
         data.phase,
         data.dist60,
-        ewtEval.isUsable ? data.ewtChange : 'N/A',
-        vixEval.isUsable ? data.vix : 'N/A',
+        ewtEval.hasValue ? data.ewtChange : '尚無可用資料',
+        vixEval.hasValue ? data.vix : '尚無可用資料',
         {
           ewtText: ewtEval.statusMessage,
           vixText: vixEval.statusMessage,

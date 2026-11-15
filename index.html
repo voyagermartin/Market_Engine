@@ -548,6 +548,7 @@
           <span class="metric-val" id="valVix">連線中...</span>
           <span class="metric-tag" id="tagVix">連線中...</span>
         </div>
+        <div id="noteVixStatus" style="font-size: 13px; font-weight: 700; color: #fde047; background: rgba(251, 191, 36, 0.08); padding: 8px 12px; border-radius: 8px; margin-top: 4px; border: 1px solid rgba(251, 191, 36, 0.18); line-height: 1.6; display: none;"></div>
       </div>
 
       <!-- 季線 5日斜率 (大盤底氣) Card -->
@@ -1619,47 +1620,28 @@
       });
     }
 
-    const OVERSEAS_STATUS_META = {
-      FRESH_VALID: {
-        isUsable: true,
-        isCachedReference: false,
-        vixTagFallback: '✅ 有效觀測',
-        ewtTagFallback: '➡️ 有效觀測'
-      },
-      FETCH_FAILED_WITH_CACHED: {
-        isUsable: false,
-        isCachedReference: true,
-        vixTagFallback: '⚠️ 更新失敗（保留最後成功資料，非最新行情）',
-        ewtTagFallback: '⚠️ 更新失敗（保留最後成功資料，非最新行情）'
-      },
-      FETCH_FAILED_NO_DATA: {
-        isUsable: false,
-        isCachedReference: false,
-        vixTagFallback: '⚠️ 資料暫不可用（更新失敗且無有效資料）',
-        ewtTagFallback: '⚠️ 資料暫不可用（更新失敗且無有效資料）'
-      },
-      MISSING_TIMESTAMP: {
-        isUsable: false,
-        isCachedReference: true,
-        vixTagFallback: '⚠️ 缺少交易時間戳（僅供參考，非最新有效行情）',
-        ewtTagFallback: '⚠️ 缺少交易時間戳（僅供參考，非最新有效行情）'
-      },
-      STALE_DATA: {
-        isUsable: false,
-        isCachedReference: true,
-        vixTagFallback: '⚠️ 資料已過期（保留舊值僅供參考，非當日有效）',
-        ewtTagFallback: '⚠️ 資料已過期（保留舊值僅供參考，非當日有效）'
-      },
-      LEGACY_UNVERIFIED: {
-        isUsable: false,
-        isCachedReference: true,
-        vixTagFallback: '⚠️ 舊版快取（未驗證新鮮度，非最新有效行情）',
-        ewtTagFallback: '⚠️ 舊版快取（未驗證新鮮度，非最新有效行情）'
-      }
-    };
-
     function isValidIsoDateStr(val) {
       return typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim());
+    }
+
+    function getStoredOverseasItem(kind) {
+      try {
+        const raw = localStorage.getItem('MARKET_ENGINE_LAST_VALID_' + String(kind).toUpperCase());
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return null;
+    }
+
+    function setStoredOverseasItem(kind, item) {
+      try {
+        if (item && item.hasValue && item.displayValue && item.displayValue !== '尚無可用資料' && item.displayValue !== 'N/A') {
+          localStorage.setItem('MARKET_ENGINE_LAST_VALID_' + String(kind).toUpperCase(), JSON.stringify({
+            displayValue: item.displayValue,
+            tradeDate: item.tradeDate || null,
+            savedAt: new Date().toISOString()
+          }));
+        }
+      } catch (e) {}
     }
 
     function resolveOverseasMetricState(data, kind) {
@@ -1671,114 +1653,77 @@
         ? obsRoot[kind]
         : null;
 
+      // 1. 優先自 obsItem 取得數值
+      let rawNum = null;
+      let hasNumericVal = false;
+      if (obsItem) {
+        const v = isEwt ? obsItem.change : obsItem.value;
+        if (typeof v === 'number' && isFinite(v) && (isEwt || v > 0)) {
+          rawNum = v;
+          hasNumericVal = true;
+        }
+      }
+
+      // 2. 若 obsItem 無數值，嘗試從頂層 data.vix / data.ewtChange 讀取
       const topDisplay = data ? (isEwt ? data.ewtChange : data.vix) : null;
       const topDisplayValid = (typeof topDisplay === 'string' || typeof topDisplay === 'number')
         && String(topDisplay).trim() !== ''
         && String(topDisplay).trim() !== 'N/A'
-        && String(topDisplay).trim() !== '#N/A';
+        && String(topDisplay).trim() !== '#N/A'
+        && String(topDisplay).trim() !== '尚無可用資料';
 
-      if (!obsItem) {
-        const legacyDateRaw = data
-          ? (isEwt ? (data.lastEwtDataDate || data.ewtDate) : (data.lastVixDataDate || data.vixDate))
-          : null;
-        const legacyDate = isValidIsoDateStr(legacyDateRaw) ? legacyDateRaw.trim() : null;
-        const statusCode = topDisplayValid ? 'LEGACY_UNVERIFIED' : 'FETCH_FAILED_NO_DATA';
-        return {
-          kind,
-          hasObservationObject: false,
-          statusCode,
-          isUsable: false,
-          isCachedReference: topDisplayValid,
-          hasValue: topDisplayValid,
-          displayValue: topDisplayValid ? String(topDisplay).trim() : 'N/A',
-          tradeDate: legacyDate,
-          tradeTime: null,
-          exchangeTimezone: null,
-          fetchedAt: null,
-          statusMessage: topDisplayValid
-            ? `舊版快取保留資料（非最新有效行情）${legacyDate ? '，原交易日: ' + legacyDate : ''}`
-            : '資料暫不可用（無有效海外觀測）',
-          tagFallback: OVERSEAS_STATUS_META[statusCode][isEwt ? 'ewtTagFallback' : 'vixTagFallback']
-        };
-      }
+      let displayValue = null;
+      let tradeDate = null;
+      let isSuccess = false;
 
-      const rawNum = isEwt ? obsItem.change : obsItem.value;
-      const hasNumericVal = (typeof rawNum === 'number' && isFinite(rawNum) && (isEwt || rawNum > 0));
-      const tradeDate = isValidIsoDateStr(obsItem.tradeDate) ? obsItem.tradeDate.trim() : null;
-      const tradeTime = (typeof obsItem.tradeTime === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(obsItem.tradeTime.trim()))
-        ? obsItem.tradeTime.trim()
-        : null;
-      const exchangeTimezone = (typeof obsItem.exchangeTimezone === 'string' && obsItem.exchangeTimezone.trim() !== '')
-        ? obsItem.exchangeTimezone.trim()
-        : null;
-      const hasTradeTimestamp = Boolean(tradeDate && tradeTime && exchangeTimezone)
-        && (obsItem.hasTradeTimestamp !== false);
-
-      let statusCode = (typeof obsItem.statusCode === 'string' && OVERSEAS_STATUS_META[obsItem.statusCode])
-        ? obsItem.statusCode
-        : null;
-
-      if (!statusCode) {
-        if (obsItem.lastFetchOk !== true && hasNumericVal) statusCode = 'FETCH_FAILED_WITH_CACHED';
-        else if (obsItem.lastFetchOk !== true || !hasNumericVal) statusCode = 'FETCH_FAILED_NO_DATA';
-        else if (!hasTradeTimestamp) statusCode = 'MISSING_TIMESTAMP';
-        else if (obsItem.isStale === true || obsItem.isUsable === false) statusCode = 'STALE_DATA';
-        else statusCode = 'FRESH_VALID';
-      } else if (statusCode === 'FRESH_VALID') {
-        if (obsItem.lastFetchOk === false || !hasNumericVal) {
-          statusCode = hasNumericVal ? 'FETCH_FAILED_WITH_CACHED' : 'FETCH_FAILED_NO_DATA';
-        } else if (!hasTradeTimestamp) {
-          statusCode = 'MISSING_TIMESTAMP';
-        } else if (obsItem.isUsable === false || obsItem.isStale === true) {
-          statusCode = 'STALE_DATA';
-        }
-      }
-
-      const meta = OVERSEAS_STATUS_META[statusCode] || OVERSEAS_STATUS_META.FETCH_FAILED_NO_DATA;
-      let displayValue = 'N/A';
       if (hasNumericVal) {
         displayValue = isEwt
           ? ((rawNum >= 0 ? '+' : '') + (rawNum * 100).toFixed(2) + '%')
           : Number(rawNum).toFixed(2);
-      } else if (statusCode !== 'FETCH_FAILED_NO_DATA' && topDisplayValid) {
+        tradeDate = isValidIsoDateStr(obsItem.tradeDate) ? obsItem.tradeDate.trim() : null;
+        if (obsItem.lastFetchOk === true && obsItem.statusCode === 'FRESH_VALID' && !obsItem.isStale) {
+          isSuccess = true;
+        }
+      } else if (topDisplayValid) {
         displayValue = String(topDisplay).trim();
+        const legacyDateRaw = data
+          ? (isEwt ? (data.lastEwtDataDate || data.ewtDate) : (data.lastVixDataDate || data.vixDate))
+          : null;
+        tradeDate = isValidIsoDateStr(legacyDateRaw) ? legacyDateRaw.trim() : null;
       }
 
-      const safeTradeDate = (statusCode === 'MISSING_TIMESTAMP' || statusCode === 'FETCH_FAILED_NO_DATA')
-        ? null
-        : tradeDate;
+      // 3. 若本次未取得有效數值，自本機持久化快取提取最後一次成功資料 (防止因更新失敗而清空資料或顯示 N/A)
+      const stored = getStoredOverseasItem(kind);
+      if (!displayValue || displayValue === 'N/A' || displayValue === '尚無可用資料') {
+        if (stored && stored.displayValue && stored.displayValue !== 'N/A' && stored.displayValue !== '尚無可用資料') {
+          displayValue = stored.displayValue;
+          tradeDate = stored.tradeDate || tradeDate;
+          isSuccess = false;
+        }
+      }
 
-      const defaultStatusMsg = (() => {
-        if (statusCode === 'FRESH_VALID') return `${displayValue} (美股交易日: ${safeTradeDate})`;
-        if (statusCode === 'FETCH_FAILED_WITH_CACHED') {
-          return `保留最後成功資料 ${displayValue}（非最新行情${safeTradeDate ? '，原美股交易日: ' + safeTradeDate : ''}）`;
+      // 4. 若當前取得有效數值，更新本機持久化記錄
+      if (displayValue && displayValue !== 'N/A' && displayValue !== '尚無可用資料') {
+        if (tradeDate || !stored) {
+          setStoredOverseasItem(kind, { displayValue, tradeDate, hasValue: true });
         }
-        if (statusCode === 'MISSING_TIMESTAMP') {
-          return `${displayValue}（缺少交易時間戳，僅供參考，不作為有效行情）`;
-        }
-        if (statusCode === 'STALE_DATA') {
-          return `保留舊資料 ${displayValue}（已過期，非當日有效${safeTradeDate ? '，原美股交易日: ' + safeTradeDate : ''}）`;
-        }
-        return '資料暫不可用（無有效資料）';
-      })();
+      }
+
+      // 5. 判定是否「系統從未取得過有效資料」
+      const isNeverAvailable = (!displayValue || displayValue === 'N/A' || displayValue === '尚無可用資料');
+      if (isNeverAvailable) {
+        displayValue = '尚無可用資料';
+        tradeDate = null;
+        isSuccess = false;
+      }
 
       return {
         kind,
-        hasObservationObject: true,
-        statusCode,
-        isUsable: meta.isUsable,
-        isCachedReference: meta.isCachedReference,
-        hasValue: (displayValue !== 'N/A'),
+        isSuccess,
+        isNeverAvailable,
+        hasValue: !isNeverAvailable,
         displayValue,
-        tradeDate: safeTradeDate,
-        tradeTime,
-        exchangeTimezone,
-        fetchedAt: (typeof obsItem.fetchedAt === 'string' && obsItem.fetchedAt.trim() !== '') ? obsItem.fetchedAt.trim() : null,
-        antiChasingBlocked: Boolean(isEwt && meta.isUsable && obsItem.antiChasingBlocked === true),
-        statusMessage: (typeof obsItem.statusMessage === 'string' && obsItem.statusMessage.trim() !== '')
-          ? obsItem.statusMessage.trim()
-          : defaultStatusMsg,
-        tagFallback: meta[isEwt ? 'ewtTagFallback' : 'vixTagFallback']
+        tradeDate
       };
     }
 
@@ -1838,42 +1783,32 @@
 
       const vixTitleEl = document.getElementById('vixCardTitle');
       if (vixTitleEl) {
-        if (vixState.statusCode === 'FRESH_VALID' && vixState.tradeDate) {
-          vixTitleEl.textContent = isWeekend
-            ? `VIX 恐慌指數 (沿用 ${vixMmDd} 美股交易日)`
-            : `VIX 恐慌指數 (美股交易日: ${vixState.tradeDate})`;
-        } else if (vixState.statusCode === 'FETCH_FAILED_WITH_CACHED' || vixState.statusCode === 'STALE_DATA' || vixState.statusCode === 'LEGACY_UNVERIFIED') {
-          vixTitleEl.textContent = `VIX 恐慌指數 (非最新｜最後成功交易日: ${vixState.tradeDate || '不明'})`;
-        } else if (vixState.statusCode === 'MISSING_TIMESTAMP') {
-          vixTitleEl.textContent = `VIX 恐慌指數 (缺少交易時間戳｜非最新有效行情)`;
+        if (vixState.isNeverAvailable) {
+          vixTitleEl.textContent = 'VIX 恐慌指數 (尚無可用資料)';
+        } else if (vixState.isSuccess && vixState.tradeDate) {
+          vixTitleEl.textContent = `VIX 恐慌指數 (美股交易日: ${vixState.tradeDate})`;
         } else {
-          vixTitleEl.textContent = `VIX 恐慌指數 (無有效海外觀測)`;
+          vixTitleEl.textContent = `VIX 恐慌指數 (最後有效交易日：${vixState.tradeDate || '不明'})`;
         }
       }
       const vixConceptTitleEl = document.getElementById('vixConceptTitle');
       if (vixConceptTitleEl) {
-        if (vixState.statusCode === 'FRESH_VALID' && vixState.tradeDate) {
-          vixConceptTitleEl.textContent = isWeekend
-            ? `🌡️ VIX 市場體溫計 (沿用 ${vixMmDd} 美股交易日)`
-            : `🌡️ VIX (恐慌指數｜${vixState.tradeDate})`;
-        } else if (vixState.hasValue) {
-          vixConceptTitleEl.textContent = `🌡️ VIX 市場體溫計 (最後成功資料｜非最新)`;
+        if (vixState.isNeverAvailable) {
+          vixConceptTitleEl.textContent = '🌡️ VIX (恐慌指數｜尚無可用資料)';
+        } else if (vixState.isSuccess && vixState.tradeDate) {
+          vixConceptTitleEl.textContent = `🌡️ VIX (恐慌指數｜美股交易日: ${vixState.tradeDate})`;
         } else {
-          vixConceptTitleEl.textContent = `🌡️ VIX (恐慌指數｜資料暫不可用)`;
+          vixConceptTitleEl.textContent = `🌡️ VIX 市場體溫計 (最後有效交易日：${vixState.tradeDate || '不明'})`;
         }
       }
       const ewtTitleEl = document.getElementById('ewtCardTitle');
       if (ewtTitleEl) {
-        if (ewtState.statusCode === 'FRESH_VALID' && ewtState.tradeDate) {
-          ewtTitleEl.textContent = isWeekend
-            ? `🌙 夜盤/EWT動能 (沿用美股交易日: ${ewtState.tradeDate})`
-            : `🌙 ${ewtState.tradeDate} 夜盤動能 (EWT Change)`;
-        } else if (ewtState.statusCode === 'FETCH_FAILED_WITH_CACHED' || ewtState.statusCode === 'STALE_DATA' || ewtState.statusCode === 'LEGACY_UNVERIFIED') {
-          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (非最新｜最後成功交易日: ${ewtState.tradeDate || '不明'})`;
-        } else if (ewtState.statusCode === 'MISSING_TIMESTAMP') {
-          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (缺少交易時間戳｜非最新有效行情)`;
+        if (ewtState.isNeverAvailable) {
+          ewtTitleEl.textContent = '🌙 夜盤/EWT動能 (尚無可用資料)';
+        } else if (ewtState.isSuccess && ewtState.tradeDate) {
+          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (美股交易日: ${ewtState.tradeDate})`;
         } else {
-          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (無有效海外觀測)`;
+          ewtTitleEl.textContent = `🌙 夜盤/EWT動能 (最後有效交易日：${ewtState.tradeDate || '不明'})`;
         }
       }
       
@@ -2048,14 +1983,14 @@
       const valVixEl = document.getElementById('valVix');
       if (valVixEl) {
         valVixEl.textContent = vixState.displayValue;
-        valVixEl.style.color = vixState.isUsable ? '' : (vixState.isCachedReference ? '#fbbf24' : '#9ca3af');
+        valVixEl.style.color = vixState.isNeverAvailable ? '#9ca3af' : (vixState.isSuccess ? '#fffbeb' : '#fbbf24');
       }
       if (data.ma60Slope && data.ma60Slope !== 'N/A') document.getElementById('valMa60Slope').textContent = data.ma60Slope;
       if (data.dist60Delta && data.dist60Delta !== 'N/A') document.getElementById('valDist60Delta').textContent = data.dist60Delta;
       const valEwtEl = document.getElementById('valEwtChange');
       if (valEwtEl) {
         valEwtEl.textContent = ewtState.displayValue;
-        valEwtEl.style.color = ewtState.isUsable ? '' : (ewtState.isCachedReference ? '#fbbf24' : '#9ca3af');
+        valEwtEl.style.color = ewtState.isNeverAvailable ? '#9ca3af' : (ewtState.isSuccess ? '#fffbeb' : '#fbbf24');
       }
 
       // 季線 5日斜率 (大盤底氣) 白話文翻譯與標籤更新
@@ -2134,73 +2069,75 @@
         }
       }
 
+      // 3. VIX Tag 與最後有效交易日標註
       const elVix = document.getElementById('tagVix');
       if (elVix) {
-        let vixStatusText;
-        if (vixState.isUsable) {
-          vixStatusText = (data.metricsStatus && data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A')
+        if (vixState.isNeverAvailable) {
+          elVix.textContent = '尚無可用資料';
+          elVix.style.color = '#9ca3af';
+          elVix.style.background = 'rgba(156, 163, 175, 0.12)';
+          elVix.style.border = '1px solid rgba(156, 163, 175, 0.25)';
+        } else if (vixState.isSuccess) {
+          const freshTag = (data.metricsStatus && data.metricsStatus.vix && data.metricsStatus.vix !== 'N/A' && data.metricsStatus.vix !== '尚無可用資料')
             ? data.metricsStatus.vix
-            : vixState.tagFallback;
-        } else {
-          vixStatusText = vixState.tagFallback;
-        }
-        elVix.textContent = vixStatusText;
-        if (!vixState.isUsable) {
-          elVix.style.color = vixState.isCachedReference ? '#fbbf24' : '#9ca3af';
-          elVix.style.background = vixState.isCachedReference ? 'rgba(251, 191, 36, 0.12)' : 'rgba(156, 163, 175, 0.12)';
-          elVix.style.border = vixState.isCachedReference ? '1px solid rgba(251, 191, 36, 0.25)' : '1px solid rgba(156, 163, 175, 0.25)';
-        } else if (vixStatusText.includes('恐慌') || vixStatusText.includes('🚨')) {
-          elVix.style.color = '#f87171';
-          elVix.style.background = 'rgba(248, 113, 113, 0.12)';
-          elVix.style.border = '1px solid rgba(248, 113, 113, 0.25)';
-        } else if (vixStatusText.includes('警戒') || vixStatusText.includes('⚠️')) {
-          elVix.style.color = '#fbbf24';
-          elVix.style.background = 'rgba(251, 191, 36, 0.12)';
-          elVix.style.border = '1px solid rgba(251, 191, 36, 0.25)';
-        } else {
+            : '✅ 最新有效觀測';
+          elVix.textContent = freshTag;
           elVix.style.color = '#34d399';
           elVix.style.background = 'rgba(52, 211, 153, 0.12)';
           elVix.style.border = '1px solid rgba(52, 211, 153, 0.25)';
+        } else {
+          elVix.textContent = '⚠️ 本次更新失敗，以下為最後有效資料';
+          elVix.style.color = '#fbbf24';
+          elVix.style.background = 'rgba(251, 191, 36, 0.12)';
+          elVix.style.border = '1px solid rgba(251, 191, 36, 0.25)';
+        }
+      }
+      const noteVixEl = document.getElementById('noteVixStatus');
+      if (noteVixEl) {
+        if (!vixState.isNeverAvailable && !vixState.isSuccess) {
+          noteVixEl.style.display = 'block';
+          noteVixEl.textContent = `最後有效交易日：${vixState.tradeDate || '不明'}`;
+        } else {
+          noteVixEl.style.display = 'none';
         }
       }
 
+      // 4. EWT Tag 與最後有效交易日標註
       const elEwt = document.getElementById('tagEwtChange');
       if (elEwt) {
-        let ewtStatusText;
-        if (ewtState.isUsable) {
-          ewtStatusText = (data.metricsStatus && data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A')
+        if (ewtState.isNeverAvailable) {
+          elEwt.textContent = '尚無可用資料';
+          elEwt.style.color = '#9ca3af';
+          elEwt.style.background = 'rgba(156, 163, 175, 0.12)';
+          elEwt.style.border = '1px solid rgba(156, 163, 175, 0.25)';
+        } else if (ewtState.isSuccess) {
+          const freshTag = (data.metricsStatus && data.metricsStatus.ewtChange && data.metricsStatus.ewtChange !== 'N/A' && data.metricsStatus.ewtChange !== '尚無可用資料')
             ? data.metricsStatus.ewtChange
-            : ewtState.tagFallback;
-        } else {
-          ewtStatusText = ewtState.tagFallback;
-        }
-        elEwt.textContent = ewtStatusText;
-        if (!ewtState.isUsable) {
-          elEwt.style.color = ewtState.isCachedReference ? '#fbbf24' : '#9ca3af';
-          elEwt.style.background = ewtState.isCachedReference ? 'rgba(251, 191, 36, 0.12)' : 'rgba(156, 163, 175, 0.12)';
-          elEwt.style.borderColor = ewtState.isCachedReference ? 'rgba(251, 191, 36, 0.25)' : 'rgba(156, 163, 175, 0.25)';
-        } else if (ewtStatusText.includes('急殺') || ewtStatusText.includes('暴跌') || ewtStatusText.includes('回檔') || ewtStatusText.includes('🚨') || ewtStatusText.includes('⚠️')) {
-          elEwt.style.color = '#f87171';
-          elEwt.style.background = 'rgba(248, 113, 113, 0.12)';
-          elEwt.style.borderColor = 'rgba(248, 113, 113, 0.25)';
-        } else if (ewtStatusText.includes('大漲') || ewtStatusText.includes('偏強') || ewtStatusText.includes('強勢') || ewtStatusText.includes('🚀') || ewtStatusText.includes('📈')) {
+            : '➡️ 最新有效觀測';
+          elEwt.textContent = freshTag;
           elEwt.style.color = '#34d399';
           elEwt.style.background = 'rgba(52, 211, 153, 0.12)';
-          elEwt.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+          elEwt.style.border = '1px solid rgba(52, 211, 153, 0.25)';
         } else {
+          elEwt.textContent = '⚠️ 本次更新失敗，以下為最後有效資料';
           elEwt.style.color = '#fbbf24';
-          elEwt.style.background = 'rgba(251, 191, 36, 0.08)';
-          elEwt.style.borderColor = 'rgba(251, 191, 36, 0.2)';
+          elEwt.style.background = 'rgba(251, 191, 36, 0.12)';
+          elEwt.style.border = '1px solid rgba(251, 191, 36, 0.25)';
         }
       }
 
       const elReadiness = document.getElementById('noteEwtReadiness');
       if (elReadiness) {
-        const backendGuide = data.ewtReadinessGuide || (data.metricsStatus && data.metricsStatus.ewtReadinessGuide);
-        if (ewtState.hasObservationObject && ewtState.isUsable && backendGuide) {
-          elReadiness.textContent = backendGuide;
+        if (ewtState.isNeverAvailable) {
+          elReadiness.textContent = '尚無可用資料';
+          elReadiness.style.color = '#9ca3af';
+        } else if (ewtState.isSuccess) {
+          const backendGuide = data.ewtReadinessGuide || (data.metricsStatus && data.metricsStatus.ewtReadinessGuide);
+          elReadiness.textContent = backendGuide || (`☕ 美股交易日: ${ewtState.tradeDate}，夜盤動能正常`);
+          elReadiness.style.color = '#fde047';
         } else {
-          elReadiness.textContent = `${ewtState.isUsable ? 'ℹ️' : '⚠️'} ${ewtState.statusMessage}`;
+          elReadiness.textContent = `最後有效交易日：${ewtState.tradeDate || '不明'} ｜ 本次更新失敗，以下為最後有效資料`;
+          elReadiness.style.color = '#fbbf24';
         }
       }
 
@@ -3403,6 +3340,34 @@
       window.onMarketDataCallback = function(data) {
         try {
           if (data && data.phase && data.twii) {
+            // 合併保護：若本次新資料 VIX/EWT 為空或 N/A，保留前次快取的有效數值，不因更新失敗覆蓋清空
+            const prevRaw = localStorage.getItem('MARKET_ENGINE_LOCAL_CACHE');
+            if (prevRaw) {
+              const prev = JSON.parse(prevRaw);
+              if (prev) {
+                if (!data.vix || data.vix === 'N/A' || data.vix === '尚無可用資料') {
+                  if (prev.vix && prev.vix !== 'N/A' && prev.vix !== '尚無可用資料') {
+                    data.vix = prev.vix;
+                    data.lastVixDataDate = prev.lastVixDataDate || prev.vixDate;
+                  }
+                }
+                if (!data.ewtChange || data.ewtChange === 'N/A' || data.ewtChange === '尚無可用資料') {
+                  if (prev.ewtChange && prev.ewtChange !== 'N/A' && prev.ewtChange !== '尚無可用資料') {
+                    data.ewtChange = prev.ewtChange;
+                    data.lastEwtDataDate = prev.lastEwtDataDate || prev.ewtDate;
+                  }
+                }
+                if (prev.overseasObservation) {
+                  if (!data.overseasObservation) data.overseasObservation = {};
+                  if ((!data.overseasObservation.vix || !data.overseasObservation.vix.hasValue) && prev.overseasObservation.vix && prev.overseasObservation.vix.hasValue) {
+                    data.overseasObservation.vix = Object.assign({}, prev.overseasObservation.vix, { lastFetchOk: false });
+                  }
+                  if ((!data.overseasObservation.ewt || !data.overseasObservation.ewt.hasValue) && prev.overseasObservation.ewt && prev.overseasObservation.ewt.hasValue) {
+                    data.overseasObservation.ewt = Object.assign({}, prev.overseasObservation.ewt, { lastFetchOk: false });
+                  }
+                }
+              }
+            }
             localStorage.setItem('MARKET_ENGINE_LOCAL_CACHE', JSON.stringify(data));
           }
         } catch (e) {}
