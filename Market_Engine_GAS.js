@@ -173,10 +173,8 @@ function testMarketOpenStatus() {
     apiStatus = "❌ 尚未設定 API 金鑰 (MARKET_ENGINE_GEMINI_API_KEY 為空)";
   } else {
     const modelsToTry = [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-1.5-flash",
-      "gemini-flash-latest"
+      "gemini-3.8-flash",
+      "gemini-3.5-flash-lite"
     ];
     let results = [];
     let hasSuccess = false;
@@ -1399,10 +1397,8 @@ function callGeminiAPIUniversal(prompt, systemInstruction) {
   }
 
   const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-flash-latest"
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite"
   ];
 
   for (let i = 0; i < modelsToTry.length; i++) {
@@ -5618,7 +5614,7 @@ function testGeminiAPI() {
     return;
   }
   
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey;
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" + apiKey;
   const payload = {
     contents: [{ parts: [{ text: "Hello, reply with 'Gemini API is connected successfully!'" }] }]
   };
@@ -6068,7 +6064,7 @@ function fetchUpcomingMarketEvents() {
   }
 ]
 `;
-      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" + apiKey;
       const resp = UrlFetchApp.fetch(url, {
         method: "post",
         contentType: "application/json",

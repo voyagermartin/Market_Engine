@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.9.17)
+# HANDBOOK.md (v2.9.18)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -95,10 +95,10 @@
 ---
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.9.17` (`main` 分支，Git Commit `1afaf8b`)
-- **GAS Production Deployment**: **Version 155 (`@155`)**
+- **Current Version**: `v2.9.18` (`main` 分支)
+- **GAS Production Deployment**: **Version 156 (`@156`)**
   - **Deployment ID**: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`
-  - **Rollback Baseline**: **Version 154 (`@154`)**
+  - **Rollback Baseline**: **Version 155 (`@155`)**
 - **Production Spreadsheet**: `Market_Engine_V3` (`1mbOW4hyoiAJFxGxpSfMPqg21M9d0EhcbTihab7J49Rw`)
 - **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
 - **Data Status**: 基準交易日 `2026-11-13`，收盤 `43,675.12`，`Dist60: -5.52%`，`Dist240: +35.74%`，位階 `極度恐慌` (T1)。
@@ -118,7 +118,11 @@
   - (1) **老巴（07:30 早晨分析）**：時段標註、美股指數未收錄宣告、4 大標準區塊、事實先行、寫入 `DASHBOARD!B23` / `HISTORY_LOG!J3` 與元資料快取。
   - (2) **小羅（16:30 收盤分析）**：程式精算漲跌幅、成交量未收錄禁猜測標記、早晨三分類比對、5 大標準區塊、寫入 `DASHBOARD!B24` / `HISTORY_LOG!K3`。
   - (3) **早晚銜接與防呆**：歷史 A:I 量化數據隔離，早晨為備援文字時嚴禁小羅批判解讀，正式環境發布 **Version 155 (`@155`)**。
-- **🚀 目前停止位置與起點記錄**: `main` 分支（Git Commit `1afaf8b`，正式環境 GAS 部署 **Version 155 (`@155`)**）。
+- **Milestone 7.10 (v2.9.18 COMPLETED)**: 🚀 **AI 分析模型架構換代升級 (Switch to gemini-3.8-flash & 3.5-flash-lite)**
+  - (1) 徹底移除所有已退役/關閉模型，主力全站切換為 `gemini-3.8-flash`。
+  - (2) 配置 `gemini-3.5-flash-lite` 極速保底，防禦瞬時限流並消除掉入特調備援之延遲。
+  - (3) 對齊 `callGeminiAPIUniversal`、`testMarketOpenStatus`、`testGeminiAPI` 與 `fetchUpcomingMarketEvents` 四大呼叫端點，正式發布 **Version 156 (`@156`)**。
+- **🚀 目前停止位置與起點記錄**: `main` 分支，正式環境 GAS 部署 **Version 156 (`@156`)**。
 - **🎯 下一步施工目標 (下個開發起點記錄)**:
   - **目標 1 (正式環境平日收盤實測與早晚分析銜接觀察)**：在第一個正常交易日（11/16）觀察 07:30 老巴與 16:30 小羅的實體執行、生成品質與 J3/K3 歷史寫入情況。
   - **目標 2 (正式環境歷史資料修復，待排程)**：排定正式環境 `HISTORY_LOG!A3:I4501` 修復（解決 1,799 列舊有 `#REF!` 錯誤），套用公式防漂移鎖定與 `verifyLabBacktest()` 對帳。
@@ -138,3 +142,4 @@
 | **2026-11-15** | `v2.9.9~v2.9.15` | Milestone 7.8 完工 (ANTI-83411~83419)：盤後更新時序反轉（先取後寫）、VIX 夏冬令動態時間戳與前視偏誤修正、VIX/EWT 歷史依賴徹底解除（RAW C/J 與 HIST E 新列留空，校準實驗室回歸雙核心，DASHBOARD!B12 原樣保留），正式環境合併發布 (GAS @153)。 |
 | **2026-11-15** | `v2.9.16` | ANTI-83420：VIX/EWT 前端顯示與更新快取加固（成功顯示最新、失敗保留最後有效數據並標記警示、獨立判定互不影響、無資料顯示「尚無可用資料」），正式環境發布 (GAS @154)。 |
 | **2026-11-15** | `v2.9.17` | **Milestone 7.9 完工：老巴與小羅 AI 分析品質全面升級**：老巴 4 大區塊與時段標記、小羅 5 大區塊程式精算漲跌與早晨三分類比對、A:I 量化歷史數據隔離、J3/K3 寫入規範確立與備援文字解耦，正式環境發布 (GAS @155，Commit `1afaf8b`)。 |
+| **2026-11-16** | `v2.9.18` | **Milestone 7.10 完工：AI 模型世代升級**：主力全站採用 `gemini-3.8-flash`，配置 `gemini-3.5-flash-lite` 極速保底，正式發布 (GAS @156)。 |
