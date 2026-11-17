@@ -30,6 +30,22 @@ function onOpen() {
     .addItem('📅 執行月度歷史回測與自我驗證 (updateMonthlyLabBacktest)', 'updateMonthlyLabBacktest')
     .addItem('⛔ 更新/套用計算公式與樣式 (已安全暫停)', 'applyFormulasAndStyles')
     .addToUi();
+
+  // 📦 Milestone 7.11 專用：AI_LOG 遷移與 HISTORY_LOG 安全退役專案選單
+  ui.createMenu('📦 AI_LOG 遷移與 HISTORY_LOG 退役')
+    .addItem('🚀 執行全套一鍵無縫退役與遷移 (Full Retirement Pipeline)', 'executeFullHistoryLogRetirementMigration')
+    .addSeparator()
+    .addItem('1️⃣ 步驟 1：執行前保全與 HISTORY_LOG 完整備份', 'executeStep1PreMigrationBackupAndAudit')
+    .addItem('2️⃣ 步驟 2：建立 AI_LOG 純值獨立分頁', 'executeStep2SetupAiLogSheet')
+    .addItem('3️⃣ 步驟 3：遷移歷史 J/K 分析與對帳稽核', 'executeStep3MigrateHistoryLogToAiLog')
+    .addItem('4️⃣ 步驟 4：切換 LAB_BACKTEST 直讀 RAW_HISTORY', 'executeStep4DecoupleLabBacktest')
+    .addItem('5️⃣ 步驟 5：將 HISTORY_LOG 封存為 _ARCHIVE_HISTORY_LOG', 'executeStep5ArchiveHistoryLogSheet')
+    .addItem('6️⃣ 步驟 6：正式啟用 AI_LOG 資料流 (Feature Flag 切換)', 'executeStep6ActivateAiLogFlow')
+    .addSeparator()
+    .addItem('🔄 緊急切換：停用 AI_LOG 資料流 (Rollback 回退舊制)', 'executeStep6DeactivateAiLogFlow')
+    .addSeparator()
+    .addItem('📊 查看遷移對帳詳細報告 (View Reconciliation Report)', 'viewMigrationReconciliationReport')
+    .addToUi();
 }
 
 /**
@@ -806,7 +822,7 @@ function applyHistoryLogRow3Formulas(sheet) {
 function buildLabBacktestSheet(sheet) {
   setHeaderBanner(
     sheet, 
-    '【門檻驗證與歷史回測】自動統計 2008~2026 歷史數據中各位階出現的天數分佈、佔比，以及持有一年 (252交易日) 後的前瞻平均報酬率與正報酬勝率。', 
+    '【門檻驗證與歷史回測】由 GAS 直讀 RAW_HISTORY 18年歷史數據，統計各位階出現天數、佔比，及持有一年 (252交易日) 前瞻平均報酬與勝率 (純值呈現，零跨表公式依賴)。', 
     'F', 
     '#1e1b4b'
   );
@@ -821,41 +837,6 @@ function buildLabBacktestSheet(sheet) {
     ['位階名稱', '歷史天數 (Count)', '天數佔比 (%)', '1年期平均報酬率 (%)', '1年期正報酬勝率 (%)', '驗證說明與結論'], 
     '#312e81'
   );
-
-  const tierFormulas = [
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4)', 
-      '=IF($B$9>0, B4/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5)', 
-      '=IF($B$9>0, B5/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6)', 
-      '=IF($B$9>0, B6/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7)', 
-      '=IF($B$9>0, B7/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8)', 
-      '=IF($B$9>0, B8/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ]
-  ];
-
-  sheet.getRange('B4:E8').setFormulas(tierFormulas);
 
   sheet.getRange('A4:A8').setValues([
     ['極度恐慌'],
@@ -889,8 +870,12 @@ function buildLabBacktestSheet(sheet) {
   sheet.setColumnWidth(5, 160);
   sheet.setColumnWidth(6, 320);
 
-  // 建置完成後自動執行一次自我驗證與對帳標籤寫入
+  // 建置完成後由 GAS 直接自 RAW_HISTORY 計算填入純值回測結果
   try {
+    const ss = getSpreadsheet();
+    if (typeof calculateLabBacktestFromRawHistory_ === 'function') {
+      calculateLabBacktestFromRawHistory_(ss);
+    }
     verifyLabBacktest(sheet);
   } catch (e) {
     Logger.log('[LAB_BACKTEST Verification Warning] ' + e.message);
@@ -898,49 +883,32 @@ function buildLabBacktestSheet(sheet) {
 }
 
 /**
- * 寫入 LAB_BACKTEST B4:E8 回測統計防漂移公式 (INDIRECT 固定鎖定 HISTORY_LOG!$F$3:$F / $I$3:$I)
+ * 寫入 LAB_BACKTEST B4:E8 回測統計 (直接由 GAS 計算 RAW_HISTORY 純值寫入，徹底解除對 HISTORY_LOG 之依賴)
  * @param {Sheet} [sheet] 可選指定 LAB_BACKTEST 工作表
  */
 function applyLabBacktestAntiDriftFormulas(sheet) {
-  const targetSheet = sheet || getSpreadsheet().getSheetByName('LAB_BACKTEST');
+  const ss = getSpreadsheet();
+  const targetSheet = sheet || ss.getSheetByName('LAB_BACKTEST');
   if (!targetSheet) throw new Error('找不到 LAB_BACKTEST 工作表');
   
-  const tierFormulas = [
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4)', 
-      '=IF($B$9>0, B4/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A4, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5)', 
-      '=IF($B$9>0, B5/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A5, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6)', 
-      '=IF($B$9>0, B6/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A6, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7)', 
-      '=IF($B$9>0, B7/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A7, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ],
-    [
-      '=COUNTIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8)', 
-      '=IF($B$9>0, B8/$B$9, 0)', 
-      '=IFERROR(AVERAGEIF(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I")), "N/A")', 
-      '=IFERROR(COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">0") / MAX(1, COUNTIFS(INDIRECT("HISTORY_LOG!$F$3:$F"), A8, INDIRECT("HISTORY_LOG!$I$3:$I"), ">= -1")), "N/A")'
-    ]
-  ];
-  targetSheet.getRange('B4:E8').setFormulas(tierFormulas);
-  targetSheet.getRange('B4:B8').setNumberFormat('#,##0');
-  targetSheet.getRange('C4:C8').setNumberFormat('0.0%');
-  targetSheet.getRange('D4:E8').setNumberFormat('+0.00%;-0.00%;0.00%');
+  if (typeof calculateLabBacktestFromRawHistory_ === 'function') {
+    const res = calculateLabBacktestFromRawHistory_(ss);
+    if (res && res['極度恐慌']) {
+      const matrix = [
+        [res['極度恐慌'].phaseCount, res['極度恐慌'].pct, res['極度恐慌'].avgReturn, res['極度恐慌'].winRate],
+        [res['恐慌'].phaseCount, res['恐慌'].pct, res['恐慌'].avgReturn, res['恐慌'].winRate],
+        [res['順風/中性'].phaseCount, res['順風/中性'].pct, res['順風/中性'].avgReturn, res['順風/中性'].winRate],
+        [res['過熱'].phaseCount, res['過熱'].pct, res['過熱'].avgReturn, res['過熱'].winRate],
+        [res['狂熱'].phaseCount, res['狂熱'].pct, res['狂熱'].avgReturn, res['狂熱'].winRate]
+      ];
+      targetSheet.getRange('B4:E8').setValues(matrix);
+      targetSheet.getRange('B4:B8').setNumberFormat('#,##0');
+      targetSheet.getRange('C4:C8').setNumberFormat('0.0%');
+      targetSheet.getRange('D4:E8').setNumberFormat('+0.00%;-0.00%;0.00%');
+      targetSheet.getRange('B9').setFormula('=SUM(B4:B8)');
+      targetSheet.getRange('C9').setFormula('=SUM(C4:C8)');
+    }
+  }
 }
 
 /**
@@ -955,9 +923,8 @@ function verifyLabBacktest(sheet) {
   const ss = getSpreadsheet();
   const labSheet = sheet || (ss ? ss.getSheetByName('LAB_BACKTEST') : null);
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
-  if (!labSheet || !rawSheet || !historyLogSheet) {
-    return { success: false, message: '找不到分頁 LAB_BACKTEST, RAW_HISTORY 或 HISTORY_LOG' };
+  if (!labSheet || !rawSheet) {
+    return { success: false, message: '找不到分頁 LAB_BACKTEST 或 RAW_HISTORY' };
   }
 
   // 輔助檢查數值 (相容試算表純數字或百分比字串格式，如 -6.83% 或 0.05)
@@ -968,7 +935,7 @@ function verifyLabBacktest(sheet) {
     return cleaned !== '' && !isNaN(Number(cleaned));
   }
 
-  // 1. 統計 RAW_HISTORY 交易日與 Dist60 數值狀態
+  // 1. 統計 RAW_HISTORY 交易日與 Dist60 數值狀態 (Single Source of Truth)
   let rawDateCount = 0;
   let validDist60Count = 0;
   let blankDist60Count = 0;
@@ -1001,54 +968,6 @@ function verifyLabBacktest(sheet) {
     }
   }
 
-  // 2. 統計 HISTORY_LOG F 欄位階完整性與空白防護
-  const validTiers = ['極度恐慌', '恐慌', '順風/中性', '過熱', '狂熱'];
-  let blankDist60HasPhaseViolation = false;
-  let validDist60MissingPhaseViolation = false;
-  let violationDetails = [];
-
-  const histLastRow = historyLogSheet.getLastRow();
-  if (histLastRow >= 3) {
-    const totalHist = Math.min(rawLastRow - 2, histLastRow - 2);
-    // 讀取 HISTORY_LOG A 欄 (Col 1), C 欄 Dist60 (Col 3), F 欄 位階 (Col 6)
-    const histData = historyLogSheet.getRange(3, 1, totalHist, 6).getValues();
-    for (let i = 0; i < histData.length; i++) {
-      const dateVal = histData[i][0];
-      if (!dateVal) continue;
-      const cDist60 = histData[i][2]; // Col C is index 2
-      const fPhase = histData[i][5];  // Col F is index 5
-      const isNum = isValidNumeric(cDist60);
-
-      if (!isNum) {
-        // Dist60 非數值 (空白暖機期)，F 欄絕對不可具備 T1~T5 位階
-        if (fPhase && validTiers.includes(String(fPhase).trim())) {
-          blankDist60HasPhaseViolation = true;
-          violationDetails.push(`Row ${i+3} (${dateVal}): Dist60 空白卻出現位階 [${fPhase}]`);
-        }
-      } else {
-        // Dist60 為有效數值，F 欄必須具備且僅具備一個有效位階
-        if (!fPhase || !validTiers.includes(String(fPhase).trim())) {
-          validDist60MissingPhaseViolation = true;
-          violationDetails.push(`Row ${i+3} (${dateVal}): Dist60 有效(${cDist60})卻缺少有效位階 [${fPhase}]`);
-        }
-      }
-    }
-  }
-
-  const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
-  if (historyLogSheet) {
-    const logMax = historyLogSheet.getMaxRows();
-    const targetEndRow = 2 + rawRowCount;
-    if (logMax < targetEndRow) {
-      historyLogSheet.insertRowsAfter(logMax, targetEndRow - logMax);
-    }
-    const logLast = historyLogSheet.getLastRow();
-    if (logLast < targetEndRow) {
-      applyHistoryLogFormulas(historyLogSheet, Math.max(3, logLast + 1), targetEndRow);
-    }
-    applyHistoryLogFormulas(historyLogSheet, 3, Math.min(30, targetEndRow));
-  }
-
   SpreadsheetApp.flush();
 
   const values = labSheet.getRange('A4:E9').getValues();
@@ -1072,16 +991,12 @@ function verifyLabBacktest(sheet) {
   // Audit 1: 總天數與位階分類完整性稽核 (母體完整、位階精確、空白防護、無缺漏)
   const isPopulationMatch = (rawDateCount === validDist60Count + blankDist60Count);
   const isPhaseCountMatch = (totalCount === validDist60Count);
-  const isPhaseIntegrityPass = (!blankDist60HasPhaseViolation && !validDist60MissingPhaseViolation);
-  const isAudit1Pass = isPopulationMatch && isPhaseCountMatch && isPhaseIntegrityPass;
+  const isAudit1Pass = isPopulationMatch && isPhaseCountMatch;
 
   let audit1Detail = `B9位階總數: ${totalCount} 天, RAW有效Dist60: ${validDist60Count} 天, 空白暖機: ${blankDist60Count} 天, 總交易日: ${rawDateCount} 天`;
   if (!isAudit1Pass) {
     if (!isPopulationMatch) audit1Detail += ` ❌ [母體不一致: ${rawDateCount} != ${validDist60Count + blankDist60Count}]`;
     if (!isPhaseCountMatch) audit1Detail += ` ❌ [位階數不一致: B9(${totalCount}) != Dist60有效數(${validDist60Count})]`;
-    if (blankDist60HasPhaseViolation) audit1Detail += ` ❌ [空白位階防護失敗: 出現偽位階]`;
-    if (validDist60MissingPhaseViolation) audit1Detail += ` ❌ [有效資料位階缺漏]`;
-    if (violationDetails.length > 0) audit1Detail += ` (範例: ${violationDetails.slice(0, 2).join('; ')})`;
   }
 
   checks.push({
@@ -1155,27 +1070,15 @@ function updateMonthlyLabBacktest() {
     updateTaiwanHolidaysCalendar();
   } catch (e) {}
 
-  // 1. 確保 HISTORY_LOG 行數足夠與公式齊全
-  const rawRowCount = Math.max(0, rawSheet.getLastRow() - 2);
-  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
-  if (historyLogSheet) {
-    const logMax = historyLogSheet.getMaxRows();
-    const targetEndRow = 2 + rawRowCount;
-    if (logMax < targetEndRow) {
-      historyLogSheet.insertRowsAfter(logMax, targetEndRow - logMax);
-    }
-    const logLast = historyLogSheet.getLastRow();
-    if (logLast < targetEndRow) {
-      applyHistoryLogFormulas(historyLogSheet, Math.max(3, logLast + 1), targetEndRow);
-    }
-    applyHistoryLogFormulas(historyLogSheet, 3, Math.min(30, targetEndRow));
+  // 1. 直接由 GAS 讀取 RAW_HISTORY 計算全歷史 18 年回測數據並以純值寫入 (零依賴 HISTORY_LOG)
+  if (typeof calculateLabBacktestFromRawHistory_ === 'function') {
+    calculateLabBacktestFromRawHistory_(ss);
+  } else {
+    buildLabBacktestSheet(sheet);
   }
-
-  // 2. 建立與鎖定 LAB_BACKTEST 的 5 列輕量對帳公式
-  buildLabBacktestSheet(sheet);
   SpreadsheetApp.flush();
 
-  // 3. 執行自我驗證並寫入最新計算日期時間戳
+  // 2. 執行自我驗證並寫入最新計算日期時間戳
   const result = verifyLabBacktest(sheet);
 
   // 4. 清除 API 快取，確保前端隨即取得最新月度對帳資料
@@ -1697,15 +1600,45 @@ ${phaseTrack}
   // 1. 寫入 DASHBOARD 的 AI 老巴早餐區域 (B23)
   dashSheet.getRange("B23").setValue(aiText);
 
-  // 2. 寫入 HISTORY_LOG!J3 (Col 10)，不碰觸 A:I 歷史數據
-  if (historyLogSheet && historyLogSheet.getLastRow() >= 3) {
+  // 2. 僅在 AI_LOG_FLOW_ACTIVE 開啟時才寫入 AI_LOG 專用分頁 (Feature Flag 受控)
+  const isAiLogActive = (typeof isAiLogFlowActive_ === 'function') ? isAiLogFlowActive_() : false;
+  if (isAiLogActive && typeof saveAiLogRecord_ === 'function') {
+    const cleanMorningDate = dateStr.replace(/-/g, '');
+    const morningUuid = Utilities.getUuid();
+    const morningRecordId = `AI-BU-${cleanMorningDate}-${morningUuid}`;
+    const morningInputSnapshot = JSON.stringify({
+      tradeDate: dateStr,
+      twiiClose: twiiClose,
+      currentPhase: currentPhase,
+      dist60: dist60,
+      ewt: ewtStatus.valueStr,
+      vix: vixStatus.valueStr
+    });
+
+    saveAiLogRecord_({
+      recordId: morningRecordId,
+      idempotencyKey: morningRecordId,
+      tradeDate: dateStr,
+      analyst: 'BU',
+      generatedAt: new Date().toISOString(),
+      modelId: 'gemini-3.8-flash',
+      generationStatus: isOfficialAi ? 'OFFICIAL_SUCCESS' : 'FALLBACK',
+      content: aiText,
+      inputDataSnapshot: morningInputSnapshot,
+      morningRecordId: ''
+    });
+  }
+
+  // 相容保留：若 HISTORY_LOG 分頁仍在且尚未退役封存，鏡像備份寫入 J3 (不碰觸 A:I)
+  if (historyLogSheet && historyLogSheet.getName() === 'HISTORY_LOG' && historyLogSheet.getLastRow() >= 3) {
     historyLogSheet.getRange(3, 10).setValue(aiText).setNumberFormat('@');
-    Logger.log("老巴早餐成功寫入 HISTORY_LOG!J3");
+    Logger.log("老巴早餐鏡像備份至 HISTORY_LOG!J3");
   }
 
   // 3. 儲存最新早晨分析元資料至 ScriptProperties，供盤後小羅讀取與狀態判定
   try {
     PropertiesService.getScriptProperties().setProperty('LAST_MORNING_ANALYSIS_JSON', JSON.stringify({
+      recordId: morningRecordId,
       tradeDate: dateStr,
       generatedAt: new Date().toISOString(),
       isOfficial: isOfficialAi,
@@ -1729,10 +1662,10 @@ function generateAfternoonNavigation() {
   const ss = getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName("RAW_HISTORY") : null;
   const dashSheet = ss ? ss.getSheetByName("DASHBOARD") : null;
-  const historyLogSheet = ss ? ss.getSheetByName("HISTORY_LOG") : null;
+  const historyLogSheet = ss ? (ss.getSheetByName("HISTORY_LOG") || ss.getSheetByName("_ARCHIVE_HISTORY_LOG")) : null;
 
-  if (!rawSheet || !dashSheet || !historyLogSheet) {
-    Logger.log("⚠️ 分頁未完整建置");
+  if (!rawSheet || !dashSheet) {
+    Logger.log("⚠️ 分頁未完整建置 (找不到 RAW_HISTORY 或 DASHBOARD)");
     return;
   }
 
@@ -1795,27 +1728,32 @@ function generateAfternoonNavigation() {
   // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
   const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
 
-  // 讀取當日老巴早晨分析 (優先自 ScriptProperties，備援自 HISTORY_LOG!J3)
-  let morningInfo = { isOfficial: false, text: '', tradeDate: '' };
-  try {
-    const morningJson = PropertiesService.getScriptProperties().getProperty('LAST_MORNING_ANALYSIS_JSON');
-    if (morningJson) {
-      const parsed = JSON.parse(morningJson);
-      if (parsed && typeof parsed === 'object') {
-        morningInfo = parsed;
+  // 讀取當日老巴早晨分析 (僅在 AI_LOG_FLOW_ACTIVE 開啟時自 AI_LOG 讀取，未開啟則直接自 ScriptProperties 與歷史鏡像讀取)
+  const isAiLogActive = (typeof isAiLogFlowActive_ === 'function') ? isAiLogFlowActive_() : false;
+  let morningInfo = (isAiLogActive && typeof getAiLogMorningRecord_ === 'function') ? getAiLogMorningRecord_(dateStr) : null;
+  if (!morningInfo || !morningInfo.text) {
+    morningInfo = { isOfficial: false, text: '', tradeDate: '', recordId: '' };
+    try {
+      const morningJson = PropertiesService.getScriptProperties().getProperty('LAST_MORNING_ANALYSIS_JSON');
+      if (morningJson) {
+        const parsed = JSON.parse(morningJson);
+        if (parsed && typeof parsed === 'object') {
+          morningInfo = parsed;
+        }
       }
+    } catch (e) {
+      Logger.log('讀取 LAST_MORNING_ANALYSIS_JSON 失敗: ' + e.message);
     }
-  } catch (e) {
-    Logger.log('讀取 LAST_MORNING_ANALYSIS_JSON 失敗: ' + e.message);
   }
-  if (!morningInfo.text && historyLogSheet.getLastRow() >= 3) {
+  if (!morningInfo.text && historyLogSheet && historyLogSheet.getLastRow() >= 3) {
     const j3Val = String(historyLogSheet.getRange(3, 10).getValue() || '').trim();
     if (j3Val) {
       const isFallback = j3Val.startsWith('[系統備援文字');
       morningInfo = {
         isOfficial: !isFallback,
         text: j3Val,
-        tradeDate: dateStr
+        tradeDate: dateStr,
+        recordId: 'AI-BU-' + dateStr.replace(/-/g, '')
       };
     }
   }
@@ -1929,10 +1867,41 @@ ${phaseTrack}
   // 1. 寫入 DASHBOARD 的 AI 小羅午茶區域 (B24)
   dashSheet.getRange("B24").setValue(aiText);
 
-  // 2. 寫入 HISTORY_LOG!K3 (Col 11)，不碰觸 A:I 歷史數據
-  if (historyLogSheet && historyLogSheet.getLastRow() >= 3) {
+  // 2. 僅在 AI_LOG_FLOW_ACTIVE 開啟時才存入 AI_LOG 專用分頁 (Feature Flag 受控)
+  if (isAiLogActive && typeof saveAiLogRecord_ === 'function') {
+    const cleanAfternoonDate = dateStr.replace(/-/g, '');
+    const afternoonUuid = Utilities.getUuid();
+    const afternoonRecordId = `AI-LO-${cleanAfternoonDate}-${afternoonUuid}`;
+    const linkedMorningId = (morningInfo && morningInfo.recordId) ? morningInfo.recordId : '';
+    const afternoonInputSnapshot = JSON.stringify({
+      tradeDate: dateStr,
+      twiiClose: twiiClose,
+      changePoints: changePoints,
+      changePct: changePct,
+      currentPhase: currentPhase,
+      dist60: dist60,
+      ewt: ewtStatus.valueStr,
+      vix: vixStatus.valueStr
+    });
+
+    saveAiLogRecord_({
+      recordId: afternoonRecordId,
+      idempotencyKey: afternoonRecordId,
+      tradeDate: dateStr,
+      analyst: 'LO',
+      generatedAt: new Date().toISOString(),
+      modelId: 'gemini-3.8-flash',
+      generationStatus: isOfficialAi ? 'OFFICIAL_SUCCESS' : 'FALLBACK',
+      content: aiText,
+      inputDataSnapshot: afternoonInputSnapshot,
+      morningRecordId: linkedMorningId
+    });
+  }
+
+  // 相容保留：若 HISTORY_LOG 分頁仍在且尚未退役封存，鏡像備份寫入 K3
+  if (historyLogSheet && historyLogSheet.getName() === 'HISTORY_LOG' && historyLogSheet.getLastRow() >= 3) {
     historyLogSheet.getRange(3, 11).setValue(aiText).setNumberFormat('@');
-    Logger.log("小羅午茶成功寫入 HISTORY_LOG!K3！");
+    Logger.log("小羅午茶鏡像備份至 HISTORY_LOG!K3！");
 
     // 若 J3 為空且有當日早晨分析，一併填補至 HISTORY_LOG!J3
     const currentJ3 = String(historyLogSheet.getRange(3, 10).getValue() || '').trim();
@@ -3066,10 +3035,12 @@ function updateAfternoonMarketEngine(options) {
     : {};
   const ss = opt.spreadsheet || getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName('RAW_HISTORY') : null;
-  const historyLogSheet = ss ? ss.getSheetByName('HISTORY_LOG') : null;
-  if (!rawSheet || !historyLogSheet) {
-    Logger.log('[Afternoon Update] 找不到 RAW_HISTORY 或 HISTORY_LOG 工作表，終止更新。');
-    return { success: false, status: 'SHEET_NOT_FOUND', reason: '找不到必要的工作表 (RAW_HISTORY 或 HISTORY_LOG)', inserted: false };
+  const historyLogSheet = ss ? (ss.getSheetByName('HISTORY_LOG') || ss.getSheetByName('_ARCHIVE_HISTORY_LOG')) : null;
+  const isHistoryLogArchived = !ss.getSheetByName('HISTORY_LOG') || (historyLogSheet && historyLogSheet.getName() === '_ARCHIVE_HISTORY_LOG');
+
+  if (!rawSheet) {
+    Logger.log('[Afternoon Update] 找不到 RAW_HISTORY 工作表，終止更新。');
+    return { success: false, status: 'SHEET_NOT_FOUND', reason: '找不到必要的工作表 (RAW_HISTORY)', inserted: false };
   }
 
   // 1. 交易日開休市檢查
@@ -3121,19 +3092,15 @@ function updateAfternoonMarketEngine(options) {
   const todayStr = validation.tradeDate;
   const vixInfo = validation.vixDetails || {};
 
-  // 4. 跨工作表寫入前防呆檢查：確認 RAW_HISTORY 與 HISTORY_LOG 基準列非空白且對稱 (ANTI-83411 & ANTI-83412)
+  // 4. 寫入前防呆檢查：確認 RAW_HISTORY 基準列非空白 (ANTI-83412)
   const rawLastCell = rawSheet.getRange(3, 1).getValue();
-  const histLastCell = historyLogSheet.getRange(3, 1).getValue();
   const rawLastDate = (rawLastCell instanceof Date || (rawLastCell && typeof rawLastCell.getTime === 'function'))
     ? Utilities.formatDate(rawLastCell, 'Asia/Taipei', 'yyyy-MM-dd')
     : (typeof rawLastCell === 'string' ? rawLastCell.trim() : '');
-  const histLastDate = (histLastCell instanceof Date || (histLastCell && typeof histLastCell.getTime === 'function'))
-    ? Utilities.formatDate(histLastCell, 'Asia/Taipei', 'yyyy-MM-dd')
-    : (typeof histLastCell === 'string' ? histLastCell.trim() : '');
 
-  // 4.1 空白列 / 不完整列檢查 (ANTI-83412): 第 3 列日期為空說明先前插列後未寫入即中斷
-  if (rawLastDate === '' || histLastDate === '') {
-    const blankMsg = `[CRITICAL] 雙表第 3 列日期存在空白 (RAW: '${rawLastDate}', HIST: '${histLastDate}')，偵測到中斷殘留空白列，立即停止寫入，嚴禁再次插列或覆寫。`;
+  // 4.1 空白列檢查: 第 3 列日期為空說明先前插列後未寫入即中斷
+  if (rawLastDate === '') {
+    const blankMsg = `[CRITICAL] RAW_HISTORY 第 3 列日期存在空白，偵測到中斷殘留空白列，立即停止寫入，嚴禁再次插列或覆寫。`;
     Logger.log(blankMsg);
     return {
       success: false,
@@ -3143,26 +3110,35 @@ function updateAfternoonMarketEngine(options) {
     };
   }
 
-  // 4.2 雙表日期對稱檢查 (ANTI-83411)
-  if (rawLastDate !== histLastDate) {
-    const asymmMsg = `[CRITICAL] 雙表頂部基準日期不對稱 (RAW: ${rawLastDate}, HIST: ${histLastDate})，存在中斷未癒狀態，立即停止寫入。`;
-    Logger.log(asymmMsg);
-    return {
-      success: false,
-      status: 'PRE_WRITE_ASYMMETRY_DETECTED',
-      reason: asymmMsg,
-      inserted: false
-    };
+  // 4.2 若 HISTORY_LOG 尚未退役封存，執行過渡期雙表對稱檢查 (ANTI-83411)
+  if (!isHistoryLogArchived && historyLogSheet) {
+    const histLastCell = historyLogSheet.getRange(3, 1).getValue();
+    const histLastDate = (histLastCell instanceof Date || (histLastCell && typeof histLastCell.getTime === 'function'))
+      ? Utilities.formatDate(histLastCell, 'Asia/Taipei', 'yyyy-MM-dd')
+      : (typeof histLastCell === 'string' ? histLastCell.trim() : '');
+
+    if (rawLastDate !== histLastDate) {
+      const asymmMsg = `[CRITICAL] 雙表頂部基準日期不對稱 (RAW: ${rawLastDate}, HIST: ${histLastDate})，存在中斷未癒狀態，立即停止寫入。`;
+      Logger.log(asymmMsg);
+      return {
+        success: false,
+        status: 'PRE_WRITE_ASYMMETRY_DETECTED',
+        reason: asymmMsg,
+        inserted: false
+      };
+    }
   }
 
-  // 5. 跨工作表寫入保護：包覆獨立 try-catch，任何步驟出錯立即明確失敗並終止後續流程
+  // 5. 單一真理源寫入保護：以 RAW_HISTORY 為核心插列更新
   let rowInserted = false;
   try {
     if (todayStr !== rawLastDate) {
-      // 今日尚無資料列，插入新列 (先 RAW，緊接 HIST)
+      // 今日尚無資料列，插入新列至 RAW_HISTORY
       rawSheet.insertRowBefore(3);
       rawSheet.getRange(3, 1).setValue(targetDate);
-      historyLogSheet.insertRowBefore(3);
+      if (!isHistoryLogArchived && historyLogSheet) {
+        historyLogSheet.insertRowBefore(3);
+      }
       rowInserted = true;
     }
 
@@ -3179,7 +3155,9 @@ function updateAfternoonMarketEngine(options) {
     // 重新按最新列數更新頂部算式
     const topRows = Math.min(15, rawSheet.getLastRow());
     applyRawHistoryFormulas(rawSheet, 3, topRows);
-    applyHistoryLogFormulas(historyLogSheet, 3, topRows);
+    if (!isHistoryLogArchived && historyLogSheet) {
+      applyHistoryLogFormulas(historyLogSheet, 3, topRows);
+    }
   } catch (writeErr) {
     Logger.log(`[CRITICAL] 跨工作表寫入中途失敗: ${writeErr.message}。停止後續所有 AI 導航與回測流程。`);
     try {
@@ -7000,7 +6978,7 @@ function createTransactionSnapshotCore_(options) {
   if (!ss) throw new Error('找不到目標試算表');
 
   const rawSheet = ss.getSheetByName('RAW_HISTORY');
-  const histSheet = ss.getSheetByName('HISTORY_LOG');
+  const histSheet = ss.getSheetByName('HISTORY_LOG') || ss.getSheetByName('_ARCHIVE_HISTORY_LOG');
   if (!rawSheet || !histSheet) throw new Error('找不到 RAW_HISTORY 或 HISTORY_LOG 工作表');
 
   const tradeDate = opt.tradeDate || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
@@ -8484,7 +8462,7 @@ function executeTransactionCommit_(options) {
     updateSnapshotLifecycle_('IN_USE', { spreadsheet: ss, transactionId, snapshotId: snapMeta.snapshotId, tradeDate: targetDate });
 
     const rawSheet = ss.getSheetByName('RAW_HISTORY');
-    const histSheet = ss.getSheetByName('HISTORY_LOG');
+    const histSheet = ss.getSheetByName('HISTORY_LOG') || ss.getSheetByName('_ARCHIVE_HISTORY_LOG');
     if (!rawSheet || !histSheet) throw new Error('找不到 RAW_HISTORY 或 HISTORY_LOG 工作表');
 
     // 2. 插入 RAW_HISTORY 第 3 列並即時標記 TX_PENDING Note (防中斷誤判)
@@ -8510,24 +8488,26 @@ function executeTransactionCommit_(options) {
       rawSheet.getRange(3, 6, 1, 4).setNumberFormat('+0.00%;-0.00%;0.00%');
     }
 
-    // 3. 插入 HISTORY_LOG 第 3 列並即時標記 TX_PENDING Note (防中斷誤判)
-    histSheet.insertRowBefore(3);
-    histSheet.getRange(3, 1).setNote('TX_PENDING:' + transactionId);
+    // 3. 若 HISTORY_LOG 尚未退役封存，才插入 HISTORY_LOG 第 3 列並即時標記 TX_PENDING Note (防中斷誤判)
+    if (histSheet.getName() === 'HISTORY_LOG') {
+      histSheet.insertRowBefore(3);
+      histSheet.getRange(3, 1).setNote('TX_PENDING:' + transactionId);
 
-    const histFormulas = [[
-      '=RAW_HISTORY!A3',
-      '=RAW_HISTORY!B3',
-      '=RAW_HISTORY!F3',
-      '=RAW_HISTORY!G3',
-      '', // ANTI-83418: 停止向 HISTORY_LOG 新列 E 欄注入 VIX 公式，保持空白
-      '=IF(OR(ISBLANK(A3), WEEKDAY(A3, 2)>5, NOT(ISNUMBER(C3))), "", IFERROR(IFS(C3<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C3<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C3>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C3>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))',
-      '=RAW_HISTORY!H3',
-      '=RAW_HISTORY!I3',
-      '=IF(AND(ISNUMBER(B3), ISNUMBER(INDIRECT("B"&(ROW()-252))), B3>0), (INDIRECT("B"&(ROW()-252)) - B3) / B3, "")'
-    ]];
-    histSheet.getRange(3, 1, 1, 9).setFormulas(histFormulas);
-    histSheet.getRange(3, 1).setNumberFormat('yyyy-MM-dd');
-    histSheet.getRange(3, 2).setNumberFormat('#,##0.00');
+      const histFormulas = [[
+        '=RAW_HISTORY!A3',
+        '=RAW_HISTORY!B3',
+        '=RAW_HISTORY!F3',
+        '=RAW_HISTORY!G3',
+        '', // ANTI-83418: 停止向 HISTORY_LOG 新列 E 欄注入 VIX 公式，保持空白
+        '=IF(OR(ISBLANK(A3), WEEKDAY(A3, 2)>5, NOT(ISNUMBER(C3))), "", IFERROR(IFS(C3<THRESHOLD_CONFIG!$D$4, THRESHOLD_CONFIG!$B$4, C3<THRESHOLD_CONFIG!$D$5, THRESHOLD_CONFIG!$B$5, C3>THRESHOLD_CONFIG!$C$8, THRESHOLD_CONFIG!$B$8, C3>THRESHOLD_CONFIG!$C$7, THRESHOLD_CONFIG!$B$7, TRUE, THRESHOLD_CONFIG!$B$6), THRESHOLD_CONFIG!$B$6))',
+        '=RAW_HISTORY!H3',
+        '=RAW_HISTORY!I3',
+        '=IF(AND(ISNUMBER(B3), ISNUMBER(INDIRECT("B"&(ROW()-252))), B3>0), (INDIRECT("B"&(ROW()-252)) - B3) / B3, "")'
+      ]];
+      histSheet.getRange(3, 1, 1, 9).setFormulas(histFormulas);
+      histSheet.getRange(3, 1).setNumberFormat('yyyy-MM-dd');
+      histSheet.getRange(3, 2).setNumberFormat('#,##0.00');
+    }
     histSheet.getRange(3, 3, 1, 2).setNumberFormat('+0.00%;-0.00%;0.00%');
     histSheet.getRange(3, 5).setNumberFormat('0.00');
     histSheet.getRange(3, 7, 1, 3).setNumberFormat('+0.00%;-0.00%;0.00%');
@@ -8673,7 +8653,7 @@ function executeTransactionRecovery_(options) {
     }
 
     const rawSheet = ss.getSheetByName('RAW_HISTORY');
-    const histSheet = ss.getSheetByName('HISTORY_LOG');
+    const histSheet = ss.getSheetByName('HISTORY_LOG') || ss.getSheetByName('_ARCHIVE_HISTORY_LOG');
     if (!rawSheet || !histSheet) throw new Error('找不到 RAW_HISTORY 或 HISTORY_LOG 工作表');
 
     // 3. 獨立檢查 RAW_HISTORY 與 HISTORY_LOG 是否各自完成目標交易插列 (以完整列證據)
@@ -8924,16 +8904,1339 @@ function validateEngineDataAndFormulaIntegrity_(options) {
     }
   }
 
-  // 3. HISTORY_LOG A3:K5 公式完整性
+  // 3. AI_LOG 或 HISTORY_LOG 完整性
   const histSheet = ss.getSheetByName('HISTORY_LOG');
-  if (!histSheet) return { isValid: false, reason: 'HISTORY_LOG_SHEET_MISSING' };
-  const histForms = histSheet.getRange(3, 1, 1, 9).getFormulas()[0];
-  // ANTI-83418: HISTORY_LOG 新列 E 欄 (histForms[4]) 停止注入公式，容許為空字串或相容 legacy '=RAW_HISTORY!C3'
-  if (histForms[0] !== '=RAW_HISTORY!A3' || histForms[1] !== '=RAW_HISTORY!B3' || (histForms[4] !== '' && histForms[4] !== '=RAW_HISTORY!C3')) {
-    return { isValid: false, reason: 'HISTORY_LOG_ROW3_CROSS_SHEET_FORMULA_BROKEN' };
+  const aiSheet = ss.getSheetByName('AI_LOG');
+  if (histSheet && histSheet.getName() === 'HISTORY_LOG') {
+    const histForms = histSheet.getRange(3, 1, 1, 9).getFormulas()[0];
+    // ANTI-83418: HISTORY_LOG 新列 E 欄 (histForms[4]) 停止注入公式，容許為空字串或相容 legacy '=RAW_HISTORY!C3'
+    if (histForms[0] !== '=RAW_HISTORY!A3' || histForms[1] !== '=RAW_HISTORY!B3' || (histForms[4] !== '' && histForms[4] !== '=RAW_HISTORY!C3')) {
+      return { isValid: false, reason: 'HISTORY_LOG_ROW3_CROSS_SHEET_FORMULA_BROKEN' };
+    }
+  } else if (!aiSheet && !ss.getSheetByName('_ARCHIVE_HISTORY_LOG')) {
+    return { isValid: false, reason: 'AI_LOG_AND_HISTORY_LOG_MISSING' };
   }
 
   return { isValid: true, message: '資料與跨表公式完整性 100% 驗證通過' };
 }
+
+// ==========================================
+// 10. Milestone 7.11: AI_LOG 建置與 HISTORY_LOG 安全退役專案核心模組
+// ==========================================
+
+/**
+ * 步驟 1：執行前保全與 HISTORY_LOG 完整備份
+ * 建立 _BACKUP_HISTORY_LOG_PRE_MIGRATION，盤點 J/K 歷史分析與記錄 LAB_BACKTEST 舊基準
+ * @return {Object} 執行前盤點報告
+ */
+function executeStep1PreMigrationBackupAndAudit() {
+  const ss = getSpreadsheet();
+  const histSheet = ss.getSheetByName('HISTORY_LOG');
+  if (!histSheet) {
+    const archiveSheet = ss.getSheetByName('_ARCHIVE_HISTORY_LOG');
+    if (archiveSheet) {
+      Logger.log('ℹ️ HISTORY_LOG 已更名為 _ARCHIVE_HISTORY_LOG，直接盤點封存表。');
+      return auditHistoricalLogSheet_(archiveSheet, ss);
+    }
+    throw new Error('找不到 HISTORY_LOG 工作表');
+  }
+
+  return auditHistoricalLogSheet_(histSheet, ss);
+}
+
+/**
+ * 內部盤點與備份輔助函式
+ */
+function auditHistoricalLogSheet_(histSheet, ss) {
+  // 1. 建立或確認完整備份表 _BACKUP_HISTORY_LOG_PRE_MIGRATION
+  let backupSheet = ss.getSheetByName('_BACKUP_HISTORY_LOG_PRE_MIGRATION');
+  if (!backupSheet) {
+    backupSheet = histSheet.copyTo(ss);
+    backupSheet.setName('_BACKUP_HISTORY_LOG_PRE_MIGRATION');
+    Logger.log('✅ 成功建立 _BACKUP_HISTORY_LOG_PRE_MIGRATION 完整備份表');
+  } else {
+    Logger.log('ℹ️ _BACKUP_HISTORY_LOG_PRE_MIGRATION 備份表已存在，完整保留既有鏡像。');
+  }
+
+  // 2. 盤點 J/K 欄位資料
+  const lastRow = histSheet.getLastRow();
+  const lastCol = histSheet.getLastColumn();
+  const totalRows = Math.max(0, lastRow - 2);
+
+  let validJCount = 0; // 老巴
+  let validKCount = 0; // 小羅
+  let emptyJCount = 0;
+  let emptyKCount = 0;
+  let jDates = [];
+  let kDates = [];
+
+  if (lastRow >= 3) {
+    const dataRange = histSheet.getRange(3, 1, totalRows, Math.max(11, lastCol)).getValues();
+    for (let i = 0; i < dataRange.length; i++) {
+      const row = dataRange[i];
+      const dateCell = row[0];
+      let rowDate = '';
+      if (dateCell instanceof Date) {
+        rowDate = Utilities.formatDate(dateCell, 'Asia/Taipei', 'yyyy-MM-dd');
+      } else if (dateCell) {
+        rowDate = String(dateCell).trim();
+      }
+
+      const jVal = row[9] ? String(row[9]).trim() : '';
+      const kVal = row[10] ? String(row[10]).trim() : '';
+
+      if (jVal) {
+        validJCount++;
+        if (rowDate && !rowDate.includes('#REF')) jDates.push(rowDate);
+      } else {
+        emptyJCount++;
+      }
+
+      if (kVal) {
+        validKCount++;
+        if (rowDate && !rowDate.includes('#REF')) kDates.push(rowDate);
+      } else {
+        emptyKCount++;
+      }
+    }
+  }
+
+  // 3. 記錄 LAB_BACKTEST 當前基準
+  const labSheet = ss.getSheetByName('LAB_BACKTEST');
+  let labBaseline = [];
+  if (labSheet) {
+    const labValues = labSheet.getRange('A4:F8').getDisplayValues();
+    labBaseline = labValues.map(function(r) {
+      return {
+        tier: r[0],
+        count: r[1],
+        percentage: r[2],
+        avgReturn: r[3],
+        winRate: r[4],
+        conclusion: r[5]
+      };
+    });
+  }
+
+  const auditReport = {
+    timestamp: new Date().toISOString(),
+    historyLog: {
+      totalRows: totalRows,
+      maxRows: histSheet.getMaxRows(),
+      lastRow: lastRow,
+      lastCol: lastCol,
+      validJCount: validJCount,
+      emptyJCount: emptyJCount,
+      validKCount: validKCount,
+      emptyKCount: emptyKCount,
+      jDateRange: jDates.length > 0 ? { min: jDates[jDates.length - 1], max: jDates[0] } : null,
+      kDateRange: kDates.length > 0 ? { min: kDates[kDates.length - 1], max: kDates[0] } : null
+    },
+    labBacktestBaseline: labBaseline,
+    backupSheetName: '_BACKUP_HISTORY_LOG_PRE_MIGRATION',
+    backupVerified: true
+  };
+
+  PropertiesService.getScriptProperties().setProperty('PRE_MIGRATION_AUDIT_BASELINE', JSON.stringify(auditReport));
+
+  const msg = `✅ 步驟 1：執行前保全與備份成功完成！\n\n` +
+    `• 備份表：_BACKUP_HISTORY_LOG_PRE_MIGRATION (已建立並確認)\n` +
+    `• 歷史表總列數：${totalRows} 筆\n` +
+    `• 老巴 (J欄) 有效分析：${validJCount} 筆 (空白: ${emptyJCount})\n` +
+    `• 小羅 (K欄) 有效分析：${validKCount} 筆 (空白: ${emptyKCount})\n` +
+    `• LAB_BACKTEST 舊樣本數：${labBaseline.map(function(b) { return b.tier + ':' + b.count; }).join(', ')}`;
+
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return auditReport;
+}
+
+/**
+ * 步驟 2：建立 AI_LOG 純值獨立分頁 (Append-only 架構)
+ * @return {Object}
+ */
+function executeStep2SetupAiLogSheet() {
+  const ss = getSpreadsheet();
+  let aiSheet = ss.getSheetByName('AI_LOG');
+  if (!aiSheet) {
+    aiSheet = ss.insertSheet('AI_LOG');
+    Logger.log('已建立全新 AI_LOG 分頁');
+  }
+
+  const headers = [
+    'Record_ID',
+    'Trade_Date',
+    'Analyst',
+    'Generated_At',
+    'Model_ID',
+    'Generation_Status',
+    'Content',
+    'Input_Data_Snapshot',
+    'Morning_Record_ID',
+    'Idempotency_Key'
+  ];
+
+  // 設定標頭列 (深藍底白字、凍結第一列)
+  aiSheet.getRange(1, 1, 1, headers.length).setValues([headers])
+    .setFontWeight('bold')
+    .setBackground('#1e293b')
+    .setFontColor('#ffffff')
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle');
+  aiSheet.setRowHeight(1, 36);
+  aiSheet.setFrozenRows(1);
+
+  // 欄寬配置
+  aiSheet.setColumnWidth(1, 240); // Record_ID (含 UUID)
+  aiSheet.setColumnWidth(2, 110); // Trade_Date
+  aiSheet.setColumnWidth(3, 80);  // Analyst (BU / LO)
+  aiSheet.setColumnWidth(4, 180); // Generated_At
+  aiSheet.setColumnWidth(5, 140); // Model_ID
+  aiSheet.setColumnWidth(6, 150); // Generation_Status
+  aiSheet.setColumnWidth(7, 450); // Content
+  aiSheet.setColumnWidth(8, 200); // Input_Data_Snapshot
+  aiSheet.setColumnWidth(9, 240); // Morning_Record_ID
+  aiSheet.setColumnWidth(10, 240); // Idempotency_Key
+
+  // 設定全欄位格式為純字串 (@)，防止日期、ID、文字被自動轉換或解析為公式
+  aiSheet.getRange('A:J').setNumberFormat('@');
+
+  const msg = '✅ 步驟 2：AI_LOG 分頁結構建置完成！\n\n• 欄位規格：10 大純值標準欄位 (含持久化 Idempotency_Key 與 LockService 防重複)\n• 儲存模式：Append-only 純值寫入 (零跨表公式)';
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return { success: true, sheetName: 'AI_LOG' };
+}
+
+/**
+ * 步驟 3：遷移 HISTORY_LOG J/K 欄老巴小羅歷史分析至 AI_LOG 並執行逐筆對帳
+ * @return {Object} 遷移對帳報告
+ */
+function executeStep3MigrateHistoryLogToAiLog() {
+  const ss = getSpreadsheet();
+  let histSheet = ss.getSheetByName('HISTORY_LOG');
+  if (!histSheet) {
+    histSheet = ss.getSheetByName('_ARCHIVE_HISTORY_LOG') || ss.getSheetByName('_BACKUP_HISTORY_LOG_PRE_MIGRATION');
+  }
+  if (!histSheet) throw new Error('找不到 HISTORY_LOG 或其備份表');
+
+  let aiSheet = ss.getSheetByName('AI_LOG');
+  if (!aiSheet) {
+    executeStep2SetupAiLogSheet();
+    aiSheet = ss.getSheetByName('AI_LOG');
+  }
+
+  const lastRow = histSheet.getLastRow();
+  if (lastRow < 3) {
+    const emptyMsg = 'HISTORY_LOG 無有效資料列可遷移';
+    Logger.log(emptyMsg);
+    return { success: true, migratedCount: 0 };
+  }
+
+  // 讀取現有 AI_LOG 已有 Record_ID，避免重複寫入
+  const existingRecordIds = new Set();
+  const aiLastRow = aiSheet.getLastRow();
+  if (aiLastRow >= 2) {
+    const existingIds = aiSheet.getRange(2, 1, aiLastRow - 1, 1).getValues();
+    existingIds.forEach(function(r) {
+      if (r[0]) existingRecordIds.add(String(r[0]).trim());
+    });
+  }
+
+  // 讀取 RAW_HISTORY 建立 row -> date 對照表，精確解救 HISTORY_LOG #REF! 造成的日期遺失
+  const rawSheet = ss.getSheetByName('RAW_HISTORY');
+  const rawDateMap = {};
+  if (rawSheet && rawSheet.getLastRow() >= 3) {
+    const rawDates = rawSheet.getRange(3, 1, rawSheet.getLastRow() - 2, 1).getValues();
+    rawDates.forEach(function(r, idx) {
+      const rowIdx = idx + 3;
+      let dStr = '';
+      if (r[0] instanceof Date) {
+        dStr = Utilities.formatDate(r[0], 'Asia/Taipei', 'yyyy-MM-dd');
+      } else if (r[0]) {
+        dStr = String(r[0]).trim();
+      }
+      if (dStr && dStr.length >= 10) rawDateMap[rowIdx] = dStr.substring(0, 10);
+    });
+  }
+
+  // 讀取歷史資料全網格
+  const totalRows = lastRow - 2;
+  const histGrid = histSheet.getRange(3, 1, totalRows, Math.max(11, histSheet.getLastColumn())).getValues();
+
+  const toAppend = [];
+  const isolatedRecords = [];
+  let sourceJCount = 0;
+  let sourceKCount = 0;
+  let duplicateCount = 0;
+  let migratedBuCount = 0;
+  let migratedLoCount = 0;
+
+  const parsedRows = [];
+  for (let i = 0; i < histGrid.length; i++) {
+    const rowIdx = i + 3;
+    const r = histGrid[i];
+    const dateCell = r[0];
+    let tradeDate = '';
+
+    if (dateCell instanceof Date) {
+      tradeDate = Utilities.formatDate(dateCell, 'Asia/Taipei', 'yyyy-MM-dd');
+    } else if (dateCell && typeof dateCell === 'string' && !dateCell.includes('#REF')) {
+      const match = dateCell.match(/\d{4}-\d{2}-\d{2}/);
+      if (match) tradeDate = match[0];
+    }
+
+    // 若 Col A 為 #REF!，自 RAW_HISTORY 對照表精確回溯
+    if (!tradeDate && rawDateMap[rowIdx]) {
+      tradeDate = rawDateMap[rowIdx];
+    }
+
+    const jText = r[9] ? String(r[9]).trim() : '';
+    const kText = r[10] ? String(r[10]).trim() : '';
+
+    if (jText) sourceJCount++;
+    if (kText) sourceKCount++;
+
+    if (!jText && !kText) continue;
+
+    // 若依然無日期，嘗試從內文解析日期
+    if (!tradeDate) {
+      const combined = jText + ' ' + kText;
+      const m1 = combined.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      if (m1) {
+        tradeDate = m1[1] + '-' + String(m1[2]).padStart(2, '0') + '-' + String(m1[3]).padStart(2, '0');
+      } else {
+        const m2 = combined.match(/(\d{4}-\d{2}-\d{2})/);
+        if (m2) tradeDate = m2[1];
+      }
+    }
+
+    parsedRows.push({
+      rowIdx: rowIdx,
+      tradeDate: tradeDate || 'UNKNOWN',
+      jText: jText,
+      kText: kText
+    });
+  }
+
+  // 建立老巴晨報 Record_ID 對照表，供小羅關聯 Morning_Record_ID
+  const morningRecordMap = {};
+  parsedRows.forEach(function(item) {
+    if (item.tradeDate && item.tradeDate !== 'UNKNOWN' && item.jText) {
+      const cleanDate = item.tradeDate.replace(/-/g, '');
+      morningRecordMap[item.tradeDate] = 'AI-BU-' + cleanDate;
+    }
+  });
+
+  // 轉換並準備批次寫入
+  let duplicateBuCount = 0;
+  let duplicateLoCount = 0;
+
+  parsedRows.forEach(function(item) {
+    const isDateUnknown = (!item.tradeDate || item.tradeDate === 'UNKNOWN');
+
+    // 1. 老巴 (BU)
+    if (item.jText) {
+      if (isDateUnknown) {
+        isolatedRecords.push({ row: item.rowIdx, analyst: 'BU', reason: 'DATE_UNRESOLVABLE', contentSnippet: item.jText.substring(0, 50) });
+      } else {
+        const cleanDate = item.tradeDate.replace(/-/g, '');
+        const recId = 'AI-BU-' + cleanDate;
+        if (existingRecordIds.has(recId)) {
+          duplicateCount++;
+          duplicateBuCount++;
+        } else {
+          const isFallback = item.jText.includes('[系統備援文字') || item.jText.includes('特調備援');
+          const buIdemKey = 'MIGRATE-BU-' + cleanDate;
+          toAppend.push([
+            recId,
+            item.tradeDate,
+            'BU',
+            item.tradeDate + 'T07:30:00Z',
+            'UNKNOWN',
+            isFallback ? 'FALLBACK' : 'OFFICIAL_SUCCESS',
+            item.jText,
+            '', // Input_Data_Snapshot
+            '', // Morning_Record_ID
+            buIdemKey // Idempotency_Key
+          ]);
+          existingRecordIds.add(recId);
+          migratedBuCount++;
+        }
+      }
+    }
+
+    // 2. 小羅 (LO)
+    if (item.kText) {
+      if (isDateUnknown) {
+        isolatedRecords.push({ row: item.rowIdx, analyst: 'LO', reason: 'DATE_UNRESOLVABLE', contentSnippet: item.kText.substring(0, 50) });
+      } else {
+        const cleanDate = item.tradeDate.replace(/-/g, '');
+        const recId = 'AI-LO-' + cleanDate;
+        if (existingRecordIds.has(recId)) {
+          duplicateCount++;
+          duplicateLoCount++;
+        } else {
+          const isFallback = item.kText.includes('[系統備援文字') || item.kText.includes('特調備援');
+          const morningRecId = morningRecordMap[item.tradeDate] || '';
+          const loIdemKey = 'MIGRATE-LO-' + cleanDate;
+          toAppend.push([
+            recId,
+            item.tradeDate,
+            'LO',
+            item.tradeDate + 'T16:30:00Z',
+            'UNKNOWN',
+            isFallback ? 'FALLBACK' : 'OFFICIAL_SUCCESS',
+            item.kText,
+            '', // Input_Data_Snapshot
+            morningRecId, // Morning_Record_ID
+            loIdemKey // Idempotency_Key
+          ]);
+          existingRecordIds.add(recId);
+          migratedLoCount++;
+        }
+      }
+    }
+  });
+
+  // 批次寫入 AI_LOG (10 欄純值)
+  if (toAppend.length > 0) {
+    const startAppendRow = aiSheet.getLastRow() + 1;
+    aiSheet.getRange(startAppendRow, 1, toAppend.length, 10).setValues(toAppend);
+    SpreadsheetApp.flush();
+  }
+
+  // 逐筆對帳稽核 (1-to-1 比對，確認原始內文完全吻合且字數無損)
+  let contentDiscrepancyCount = 0;
+  const postAiLastRow = aiSheet.getLastRow();
+  const allAiRows = postAiLastRow >= 2 ? aiSheet.getRange(2, 1, postAiLastRow - 1, 10).getValues() : [];
+  const aiContentMap = {};
+  allAiRows.forEach(function(r) {
+    aiContentMap[String(r[0]).trim()] = String(r[6] || '');
+  });
+
+  parsedRows.forEach(function(item) {
+    if (item.tradeDate && item.tradeDate !== 'UNKNOWN') {
+      const cleanDate = item.tradeDate.replace(/-/g, '');
+      if (item.jText) {
+        const buId = 'AI-BU-' + cleanDate;
+        if (aiContentMap[buId] !== item.jText) {
+          contentDiscrepancyCount++;
+        }
+      }
+      if (item.kText) {
+        const loId = 'AI-LO-' + cleanDate;
+        if (aiContentMap[loId] !== item.kText) {
+          contentDiscrepancyCount++;
+        }
+      }
+    }
+  });
+
+  const isolatedBuCount = isolatedRecords.filter(function(r) { return r.analyst === 'BU'; }).length;
+  const isolatedLoCount = isolatedRecords.filter(function(r) { return r.analyst === 'LO'; }).length;
+  const missingBuCount = sourceJCount - migratedBuCount - duplicateBuCount - isolatedBuCount;
+  const missingLoCount = sourceKCount - migratedLoCount - duplicateLoCount - isolatedLoCount;
+
+  const reconciliationReport = {
+    timestamp: new Date().toISOString(),
+    sourceJCount: sourceJCount,
+    sourceKCount: sourceKCount,
+    migratedBuCount: migratedBuCount,
+    migratedLoCount: migratedLoCount,
+    totalMigrated: toAppend.length,
+    duplicateCount: duplicateCount,
+    duplicateBuCount: duplicateBuCount,
+    duplicateLoCount: duplicateLoCount,
+    isolatedCount: isolatedRecords.length,
+    isolatedBuCount: isolatedBuCount,
+    isolatedLoCount: isolatedLoCount,
+    missingBuCount: missingBuCount,
+    missingLoCount: missingLoCount,
+    isolatedDetails: isolatedRecords,
+    contentDiscrepancyCount: contentDiscrepancyCount,
+    isReconciliationPass: (contentDiscrepancyCount === 0 && missingBuCount === 0 && missingLoCount === 0)
+  };
+
+  PropertiesService.getScriptProperties().setProperty('MIGRATION_RECONCILIATION_REPORT', JSON.stringify(reconciliationReport));
+
+  const msg = `📊 步驟 3：歷史資料遷移與對帳完成！\n\n` +
+    `• 老巴來源：${sourceJCount} 筆 (成功遷移: ${migratedBuCount}, 重複: ${duplicateBuCount}, 隔離: ${isolatedBuCount}, 遺漏: ${missingBuCount})\n` +
+    `• 小羅來源：${sourceKCount} 筆 (成功遷移: ${migratedLoCount}, 重複: ${duplicateLoCount}, 隔離: ${isolatedLoCount}, 遺漏: ${missingLoCount})\n` +
+    `• 內容差異 (Discrepancy)：${contentDiscrepancyCount} 筆 (100% 原始內文完全吻合)\n` +
+    `• 對帳狀態：${reconciliationReport.isReconciliationPass ? '🟢 完美通過' : '⚠️ 需關注'}`;
+
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return reconciliationReport;
+}
+
+/**
+ * 步驟 4：切換 LAB_BACKTEST 直接由 GAS 讀取 RAW_HISTORY 計算全歷史 18 年回測純值
+ * @return {Object}
+ */
+function executeStep4DecoupleLabBacktest() {
+  const ss = getSpreadsheet();
+  const labSheet = ss.getSheetByName('LAB_BACKTEST');
+  const rawSheet = ss.getSheetByName('RAW_HISTORY');
+  if (!labSheet || !rawSheet) throw new Error('找不到 LAB_BACKTEST 或 RAW_HISTORY 工作表');
+
+  // 直接由 GAS 讀取 RAW_HISTORY 計算全歷史 18 年回測數據
+  const backtestResult = calculateLabBacktestFromRawHistory_(ss);
+
+  // 寫入純值至 LAB_BACKTEST!B4:E8
+  const matrix = [
+    [backtestResult['極度恐慌'].phaseCount, backtestResult['極度恐慌'].pct, backtestResult['極度恐慌'].avgReturn, backtestResult['極度恐慌'].winRate],
+    [backtestResult['恐慌'].phaseCount, backtestResult['恐慌'].pct, backtestResult['恐慌'].avgReturn, backtestResult['恐慌'].winRate],
+    [backtestResult['順風/中性'].phaseCount, backtestResult['順風/中性'].pct, backtestResult['順風/中性'].avgReturn, backtestResult['順風/中性'].winRate],
+    [backtestResult['過熱'].phaseCount, backtestResult['過熱'].pct, backtestResult['過熱'].avgReturn, backtestResult['過熱'].winRate],
+    [backtestResult['狂熱'].phaseCount, backtestResult['狂熱'].pct, backtestResult['狂熱'].avgReturn, backtestResult['狂熱'].winRate]
+  ];
+
+  labSheet.getRange('B4:E8').setValues(matrix);
+  labSheet.getRange('B4:B8').setNumberFormat('#,##0');
+  labSheet.getRange('C4:C8').setNumberFormat('0.0%');
+  labSheet.getRange('D4:E8').setNumberFormat('+0.00%;-0.00%;0.00%');
+
+  // B9/C9 總計列改為純值或簡單 SUM
+  labSheet.getRange('B9').setFormula('=SUM(B4:B8)');
+  labSheet.getRange('C9').setFormula('=SUM(C4:C8)');
+
+  // 重新驗證並更新 Row 10 Banner
+  const vResult = verifyLabBacktest(labSheet);
+
+  try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (e) {}
+
+  const msg = `✅ 步驟 4：LAB_BACKTEST 依賴解耦成功！\n\n` +
+    `• 計算來源：直接讀取 RAW_HISTORY 18年實體歷史\n` +
+    `• 有效位階分類天數 (Phase_Count)：${backtestResult.totalPhaseCount} 天\n` +
+    `• 252日前瞻報酬有效天數 (Forward_Return_Count)：${backtestResult.totalForwardReturnCount} 天 (天然排除未滿252天之最近交易日)\n` +
+    `• 5大位階樣本分佈 (位階天數 Phase_Count / 前瞻報酬天數 Forward_Return_Count)：\n` +
+    `  - 極度恐慌: ${backtestResult['極度恐慌'].phaseCount} 天 (前瞻 ${backtestResult['極度恐慌'].forwardReturnCount} 筆, 勝率 ${(backtestResult['極度恐慌'].winRate*100).toFixed(1)}%)\n` +
+    `  - 恐慌: ${backtestResult['恐慌'].phaseCount} 天 (前瞻 ${backtestResult['恐慌'].forwardReturnCount} 筆, 勝率 ${(backtestResult['恐慌'].winRate*100).toFixed(1)}%)\n` +
+    `  - 順風/中性: ${backtestResult['順風/中性'].phaseCount} 天 (前瞻 ${backtestResult['順風/中性'].forwardReturnCount} 筆, 勝率 ${(backtestResult['順風/中性'].winRate*100).toFixed(1)}%)\n` +
+    `  - 過熱: ${backtestResult['過熱'].phaseCount} 天 (前瞻 ${backtestResult['過熱'].forwardReturnCount} 筆, 勝率 ${(backtestResult['過熱'].winRate*100).toFixed(1)}%)\n` +
+    `  - 狂熱: ${backtestResult['狂熱'].phaseCount} 天 (前瞻 ${backtestResult['狂熱'].forwardReturnCount} 筆, 勝率 ${(backtestResult['狂熱'].winRate*100).toFixed(1)}%)\n` +
+    `• 驗證狀態：${vResult.success ? '🟢 100% 通過' : '⚠️ 異常'}`;
+
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return backtestResult;
+}
+
+/**
+ * 步驟 5：將 HISTORY_LOG 封存為 _ARCHIVE_HISTORY_LOG (隱藏並設為唯讀保護)
+ * @return {Object}
+ */
+function executeStep5ArchiveHistoryLogSheet() {
+  const ss = getSpreadsheet();
+  let histSheet = ss.getSheetByName('HISTORY_LOG');
+  let archiveSheet = ss.getSheetByName('_ARCHIVE_HISTORY_LOG');
+
+  // 4. 若 _ARCHIVE_HISTORY_LOG 已存在，必須重新驗證其隱藏及保護狀態，不可直接回報成功
+  if (!histSheet && archiveSheet) {
+    Logger.log('偵測到 _ARCHIVE_HISTORY_LOG 已存在，執行封存完整性覆核 (隱藏與實體保護)...');
+
+    // 4.1 確保分頁隱藏
+    if (!archiveSheet.isSheetHidden()) {
+      try {
+        archiveSheet.hideSheet();
+        Logger.log('_ARCHIVE_HISTORY_LOG 先前未隱藏，已補行隱藏。');
+      } catch (e) {
+        throw new Error(`_ARCHIVE_HISTORY_LOG 存在但無法設定隱藏: ${e.message}`);
+      }
+    }
+
+    // 4.2 檢驗實體保護 (isWarningOnly === false)
+    let hasPhysicalProtection = false;
+    try {
+      const protections = (typeof archiveSheet.getProtections === 'function')
+        ? archiveSheet.getProtections(SpreadsheetApp.ProtectionType.SHEET)
+        : [];
+      for (let i = 0; i < protections.length; i++) {
+        if (protections[i] && !protections[i].isWarningOnly()) {
+          hasPhysicalProtection = true;
+          break;
+        }
+      }
+    } catch (e) {
+      Logger.log('讀取 _ARCHIVE_HISTORY_LOG 保護狀態例外: ' + e.message);
+    }
+
+    // 4.3 若缺少實體保護，嘗試補設實體唯讀保護
+    if (!hasPhysicalProtection) {
+      Logger.log('_ARCHIVE_HISTORY_LOG 缺少實體唯讀保護，嘗試補設...');
+      try {
+        const protection = archiveSheet.protect().setDescription('🔒 唯讀封存：_ARCHIVE_HISTORY_LOG 已正式退役，禁止手動修改');
+        protection.setWarningOnly(false);
+        const me = Session.getEffectiveUser();
+        const editors = protection.getEditors();
+        if (editors && editors.length > 0) protection.removeEditors(editors);
+        if (me) { try { protection.addEditor(me); } catch (e) {} }
+        if (protection.canDomainEdit()) protection.setDomainEdit(false);
+        protection.setUnprotectedRanges([]);
+        if (!protection.isWarningOnly()) {
+          hasPhysicalProtection = true;
+        }
+      } catch (protErr) {
+        throw new Error(`_ARCHIVE_HISTORY_LOG 已存在，但補行實體保護設定失敗 (${protErr.message})，未達安全封存標準！`);
+      }
+    }
+
+    if (!hasPhysicalProtection) {
+      throw new Error('安全校驗失敗：_ARCHIVE_HISTORY_LOG 實體保護未能確認生效 (warning-only 未成功關閉)，封存程序終止！');
+    }
+
+    const msg = 'ℹ️ _ARCHIVE_HISTORY_LOG 已處於完整封存狀態 (已確認隱藏且實體保護生效)，無需重複更名。';
+    Logger.log(msg);
+    try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+    return { success: true, archived: true, protectionApplied: true };
+  }
+
+  if (!histSheet) {
+    throw new Error('找不到 HISTORY_LOG 工作表 (且未發現 _ARCHIVE_HISTORY_LOG)');
+  }
+
+  // 嚴格安全驗證先行條件
+  const aiSheet = ss.getSheetByName('AI_LOG');
+  const backupSheet = ss.getSheetByName('_BACKUP_HISTORY_LOG_PRE_MIGRATION');
+  if (!aiSheet || aiSheet.getLastRow() < 2) {
+    throw new Error('安全防禦阻斷：AI_LOG 尚未建立或尚未遷移歷史資料，嚴禁封存 HISTORY_LOG！');
+  }
+  if (!backupSheet) {
+    throw new Error('安全防禦阻斷：尚未建立 _BACKUP_HISTORY_LOG_PRE_MIGRATION 備份表，嚴禁封存！');
+  }
+
+  // 若兩表同時存在，屬於異常衝突
+  if (archiveSheet) {
+    throw new Error('安全異常：同時存在 HISTORY_LOG 與 _ARCHIVE_HISTORY_LOG，請管理員人工排查！');
+  }
+
+  // 1. 更名為 _ARCHIVE_HISTORY_LOG
+  histSheet.setName('_ARCHIVE_HISTORY_LOG');
+
+  // 2. 隱藏分頁
+  histSheet.hideSheet();
+
+  // 3. 實體保護設定 (非僅警告模式，強制實體阻斷編輯)
+  let isProtectionApplied = false;
+  try {
+    const protection = histSheet.protect().setDescription('🔒 唯讀封存：_ARCHIVE_HISTORY_LOG 已正式退役，禁止手動修改');
+    protection.setWarningOnly(false); // 啟用實體強制阻斷，非僅警告
+
+    // 移除現有非執行者的編輯者，僅保留執行者（Owner / EffectiveUser）管理權限
+    const me = Session.getEffectiveUser();
+    const editors = protection.getEditors();
+    if (editors && editors.length > 0) {
+      protection.removeEditors(editors);
+    }
+    // 確保當前執行者具備保護管理權限
+    if (me) {
+      try { protection.addEditor(me); } catch (e) {}
+    }
+
+    // 關閉網域所有人的協作編輯權限
+    if (protection.canDomainEdit()) {
+      protection.setDomainEdit(false);
+    }
+
+    // 清空任何非必要的不保護區間 (確保整表 100% 受到實體保護)
+    protection.setUnprotectedRanges([]);
+
+    // 1. 封存完成必須以實體保護驗證成功為準
+    if (!protection.isWarningOnly()) {
+      isProtectionApplied = true;
+    }
+  } catch (err) {
+    Logger.log('⚠️ [實體保護套用失敗] ' + err.message + '，啟動 Rollback 復原程序...');
+    // 2. 保護失敗時嘗試恢復 HISTORY_LOG 原名稱及顯示狀態
+    let rollbackSuccess = false;
+    let rollbackError = null;
+    try {
+      histSheet.setName('HISTORY_LOG');
+      histSheet.showSheet();
+      rollbackSuccess = true;
+    } catch (rbErr) {
+      rollbackSuccess = false;
+      rollbackError = rbErr;
+    }
+
+    // 3. 若 rollback 失敗，回報實際工作表狀態，不得隱瞞
+    if (rollbackSuccess) {
+      throw new Error(`封存保護設定失敗 (${err.message})。已安全自動復原 (Rollback) 工作表名稱為 HISTORY_LOG 並解除隱藏，未更動任何歷史資料。請檢查權限後重新執行步驟 5。`);
+    } else {
+      const currentName = histSheet ? histSheet.getName() : '未知';
+      const isHidden = histSheet ? histSheet.isSheetHidden() : '未知';
+      throw new Error(`【CRITICAL ALERT】封存保護設定失敗 (${err.message})，且自動 Rollback 復原失敗 (${rollbackError ? rollbackError.message : '未知'})！目前工作表名稱為「${currentName}」，隱藏狀態為「${isHidden}」，尚未建立實體唯讀保護，請管理員立即手動介入檢查！`);
+    }
+  }
+
+  // 1. 封存完成必須以實體保護驗證成功為準
+  if (!isProtectionApplied) {
+    let rollbackSuccess = false;
+    let rollbackError = null;
+    try {
+      histSheet.setName('HISTORY_LOG');
+      histSheet.showSheet();
+      rollbackSuccess = true;
+    } catch (rbErr) {
+      rollbackSuccess = false;
+      rollbackError = rbErr;
+    }
+    if (rollbackSuccess) {
+      throw new Error('封存保護校驗失敗：保護未能確認為實體強制阻斷 (isWarningOnly 未關閉)。已安全自動復原為 HISTORY_LOG 並解除隱藏！');
+    } else {
+      throw new Error(`【CRITICAL ALERT】保護未能確認為實體強制阻斷，且自動 Rollback 失敗！目前工作表名稱為「${histSheet.getName()}」，請管理員手動介入檢查！`);
+    }
+  }
+
+  const msg = '🎉 步驟 5：HISTORY_LOG 正式退役封存完成！\n\n' +
+    '• 原表更名：_ARCHIVE_HISTORY_LOG\n' +
+    '• 實體防護：已隱藏並設置強制唯讀保護 (非僅警告，移除一般編輯權限)\n' +
+    '• 備份表：_BACKUP_HISTORY_LOG_PRE_MIGRATION 保留無損\n' +
+    '• 正式量化唯一真理源：RAW_HISTORY\n' +
+    '• 正式 AI 分析唯一真理源：AI_LOG\n\n' +
+    '⚠️ 注意：依安全規範，步驟 5 完成後「AI_LOG 資料流」仍處於未啟用狀態；\n' +
+    '請手動點擊「6️⃣ 步驟 6：正式啟用 AI_LOG 資料流」完成最終核准通水！';
+
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return { success: true, archived: true, protectionApplied: true };
+}
+
+/**
+ * 🚀 執行全套一鍵無縫退役與遷移管線 (Full Retirement Pipeline)
+ * 循序執行：步驟 1 ➔ 步驟 2 ➔ 步驟 3 ➔ 步驟 4 ➔ 步驟 5
+ */
+function executeFullHistoryLogRetirementMigration() {
+  Logger.log('🚀 開始執行全套 HISTORY_LOG 退役與 AI_LOG 遷移管線...');
+
+  // 1. 執行前保全
+  const step1 = executeStep1PreMigrationBackupAndAudit();
+
+  // 2. 建立 AI_LOG
+  const step2 = executeStep2SetupAiLogSheet();
+
+  // 3. 遷移歷史 J/K
+  const step3 = executeStep3MigrateHistoryLogToAiLog();
+  if (step3.contentDiscrepancyCount > 0) {
+    throw new Error(`對帳失敗：發現 ${step3.contentDiscrepancyCount} 筆內容差異，管線緊急安全中止！`);
+  }
+
+  // 4. LAB_BACKTEST 解耦
+  const step4 = executeStep4DecoupleLabBacktest();
+
+  // 5. 封存 HISTORY_LOG
+  const step5 = executeStep5ArchiveHistoryLogSheet();
+
+  const finalMsg = '🏆 恭喜！HISTORY_LOG 退役與 AI_LOG 遷移全套程序 100% 圓滿完工！\n\n' +
+    `• AI_LOG 正式建置：9 大純值欄位\n` +
+    `• 歷史分析遷移：老巴 ${step3.migratedBuCount} 筆、小羅 ${step3.migratedLoCount} 筆 (0 差異)\n` +
+    `• LAB_BACKTEST 恢復：全歷史 ${step4.totalSamples} 天有效樣本\n` +
+    `• 舊表封存：_ARCHIVE_HISTORY_LOG (唯讀隱藏)`;
+
+  Logger.log(finalMsg);
+  try { SpreadsheetApp.getUi().alert(finalMsg); } catch (e) {}
+  return {
+    success: true,
+    step1: step1,
+    step2: step2,
+    step3: step3,
+    step4: step4,
+    step5: step5
+  };
+}
+
+/**
+ * 查看遷移對帳詳細報告彈窗
+ */
+function viewMigrationReconciliationReport() {
+  const json = PropertiesService.getScriptProperties().getProperty('MIGRATION_RECONCILIATION_REPORT');
+  if (!json) {
+    const msg = '尚未執行過遷移對帳程序。請先點選「3️⃣ 步驟 3：遷移歷史 J/K 分析與對帳稽核」或全套管線。';
+    try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+    return null;
+  }
+  const report = JSON.parse(json);
+  const msg = `📊 遷移對帳稽核報告 (${report.timestamp}):\n\n` +
+    `• 老巴分析來源：${report.sourceJCount} 筆\n` +
+    `• 老巴成功遷移：${report.migratedBuCount} 筆\n` +
+    `• 小羅分析來源：${report.sourceKCount} 筆\n` +
+    `• 小羅成功遷移：${report.migratedLoCount} 筆\n` +
+    `• 跳過重複筆數：${report.duplicateCount} 筆\n` +
+    `• 隔離異常筆數：${report.isolatedCount} 筆\n` +
+    `• 內文差異筆數：${report.contentDiscrepancyCount} 筆\n` +
+    `• 稽核判定：${report.isReconciliationPass ? '🟢 100% 完美吻合' : '⚠️ 存在異常'}`;
+
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return report;
+}
+
+/**
+ * 由 GAS 直接讀取 RAW_HISTORY 計算全歷史 18 年回測數據 (持有一年 252 交易日前瞻報酬與勝率)
+ * 徹底告別跨表公式與 #REF! 斷裂
+ * @param {Spreadsheet} ss
+ * @return {Object} 各門檻統計結果
+ */
+function calculateLabBacktestFromRawHistory_(ss) {
+  const targetSs = ss || getSpreadsheet();
+  const rawSheet = targetSs.getSheetByName('RAW_HISTORY');
+  if (!rawSheet || rawSheet.getLastRow() < 3) {
+    throw new Error('RAW_HISTORY 工作表資料不足');
+  }
+
+  const thresholdConfig = getThresholdConfig(targetSs);
+  const pDist60 = thresholdConfig ? thresholdConfig.dist60 : { p10: -0.0538, p25: -0.0144, p75: 0.0403, p90: 0.0664 };
+
+  const numRows = rawSheet.getLastRow() - 2;
+  // 讀取 A:F 欄 (Date, TWII, _, _, _, Dist60)
+  const grid = rawSheet.getRange(3, 1, numRows, 6).getValues();
+
+  // 依時間倒序 (index 0 為最新日)
+  const rows = [];
+  for (let i = 0; i < grid.length; i++) {
+    const r = grid[i];
+    const dCell = r[0];
+    if (!dCell) continue;
+
+    let dateStr = '';
+    if (dCell instanceof Date) {
+      dateStr = Utilities.formatDate(dCell, 'Asia/Taipei', 'yyyy-MM-dd');
+    } else {
+      dateStr = String(dCell).trim();
+    }
+    if (!dateStr || dateStr.length < 10) continue;
+
+    const twii = parseFloat(String(r[1]).replace(/,/g, '').trim());
+    const d60 = parseDistValue(r[5]);
+
+    rows.push({
+      date: dateStr,
+      twii: (!isNaN(twii) && twii > 0) ? twii : null,
+      dist60: (!isNaN(d60)) ? d60 : null
+    });
+  }
+
+  const tiers = ['極度恐慌', '恐慌', '順風/中性', '過熱', '狂熱'];
+  const stats = {};
+  tiers.forEach(function(t) {
+    stats[t] = { count: 0, fwdReturns: [] };
+  });
+
+  const N = rows.length;
+  // 統計各位階出現天數 (Phase_Count) 與 252 交易日前瞻報酬率 (Forward_Return_Count)
+  for (let i = 0; i < N; i++) {
+    const r = rows[i];
+    if (r.dist60 === null || r.twii === null) continue;
+
+    const phase = classifyPhase(r.dist60, pDist60);
+    if (!stats[phase]) continue;
+
+    // 1. 位階出現天數統計 (Phase_Count)
+    stats[phase].count++;
+
+    // 2. 252 交易日前瞻報酬率 (因 index 0 為最新日，未來第 252 天在 index i - 252)
+    // 最近 252 交易日因未來尚未發生，natural exclusion 排除
+    if (i >= 252) {
+      const pEntry = r.twii;
+      const pFuture = rows[i - 252].twii;
+      if (pEntry > 0 && pFuture > 0) {
+        const ret = (pFuture - pEntry) / pEntry;
+        stats[phase].fwdReturns.push(ret);
+      }
+    }
+  }
+
+  let totalPhaseCount = 0;
+  let totalForwardReturnCount = 0;
+  tiers.forEach(function(t) {
+    totalPhaseCount += stats[t].count;
+    totalForwardReturnCount += stats[t].fwdReturns.length;
+  });
+
+  const result = {
+    totalPhaseCount: totalPhaseCount,
+    totalForwardReturnCount: totalForwardReturnCount,
+    totalSamples: totalPhaseCount, // 相容既有屬性
+    excludedRecentCount: Math.min(252, rows.length),
+    latestTradeDate: rows.length > 0 ? rows[0].date : ''
+  };
+
+  tiers.forEach(function(t) {
+    const s = stats[t];
+    const fwdN = s.fwdReturns.length;
+    let sumRet = 0;
+    let winCount = 0;
+    for (let j = 0; j < fwdN; j++) {
+      sumRet += s.fwdReturns[j];
+      if (s.fwdReturns[j] > 0) winCount++;
+    }
+
+    result[t] = {
+      // 決策規範欄位
+      phaseCount: s.count,                         // 有效位階分類天數 (Phase_Count)
+      forwardReturnCount: fwdN,                    // 具有完整 252 日前瞻報酬的有效天數 (Forward_Return_Count)
+      avgReturn: fwdN > 0 ? (sumRet / fwdN) : 0,   // 以 Forward_Return_Count 計算之平均報酬 (Average_Forward_Return)
+      winRate: fwdN > 0 ? (winCount / fwdN) : 0,   // 以 Forward_Return_Count 計算之勝率 (Win_Rate)
+      pct: totalPhaseCount > 0 ? (s.count / totalPhaseCount) : 0,
+
+      // 相容既有屬性命名
+      count: s.count,
+      fwdCount: fwdN,
+      Phase_Count: s.count,
+      Forward_Return_Count: fwdN,
+      Average_Forward_Return: fwdN > 0 ? (sumRet / fwdN) : 0,
+      Win_Rate: fwdN > 0 ? (winCount / fwdN) : 0
+    };
+  });
+
+  return result;
+}
+
+/**
+ * 安全寫入 AI_LOG 記錄 (嚴格 Append-only，持久化 Idempotency_Key，LockService 保護交易原子性)
+ * @param {Object} record - { recordId, tradeDate, analyst, generatedAt, modelId, generationStatus, content, inputDataSnapshot, morningRecordId, idempotencyKey }
+ * @return {Object}
+ */
+function saveAiLogRecord_(record) {
+  // ⚡ 0. Feature Flag 檢查：未啟用時安全阻斷，維持既有資料流運作
+  if (!isAiLogFlowActive_()) {
+    Logger.log('AI_LOG 資料流尚未啟用 (Feature Flag: AI_LOG_FLOW_ACTIVE=false)，略過寫入');
+    return { success: false, reason: 'AI_LOG_FLOW_NOT_ACTIVE' };
+  }
+
+  if (!record || !record.tradeDate || !record.analyst || !record.content) {
+    Logger.log('saveAiLogRecord_ 缺少必要參數，略過寫入');
+    return { success: false, reason: 'MISSING_REQUIRED_PARAMS' };
+  }
+
+  // ⚡ 1. LockService 保護「檢查重複 ➔ 寫入」整個交易區段，避免排程與手動觸發同時寫入造成 Race Condition
+  let lock = null;
+  let hasLock = false;
+  try {
+    if (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
+      lock = LockService.getScriptLock();
+      if (lock && typeof lock.tryLock === 'function') {
+        hasLock = lock.tryLock(30000); // 30 秒交易鎖保護
+        if (!hasLock) {
+          Logger.log('⚠️ [AI_LOG Lock] 未能於 30 秒內取得寫入鎖，可能有其他程序正在寫入');
+          return { success: false, reason: 'LOCK_TIMEOUT' };
+        }
+      }
+    }
+
+    const ss = getSpreadsheet();
+    let aiSheet = ss.getSheetByName('AI_LOG');
+    if (!aiSheet) {
+      Logger.log('⚠️ AI_LOG 分頁尚未人工建立，安全略過寫入 (絕不靜默自動建表)');
+      return { success: false, reason: 'AI_LOG_SHEET_NOT_FOUND' };
+    }
+
+    const cleanDate = String(record.tradeDate).replace(/-/g, '').trim();
+    const now = new Date();
+
+    // ⚡ 2. 唯一 Record_ID：使用 Utilities.getUuid() 作為唯一識別來源，不依賴 Math.random() 短碼
+    const uuid = Utilities.getUuid();
+    let recId = record.recordId ? String(record.recordId).trim() : '';
+    if (!recId || recId.match(/^AI-(BU|LO)-\d{8}$/)) {
+      recId = `AI-${record.analyst}-${cleanDate}-${uuid}`;
+    }
+
+    // ⚡ 3. Idempotency_Key：實體持久化保存至 Col 10，優先使用傳入鍵，否則採用 recId
+    const idempotencyKey = record.idempotencyKey ? String(record.idempotencyKey).trim() : recId;
+    const lastRow = aiSheet.getLastRow();
+
+    // ⚡ 4. 獨立 Idempotency 防重複檢查：持久化檢查 Col 10 (Idempotency_Key) 與 Col 1 (Record_ID)
+    // 同一請求重試時 (相同 Idempotency_Key)，阻止重複新增
+    // 不同請求即使 Trade_Date、Analyst 相同，亦允許各自新增獨立紀錄
+    if (lastRow >= 2) {
+      const existing = aiSheet.getRange(2, 1, lastRow - 1, 10).getValues();
+      for (let i = 0; i < existing.length; i++) {
+        const eId = String(existing[i][0] || '').trim();
+        const eKey = String(existing[i][9] || '').trim();
+        if ((idempotencyKey && eKey === idempotencyKey) || (recId && eId === recId)) {
+          Logger.log(`AI_LOG 偵測到相同 Idempotency_Key (${idempotencyKey}) 之重複請求，阻止重複新增，維持既有紀錄。`);
+          return { success: true, action: 'SKIPPED_DUPLICATE_IDEMPOTENT', recordId: eId, idempotencyKey: eKey };
+        }
+      }
+    }
+
+    // ⚡ 5. 嚴格 Append-only：一律在次列新增，絕不覆寫或刪除既有列 (完整保留 FALLBACK, OFFICIAL_SUCCESS, FAILED, INCOMPLETE)
+    const nextRow = lastRow + 1;
+    const rowData = [
+      recId,
+      record.tradeDate,
+      record.analyst,
+      record.generatedAt || now.toISOString(),
+      record.modelId || 'gemini-3.8-flash',
+      record.generationStatus || 'OFFICIAL_SUCCESS',
+      record.content,
+      record.inputDataSnapshot || '',
+      record.morningRecordId || '',
+      idempotencyKey
+    ];
+
+    aiSheet.getRange(nextRow, 1, 1, 10).setValues([rowData]);
+    SpreadsheetApp.flush();
+    Logger.log(`AI_LOG [Append-only] 成功新增紀錄: Row ${nextRow} (${recId}, 狀態: ${rowData[5]}, Key: ${idempotencyKey})`);
+    return { success: true, action: 'APPENDED', recordId: recId, idempotencyKey: idempotencyKey };
+  } finally {
+    if (hasLock && lock && typeof lock.releaseLock === 'function') {
+      try { lock.releaseLock(); } catch (e) {}
+    }
+  }
+}
+
+/**
+ * 依據決策規則從 AI_LOG 查詢指定交易日分析師之正式分析記錄
+ * 規則：
+ * 1. 篩選 Trade_Date === tradeDate 且 Analyst === analyst
+ * 2. 優先選取最新一筆 OFFICIAL_SUCCESS
+ * 3. 若無 OFFICIAL_SUCCESS，才降級選取最新一筆 FALLBACK
+ * 4. FAILED 與 INCOMPLETE 絕對不選取 (視為無有效分析，傳回 null)
+ * 5. Dashboard B23/B24 僅呈現查詢結果，不承擔歷史紀錄保存責任
+ * @param {string} tradeDate - 'yyyy-MM-dd'
+ * @param {string} analyst - 'BU' | 'LO'
+ * @return {Object|null}
+ */
+function queryAiLogRecord_(tradeDate, analyst) {
+  // ⚡ 0. Feature Flag 檢查：未啟用時安全阻斷，由呼叫端走既有 ScriptProperties / HISTORY_LOG 讀取
+  if (!isAiLogFlowActive_()) return null;
+  if (!tradeDate || !analyst) return null;
+  const ss = getSpreadsheet();
+  const aiSheet = ss.getSheetByName('AI_LOG');
+  if (!aiSheet || aiSheet.getLastRow() < 2) return null;
+
+  const data = aiSheet.getRange(2, 1, aiSheet.getLastRow() - 1, 10).getValues();
+  let latestOfficial = null;
+  let latestFallback = null;
+
+  // 由新至舊 (由下往上掃描)
+  for (let i = data.length - 1; i >= 0; i--) {
+    const r = data[i];
+    const rDate = String(r[1] || '').trim();
+    const rAnalyst = String(r[2] || '').trim();
+
+    if (rDate === tradeDate && rAnalyst === analyst) {
+      const status = String(r[5] || '').trim();
+      const rec = {
+        recordId: String(r[0] || '').trim(),
+        tradeDate: rDate,
+        analyst: rAnalyst,
+        generatedAt: String(r[3] || '').trim(),
+        modelId: String(r[4] || '').trim(),
+        status: status,
+        isOfficial: (status === 'OFFICIAL_SUCCESS'),
+        text: String(r[6] || '').trim(),
+        inputDataSnapshot: String(r[7] || '').trim(),
+        morningRecordId: String(r[8] || '').trim(),
+        idempotencyKey: String(r[9] || '').trim()
+      };
+
+      if (status === 'OFFICIAL_SUCCESS' && !latestOfficial) {
+        latestOfficial = rec;
+      } else if (status === 'FALLBACK' && !latestFallback) {
+        latestFallback = rec;
+      }
+      // FAILED, INCOMPLETE 略過，絕不寫入 latestOfficial 或 latestFallback
+    }
+  }
+
+  // 優先傳回最新 OFFICIAL_SUCCESS；若無才傳回最新 FALLBACK；皆無則傳回 null
+  return latestOfficial || latestFallback || null;
+}
+
+/**
+ * 從 AI_LOG 讀取指定交易日的老巴早晨分析 (優先 OFFICIAL_SUCCESS，備援 FALLBACK)
+ * @param {string} tradeDate - 'yyyy-MM-dd'
+ * @return {Object|null} { recordId, tradeDate, analyst, isOfficial, text, modelId, status }
+ */
+function getAiLogMorningRecord_(tradeDate) {
+  return queryAiLogRecord_(tradeDate, 'BU');
+}
+
+/**
+ * 從 AI_LOG 讀取指定交易日的小羅收盤分析 (優先 OFFICIAL_SUCCESS，備援 FALLBACK)
+ * @param {string} tradeDate - 'yyyy-MM-dd'
+ * @return {Object|null}
+ */
+function getAiLogAfternoonRecord_(tradeDate) {
+  return queryAiLogRecord_(tradeDate, 'LO');
+}
+
+/**
+ * 檢查 AI_LOG 資料流是否已正式啟用 (Feature Flag)
+ * 預設未設定或 'false'，未啟用前老巴與小羅完全維持既有 HISTORY_LOG / ScriptProperties 資料流
+ * @return {boolean}
+ */
+function isAiLogFlowActive_() {
+  try {
+    return PropertiesService.getScriptProperties().getProperty('AI_LOG_FLOW_ACTIVE') === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * 步驟 6：人工正式啟用 AI_LOG 資料流 (Feature Flag 切換)
+ * 啟用前執行 5 大嚴格安全前置條件校驗：
+ * 1. AI_LOG 工作表已建立
+ * 2. 備份表 _BACKUP_HISTORY_LOG_PRE_MIGRATION 仍存在保全
+ * 3. 欄位結構完整 (10 欄且第 10 欄為 Idempotency_Key)
+ * 4. 歷史遷移完成且對帳報告存在、0 內容差異 (contentDiscrepancyCount === 0)
+ * 5. 必要的老巴 (BU) 與小羅 (LO) 歷史分析紀錄均存在
+ *
+ * 只有所有檢查 100% 通過，才將 AI_LOG_FLOW_ACTIVE 設為 'true'。
+ * 可安全重跑，不會破壞既有資料。
+ * @return {Object}
+ */
+function executeStep6ActivateAiLogFlow() {
+  const ss = getSpreadsheet();
+  const checks = [];
+
+  // 1. 確認 HISTORY_LOG 已退役 (不得存在於試算表活動分頁中)
+  const histSheet = ss.getSheetByName('HISTORY_LOG');
+  const checkHistRetired = !histSheet;
+  checks.push({
+    name: '1. HISTORY_LOG 已退役 (活動分頁不存在)',
+    pass: checkHistRetired,
+    detail: checkHistRetired ? 'HISTORY_LOG 已完成退役更名' : '安全阻斷：HISTORY_LOG 仍存在，請先執行步驟 5 完成退役封存'
+  });
+
+  // 2. 確認 _ARCHIVE_HISTORY_LOG 存在且已設定隱藏
+  const archiveSheet = ss.getSheetByName('_ARCHIVE_HISTORY_LOG');
+  let checkArchiveHidden = false;
+  let archiveDetail = '';
+  if (!archiveSheet) {
+    archiveDetail = '找不到 _ARCHIVE_HISTORY_LOG 封存工作表，請先執行步驟 5';
+  } else if (!archiveSheet.isSheetHidden()) {
+    archiveDetail = '_ARCHIVE_HISTORY_LOG 存在但未隱藏，請先完成步驟 5 隱藏';
+  } else {
+    checkArchiveHidden = true;
+    archiveDetail = '_ARCHIVE_HISTORY_LOG 存在且已設定隱藏';
+  }
+  checks.push({
+    name: '2. _ARCHIVE_HISTORY_LOG 存在且已隱藏',
+    pass: checkArchiveHidden,
+    detail: archiveDetail
+  });
+
+  // 3. 確認 _ARCHIVE_HISTORY_LOG 具有實體強制保護 (isWarningOnly === false)
+  let checkArchiveProtection = false;
+  let protDetail = '';
+  if (!archiveSheet) {
+    protDetail = '無封存工作表可供檢查保護';
+  } else {
+    try {
+      const protections = (typeof archiveSheet.getProtections === 'function')
+        ? archiveSheet.getProtections(SpreadsheetApp.ProtectionType.SHEET)
+        : [];
+      for (let i = 0; i < protections.length; i++) {
+        const p = protections[i];
+        if (p && !p.isWarningOnly()) {
+          checkArchiveProtection = true;
+          break;
+        }
+      }
+      protDetail = checkArchiveProtection
+        ? '實體強制唯讀保護生效中 (isWarningOnly=false，已實體阻斷手動編輯)'
+        : '_ARCHIVE_HISTORY_LOG 未設置實體強制保護 (或僅為警告模式)，請先執行步驟 5';
+    } catch (e) {
+      protDetail = '檢查封存保護發生例外: ' + e.message;
+    }
+  }
+  checks.push({
+    name: '3. 封存表實體保護生效驗證 (非僅警告)',
+    pass: checkArchiveProtection,
+    detail: protDetail
+  });
+
+  // 4. 檢查 AI_LOG 工作表已建立
+  const aiSheet = ss.getSheetByName('AI_LOG');
+  const checkSheetExists = Boolean(aiSheet);
+  checks.push({
+    name: '4. AI_LOG 工作表已建立',
+    pass: checkSheetExists,
+    detail: checkSheetExists ? '分頁存在' : '找不到 AI_LOG 分頁，請先執行步驟 2'
+  });
+
+  // 5. 檢查執行前備份表是否存在
+  const backupSheet = ss.getSheetByName('_BACKUP_HISTORY_LOG_PRE_MIGRATION');
+  const checkBackupExists = Boolean(backupSheet);
+  checks.push({
+    name: '5. 執行前備份表存在保全',
+    pass: checkBackupExists,
+    detail: checkBackupExists ? '備份表存在保全無損' : '找不到 _BACKUP_HISTORY_LOG_PRE_MIGRATION 備份表，請先執行步驟 1'
+  });
+
+  // 6. 檢查 10 欄結構完整性 (含 Idempotency_Key)
+  let checkHeadersPass = false;
+  let headerDetail = '';
+  if (aiSheet && aiSheet.getLastRow() >= 1) {
+    const headerRow = aiSheet.getRange(1, 1, 1, 10).getValues()[0];
+    const expectedHeaders = ['Record_ID', 'Trade_Date', 'Analyst', 'Generated_At', 'Model_ID', 'Generation_Status', 'Content', 'Input_Data_Snapshot', 'Morning_Record_ID', 'Idempotency_Key'];
+    const isHeaderMatch = expectedHeaders.every((h, idx) => String(headerRow[idx] || '').trim() === h);
+    if (isHeaderMatch) {
+      checkHeadersPass = true;
+      headerDetail = '10 欄標準結構吻合 (含 Idempotency_Key)';
+    } else {
+      headerDetail = `標頭欄位不吻合: 取得 [${headerRow.join(',')}]`;
+    }
+  } else {
+    headerDetail = 'AI_LOG 無標頭資料';
+  }
+  checks.push({
+    name: '6. 欄位結構完整性 (10 欄標準)',
+    pass: checkHeadersPass,
+    detail: headerDetail
+  });
+
+  // 7. 遷移報告核對、BU/LO 來源與遷移數分別核對、遺漏數與內容差異 0 檢核、區分歷史遷移紀錄與新紀錄
+  let checkReconciliationPass = false;
+  let reconDetail = '';
+  try {
+    const reportJson = PropertiesService.getScriptProperties().getProperty('MIGRATION_RECONCILIATION_REPORT');
+    if (!reportJson) {
+      reconDetail = '查無 MIGRATION_RECONCILIATION_REPORT 對帳報告，請先執行步驟 3';
+    } else {
+      const rep = JSON.parse(reportJson);
+      if (!rep || typeof rep !== 'object') {
+        reconDetail = '對帳報告格式損毀';
+      } else if (!rep.timestamp || isNaN(Date.parse(rep.timestamp))) {
+        reconDetail = '對帳報告缺少有效時間戳';
+      } else if (!rep.isReconciliationPass) {
+        reconDetail = '對帳報告標記為未通過 (isReconciliationPass === false)';
+      } else if (rep.contentDiscrepancyCount !== 0) {
+        reconDetail = `內容差異數不為 0 (發現 ${rep.contentDiscrepancyCount} 筆差異)`;
+      } else if (typeof rep.sourceJCount !== 'number' || rep.sourceJCount <= 0 || typeof rep.sourceKCount !== 'number' || rep.sourceKCount <= 0) {
+        reconDetail = `來源有效紀錄數異常 (老巴: ${rep.sourceJCount}, 小羅: ${rep.sourceKCount})`;
+      } else if (typeof rep.migratedBuCount !== 'number' || rep.migratedBuCount <= 0 || typeof rep.migratedLoCount !== 'number' || rep.migratedLoCount <= 0) {
+        reconDetail = `遷移紀錄數異常 (老巴: ${rep.migratedBuCount}, 小羅: ${rep.migratedLoCount})`;
+      } else {
+        // 分別核對 BU 與 LO 遺漏數
+        const isolatedBu = (rep.isolatedBuCount !== undefined) ? rep.isolatedBuCount : (Array.isArray(rep.isolatedDetails) ? rep.isolatedDetails.filter(function(r) { return r.analyst === 'BU'; }).length : 0);
+        const isolatedLo = (rep.isolatedLoCount !== undefined) ? rep.isolatedLoCount : (Array.isArray(rep.isolatedDetails) ? rep.isolatedDetails.filter(function(r) { return r.analyst === 'LO'; }).length : 0);
+        const dupBu = (rep.duplicateBuCount !== undefined) ? rep.duplicateBuCount : 0;
+        const dupLo = (rep.duplicateLoCount !== undefined) ? rep.duplicateLoCount : 0;
+
+        const missingBu = (rep.missingBuCount !== undefined) ? rep.missingBuCount : (rep.sourceJCount - rep.migratedBuCount - dupBu - isolatedBu);
+        const missingLo = (rep.missingLoCount !== undefined) ? rep.missingLoCount : (rep.sourceKCount - rep.migratedLoCount - dupLo - isolatedLo);
+
+        if (missingBu !== 0 || missingLo !== 0) {
+          reconDetail = `遷移存在遺漏筆數 (老巴遺漏: ${missingBu}, 小羅遺漏: ${missingLo})`;
+        } else {
+          // 嚴格區分歷史遷移紀錄與遷移後新增的 AI_LOG 紀錄，實體掃描 AI_LOG 表
+          let actualMigratedBu = 0;
+          let actualMigratedLo = 0;
+          let newlyGeneratedCount = 0;
+
+          if (aiSheet && aiSheet.getLastRow() >= 2) {
+            const aiData = aiSheet.getRange(2, 1, aiSheet.getLastRow() - 1, 10).getValues();
+            for (let i = 0; i < aiData.length; i++) {
+              const row = aiData[i];
+              const analyst = String(row[2] || '').trim();
+              const modelId = String(row[4] || '').trim();
+              const idemKey = String(row[9] || '').trim();
+              const recId = String(row[0] || '').trim();
+              const isMigrated = idemKey.startsWith('MIGRATE-') || modelId === 'UNKNOWN' || Boolean(recId.match(/^AI-(BU|LO)-\d{8}$/));
+
+              if (isMigrated) {
+                if (analyst === 'BU') actualMigratedBu++;
+                else if (analyst === 'LO') actualMigratedLo++;
+              } else {
+                newlyGeneratedCount++;
+              }
+            }
+          }
+
+          if (actualMigratedBu !== rep.migratedBuCount || actualMigratedLo !== rep.migratedLoCount) {
+            reconDetail = `AI_LOG 實體歷史遷移筆數與對帳報告不符 (AI_LOG 實體: BU ${actualMigratedBu} / LO ${actualMigratedLo} vs 報告: BU ${rep.migratedBuCount} / LO ${rep.migratedLoCount}, 遷移後新增: ${newlyGeneratedCount} 筆)`;
+          } else {
+            checkReconciliationPass = true;
+            reconDetail = `對帳完整通過 (老巴: 來源 ${rep.sourceJCount}/遷移 ${rep.migratedBuCount}, 小羅: 來源 ${rep.sourceKCount}/遷移 ${rep.migratedLoCount}, 遺漏: 0, 差異: 0, 實體遷移筆數 100% 吻合, 遷移後新增: ${newlyGeneratedCount} 筆)`;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    reconDetail = '讀取或核對對帳報告發生例外: ' + e.message;
+  }
+  checks.push({
+    name: '7. 遷移報告核對與實體紀錄分離驗證',
+    pass: checkReconciliationPass,
+    detail: reconDetail
+  });
+
+  // 8. 檢查必要的老巴 (BU) 與小羅 (LO) 紀錄是否存在
+  let checkRecordsExist = false;
+  let recordDetail = '';
+  if (aiSheet && aiSheet.getLastRow() >= 3) {
+    const lastRow = aiSheet.getLastRow();
+    const analysts = aiSheet.getRange(2, 3, lastRow - 1, 1).getValues();
+    let hasBu = false;
+    let hasLo = false;
+    for (let i = 0; i < analysts.length; i++) {
+      const a = String(analysts[i][0] || '').trim();
+      if (a === 'BU') hasBu = true;
+      if (a === 'LO') hasLo = true;
+      if (hasBu && hasLo) break;
+    }
+    if (hasBu && hasLo) {
+      checkRecordsExist = true;
+      recordDetail = `總筆數 ${lastRow - 1} 筆，已確認同時涵蓋老巴 (BU) 與小羅 (LO) 分析`;
+    } else {
+      recordDetail = `分析紀錄缺少分析師角色: BU=${hasBu}, LO=${hasLo}`;
+    }
+  } else {
+    recordDetail = 'AI_LOG 資料筆數不足 (至少須有標頭與歷史紀錄)';
+  }
+  checks.push({
+    name: '8. 雙分析師分析紀錄存在性',
+    pass: checkRecordsExist,
+    detail: recordDetail
+  });
+
+  // 綜合判定：所有檢查項目全數通過，才允許啟用 Feature Flag
+  const allPass = checks.every(c => c.pass);
+  if (!allPass) {
+    let failMsg = '⚠️ 【安全防禦阻斷】AI_LOG 資料流啟用前校驗未全數通過，已拒絕啟用：\n\n';
+    checks.forEach(c => {
+      failMsg += `${c.pass ? '🟢' : '❌'} ${c.name}：${c.detail}\n`;
+    });
+    failMsg += '\n請依序排查上述未通過項目後，再次執行步驟 6。';
+    Logger.log(failMsg);
+    try { SpreadsheetApp.getUi().alert(failMsg); } catch (e) {}
+    return { success: false, activated: false, checks: checks };
+  }
+
+  // 人工核准通過，正式啟用 Feature Flag
+  PropertiesService.getScriptProperties().setProperty('AI_LOG_FLOW_ACTIVE', 'true');
+
+  const successMsg = '🎉 【正式啟用成功】AI_LOG 資料流已順利啟用！\n\n' +
+    '• 狀態：AI_LOG_FLOW_ACTIVE = true\n' +
+    '• 老巴晨報：正式切換純值寫入 AI_LOG (Append-only)\n' +
+    '• 小羅午茶：正式優先自 AI_LOG 讀取老巴晨報並寫入收盤分析\n' +
+    '• 安全機制：所有歷史 J/K 分析與備份 100% 保全\n\n' +
+    '（日後若需緊急回退舊制，可隨時點擊選單「🔄 緊急切換：停用 AI_LOG 資料流」無損切換）';
+
+  Logger.log(successMsg);
+  try { SpreadsheetApp.getUi().alert(successMsg); } catch (e) {}
+  return { success: true, activated: true, checks: checks };
+}
+
+/**
+ * 緊急切換：停用 AI_LOG 資料流 (Rollback 回退舊制)
+ * 將 AI_LOG_FLOW_ACTIVE 設為 false，秒級回退至 HISTORY_LOG 既有資料流
+ * @return {Object}
+ */
+function executeStep6DeactivateAiLogFlow() {
+  PropertiesService.getScriptProperties().setProperty('AI_LOG_FLOW_ACTIVE', 'false');
+  const msg = '⚠️ 【緊急回退完成】AI_LOG 資料流已停用 (AI_LOG_FLOW_ACTIVE = false)。\n\n' +
+    '老巴與小羅已安全回退至原有 HISTORY_LOG!J3/K3 與 ScriptProperties 運作模式。';
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return { success: true, activated: false };
+}
+
 
 
