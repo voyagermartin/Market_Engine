@@ -10177,11 +10177,12 @@ function executeStep6ActivateAiLogFlow() {
               }
               const cleanDate = normTradeDate.replace(/-/g, '');
 
-              // 辨識是否存在遷移特徵簽名
-              const hasMigrationSig = idemKey.startsWith('MIGRATE-') || Boolean(recId.match(/^AI-(BU|LO)-\d{8}$/));
+              // 1. 以 MIGRATE- Idempotency_Key 作為正式歷史遷移紀錄的主要識別特徵
+              const isMigrateKey = idemKey.startsWith('MIGRATE-');
+              const hasLegacyRecId = Boolean(recId.match(/^AI-(BU|LO)-\d{8}$/));
 
-              if (hasMigrationSig) {
-                // 檢查是否完全吻合遷移標準規格
+              if (isMigrateKey) {
+                // 具備正式遷移識別鍵，嚴格交叉比對所有 5 欄位
                 const isAnalystMatch = (analyst === 'BU' || analyst === 'LO');
                 const isModelMatch = (modelId === 'UNKNOWN');
                 const isDateValid = /^\d{8}$/.test(cleanDate);
@@ -10189,11 +10190,11 @@ function executeStep6ActivateAiLogFlow() {
                 const isIdemKeyMatch = (idemKey === `MIGRATE-${analyst}-${cleanDate}`);
 
                 if (isAnalystMatch && isModelMatch && isDateValid && isRecIdMatch && isIdemKeyMatch) {
-                  // 1. VALID_MIGRATION
+                  // VALID_MIGRATION
                   if (analyst === 'BU') actualMigratedBu++;
                   else if (analyst === 'LO') actualMigratedLo++;
                 } else {
-                  // 3. INVALID_MIGRATION (具遷移特徵但欄位交叉核對不一致，必須直接阻斷)
+                  // INVALID_MIGRATION (具 MIGRATE 鍵但欄位交叉核對不一致，必須直接阻斷)
                   const reasons = [];
                   if (!isAnalystMatch) reasons.push(`Analyst不符(${analyst})`);
                   if (!isModelMatch) reasons.push(`Model_ID不符(${modelId})`);
@@ -10208,8 +10209,16 @@ function executeStep6ActivateAiLogFlow() {
                     reason: reasons.join(', ')
                   });
                 }
+              } else if (hasLegacyRecId && modelId === 'UNKNOWN') {
+                // 疑似遷移遺漏鍵值：同時具備舊版命名格式且 Model_ID 為 UNKNOWN，但缺少 MIGRATE- 識別鍵，視為損毀紀錄
+                invalidMigrationRows.push({
+                  rowIdx: i + 2,
+                  recId: recId,
+                  idemKey: idemKey,
+                  reason: '具備遷移特徵(UNKNOWN模型與舊版命名)但缺少 MIGRATE- Idempotency_Key'
+                });
               } else {
-                // 2. NORMAL_AI_RECORD (無遷移簽名特徵，屬正常 AI 生成紀錄)
+                // NORMAL_AI_RECORD (正常 AI 紀錄，包含正常模型名稱之日常分析紀錄)
                 newlyGeneratedCount++;
               }
             }
