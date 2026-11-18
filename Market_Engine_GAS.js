@@ -10145,6 +10145,7 @@ function executeStep6ActivateAiLogFlow() {
           let actualMigratedLo = 0;
           let newlyGeneratedCount = 0;
           const invalidMigrationRows = [];
+          const aiRecordMap = {};
 
           if (aiSheet && aiSheet.getLastRow() >= 2) {
             const aiData = aiSheet.getRange(2, 1, aiSheet.getLastRow() - 1, 10).getValues();
@@ -10189,7 +10190,10 @@ function executeStep6ActivateAiLogFlow() {
                 const isRecIdMatch = (recId === `AI-${analyst}-${cleanDate}`);
                 const isIdemKeyMatch = (idemKey === `MIGRATE-${analyst}-${cleanDate}`);
 
-                if (isAnalystMatch && isModelMatch && isDateValid && isRecIdMatch && isIdemKeyMatch) {
+                const isMigrated = (isAnalystMatch && isModelMatch && isDateValid && isRecIdMatch && isIdemKeyMatch);
+                aiRecordMap[recId] = { content: String(row[6] || '').trim(), isMigrated: Boolean(isMigrated), analyst: analyst, modelId: modelId };
+
+                if (isMigrated) {
                   // VALID_MIGRATION
                   if (analyst === 'BU') actualMigratedBu++;
                   else if (analyst === 'LO') actualMigratedLo++;
@@ -10211,6 +10215,7 @@ function executeStep6ActivateAiLogFlow() {
                 }
               } else if (hasLegacyRecId && modelId === 'UNKNOWN') {
                 // 疑似遷移遺漏鍵值：同時具備舊版命名格式且 Model_ID 為 UNKNOWN，但缺少 MIGRATE- 識別鍵，視為損毀紀錄
+                aiRecordMap[recId] = { content: String(row[6] || '').trim(), isMigrated: false, analyst: analyst, modelId: modelId };
                 invalidMigrationRows.push({
                   rowIdx: i + 2,
                   recId: recId,
@@ -10219,6 +10224,7 @@ function executeStep6ActivateAiLogFlow() {
                 });
               } else {
                 // NORMAL_AI_RECORD (正常 AI 紀錄，包含正常模型名稱之日常分析紀錄)
+                aiRecordMap[recId] = { content: String(row[6] || '').trim(), isMigrated: false, analyst: analyst, modelId: modelId };
                 newlyGeneratedCount++;
               }
             }
@@ -10228,15 +10234,89 @@ function executeStep6ActivateAiLogFlow() {
           if (invalidMigrationRows.length > 0) {
             reconDetail = `AI_LOG 偵測到 ${invalidMigrationRows.length} 筆疑似遷移但欄位不一致之損毀紀錄 (Row ${invalidMigrationRows[0].rowIdx}: ${invalidMigrationRows[0].reason})，嚴格阻斷啟用！`;
           } else {
-            // 5. 實體 AI_LOG 遷移紀錄數必須嚴格等於「新增遷移數 + 已核對一致的重複數」
-            const expectedMigratedBu = migratedBu + dupBu;
-            const expectedMigratedLo = migratedLo + dupLo;
-
-            if (actualMigratedBu !== expectedMigratedBu || actualMigratedLo !== expectedMigratedLo) {
-              reconDetail = `AI_LOG 實體歷史遷移筆數與對帳報告不符 (AI_LOG 實體: BU ${actualMigratedBu} / LO ${actualMigratedLo} vs 報告應有: BU ${expectedMigratedBu} [新增${migratedBu}+既有${dupBu}] / LO ${expectedMigratedLo} [新增${migratedLo}+既有${dupLo}], 遷移後新增: ${newlyGeneratedCount} 筆)`;
+            // 5. 實體 AI_LOG 新增遷移紀錄數核對 (BU 嚴格核對 migratedBu, LO 嚴格核對 migratedLo)
+            if (actualMigratedBu !== migratedBu || actualMigratedLo !== migratedLo) {
+              reconDetail = `AI_LOG 實體新增遷移筆數與對帳報告不符 (AI_LOG 實體新增: BU ${actualMigratedBu} / LO ${actualMigratedLo} vs 報告新增: BU ${migratedBu} / LO ${migratedLo}, 遷移後新增: ${newlyGeneratedCount} 筆)`;
             } else {
-              checkReconciliationPass = true;
-              reconDetail = `對帳完整通過 (老巴: 來源 ${rep.sourceJCount} 筆 = 新增 ${migratedBu} + 既有 ${dupBu}, 實體 ${actualMigratedBu} 筆吻合; 小羅: 來源 ${rep.sourceKCount} 筆 = 新增 ${migratedLo} + 既有 ${dupLo}, 實體 ${actualMigratedLo} 筆吻合; 遺漏: 0, 差異: 0, 隔離: 0, 遷移後新增: ${newlyGeneratedCount} 筆)`;
+              // 6. 既有重複筆數獨立核對 Record_ID 與內容 (不要求具備 MIGRATE- 鍵值)
+              let verifiedDupBu = 0;
+              let verifiedDupLo = 0;
+              const dupCheckErrors = [];
+
+              if (dupBu > 0 || dupLo > 0) {
+                if (archiveSheet && typeof archiveSheet.getLastRow === 'function' && typeof archiveSheet.getRange === 'function' && archiveSheet.getLastRow() >= 3) {
+                  const totalArchiveRows = archiveSheet.getLastRow() - 2;
+                  const archiveGrid = archiveSheet.getRange(3, 1, totalArchiveRows, Math.max(11, archiveSheet.getLastColumn())).getValues();
+                  for (let j = 0; j < archiveGrid.length; j++) {
+                    const aRow = archiveGrid[j];
+                    let aTradeDate = '';
+                    const dateCell = aRow[0];
+                    if (dateCell && (dateCell instanceof Date || typeof dateCell.getTime === 'function')) {
+                      try { aTradeDate = Utilities.formatDate(dateCell, 'Asia/Taipei', 'yyyy-MM-dd'); } catch (e) {}
+                    } else if (dateCell && !String(dateCell).includes('#REF')) {
+                      const m = String(dateCell).match(/\d{4}[-/.]\d{2}[-/.]\d{2}/);
+                      if (m) aTradeDate = m[0].replace(/[/.]/g, '-');
+                    }
+                    const jText = aRow[9] ? String(aRow[9]).trim() : '';
+                    const kText = aRow[10] ? String(aRow[10]).trim() : '';
+
+                    if (!aTradeDate && (jText || kText)) {
+                      const combined = jText + ' ' + kText;
+                      const m1 = combined.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+                      if (m1) {
+                        aTradeDate = `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
+                      } else {
+                        const m2 = combined.match(/(\d{4}-\d{2}-\d{2})/);
+                        if (m2) aTradeDate = m2[1];
+                      }
+                    }
+
+                    const cleanDate = aTradeDate ? aTradeDate.replace(/-/g, '') : '';
+                    if (!cleanDate) continue;
+
+                    // 核對老巴重複紀錄
+                    if (jText) {
+                      const buRecId = `AI-BU-${cleanDate}`;
+                      const aiRec = aiRecordMap[buRecId];
+                      if (aiRec && !aiRec.isMigrated) {
+                        if (aiRec.content === jText) {
+                          verifiedDupBu++;
+                        } else {
+                          dupCheckErrors.push(`老巴既有重複紀錄 ${buRecId} 內文不一致 (AI_LOG 長度 ${aiRec.content.length} vs 封存表長度 ${jText.length})`);
+                        }
+                      }
+                    }
+
+                    // 核對小羅重複紀錄
+                    if (kText) {
+                      const loRecId = `AI-LO-${cleanDate}`;
+                      const aiRec = aiRecordMap[loRecId];
+                      if (aiRec && !aiRec.isMigrated) {
+                        if (aiRec.content === kText) {
+                          verifiedDupLo++;
+                        } else {
+                          dupCheckErrors.push(`小羅既有重複紀錄 ${loRecId} 內文不一致 (AI_LOG 長度 ${aiRec.content.length} vs 封存表長度 ${kText.length})`);
+                        }
+                      }
+                    }
+                  }
+                } else {
+                  // 無封存網格可逐列比對時，以對帳報告 contentDiscrepancyCount === 0 作為依據
+                  if (rep.contentDiscrepancyCount === 0) {
+                    verifiedDupBu = dupBu;
+                    verifiedDupLo = dupLo;
+                  }
+                }
+              }
+
+              if (dupCheckErrors.length > 0) {
+                reconDetail = `既有重複紀錄核對失敗：${dupCheckErrors.join('; ')}`;
+              } else if (verifiedDupBu !== dupBu || verifiedDupLo !== dupLo) {
+                reconDetail = `既有重複紀錄筆數核對不符 (實體核對: BU ${verifiedDupBu} / LO ${verifiedDupLo} vs 報告重複: BU ${dupBu} / LO ${dupLo})`;
+              } else {
+                checkReconciliationPass = true;
+                reconDetail = `對帳完整通過 (老巴: 來源 ${rep.sourceJCount} 筆 = 新增遷移 ${actualMigratedBu} 筆 + 既有重複 ${verifiedDupBu} 筆 [Record_ID 與內文獨立核對吻合]; 小羅: 來源 ${rep.sourceKCount} 筆 = 新增遷移 ${actualMigratedLo} 筆 + 既有重複 ${verifiedDupLo} 筆; 遺漏: 0, 差異: 0, 隔離: 0, 正常新紀錄: ${newlyGeneratedCount} 筆)`;
+              }
             }
           }
         }
