@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.9.18)
+# HANDBOOK.md (v2.9.19)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -9,22 +9,29 @@
 ---
 
 ## ② System Architecture
-- **Data Layer (數據底座)**: Google Sheet 6 大結構化分頁 + 1 災難復原暫存頁
+- **Data Layer (數據底座)**: Google Sheet 6 大結構化分頁 + 2 災難復原與封存頁
   - `RAW_HISTORY`: 18 年官方實體歷史數據底座 (Date, TWII, VIX*, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta, EWT_Change*)。*註：依 ANTI-83418 規範，新列 C/J 欄解耦留空，歷史資料全數保留。
   - `THRESHOLD_CONFIG`: 全站唯一門檻定義表 (Single Source of Truth，連動 18 年 P10/P25/P75/P90 原始分位數)。
-  - `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (含 4 大維度自我驗證算式與月度對帳標籤)。
+  - `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (Milestone 7.11 解耦為 GAS 讀取 RAW_HISTORY 直接計算寫入純值)。
   - `DASHBOARD`: 行情最新數據、今日位階、策略行動指引、動態轉折路徑與 AI 雙顧問值班卡片。
-  - `HISTORY_LOG`: 每日盤後定時快照歷史備份 (A:I 量化歷史數據隔離維護；J/K 欄為老巴晨報與小羅午茶紀錄)。
+  - `AI_LOG`: Milestone 7.11 新增之 10 欄純值專用日誌（Record_ID, Trade_Date, Analyst, Generated_At, Model_ID, Generation_Status, Content, Input_Data_Snapshot, Morning_Record_ID, Idempotency_Key），Append-only 純值寫入、模型解耦與冪等防護。
+  - `_ARCHIVE_HISTORY_LOG`: 原 HISTORY_LOG 完成歷史資料遷移與對帳後，更名並實施 `isWarningOnly=false` 強制唯讀實體保護與隱藏封存。
   - `DECISION_LOG`: 手動加碼/戰術決策審核檢討紀錄。
   - `_ROLLBACK_TMP`: 災難復原交易快照隱藏分頁（支援完整雙表鏡像、Pre-Fingerprints 與防篡改雜湊）。
+  - `_BACKUP_HISTORY_LOG_PRE_MIGRATION`: 遷移前完整快照備份表。
 - **Engine Layer (核心大腦)**: Google Apps Script 自動化引擎 ([Market_Engine_GAS.js](file:///f:/Projects/Market_Engine/Market_Engine_GAS.js))
   - 核心包含：統一門檻解析 (`getThresholdConfig`/`classifyPhase`)、三窗口歷史位階校準引擎 (`calculateCalibrationWindows`)、位階歷史下行風險與前瞻報酬驗證器 (`calculatePhaseForwardPerformance`)、位階大區間雙層撫平器、18 年月次回測排程自癒機制 (`checkAndAutoRunMonthlyLabBacktest`)、未來重大事件永續滾動生成引擎 (`generateRollingUpcomingEvents`)，並徹底剝離同步阻塞達成 2 秒極速響應。
-  - AI 分析導航升級：老巴盤前 4 大區塊與時段標記、小羅盤後 5 大區塊程式精算漲跌與早晨三分類驗證，寫入 `HISTORY_LOG!J3/K3` 與 `DASHBOARD!B23/B24`。
+  - AI 分析導航升級：老巴盤前 4 大區塊與時段標記、小羅盤後 5 大區塊程式精算漲跌與早晨三分類驗證；AI_LOG_FLOW_ACTIVE 開啟時優先讀寫 `AI_LOG` 純值分頁。
+  - 遷移與安全啟用防護：步驟 1~6 冪等遷移、三態紀錄分類 (`VALID_MIGRATION`, `NORMAL_AI_RECORD`, `INVALID_MIGRATION`)、日期正規化防禦、新增遷移與既有重複獨立對帳。
 - **Presentation & Cache Layer (展示與快取層)**: GitHub Pages 靜態前端與 GAS Web App ([index.html](file:///f:/Projects/Market_Engine/index.html))
   - 實現 **SWR (Stale-While-Revalidate)** 本地優先快取（0 毫秒即時渲染上次報表，完全消除 F5 轉圈感）。
-  - **三窗口歷史位階校準實驗室 (18Y / 10Y / 5Y Calibration Lab)**：0ms 即時切換、歷史百分位排位、橫向門檻比較表、絕對差值標註與位階敏感度分析（已依 ANTI-83418 移除 VIX 歷史分位數，回歸 Dist60/Dist240 雙核心）。
+  - **PWA (Progressive Web App) 完整支援 (v2.9.19)**：
+    - 支援 Android Chrome / Edge / 三星瀏覽器與 iOS Safari 桌面獨立安裝。
+    - 具備完整 `manifest.json`、`sw.js`（Service Worker 離線快取 App Shell）、全套多解析度圖示（192x192, 512x512, maskable, apple-touch-icon）。
+    - 內建 Android `beforeinstallprompt` 原生一鍵安裝提示、iOS Safari「加入主畫面」圖文引導彈窗與獨立視窗 (`standalone`) 自動識別。
+  - **三窗口歷史位階校準實驗室 (18Y / 10Y / 5Y Calibration Lab)**：0ms 即時切換、歷史百分位排位、橫向門檻比較表、絕對差值標註與位階敏感度分析。
   - **海外即時觀測卡片 (ANTI-83420)**：獨立讀取 `OVERSEAS_OBSERVATION_JSON`，具備最後成功有效數值防覆蓋保護與時效標籤。
-  - **歷史下行風險與前瞻報酬驗證 (Risk & Forward Return)**：選定窗口 T1~T5 詳細前瞻績效表（20日/60日平均報酬、最大不利變動 MAE、勝率）與三窗口橫向對比矩陣。
+  - **歷史下行風險與前瞻報酬驗證 (Risk & Forward Return)**：選定窗口 T1~T5 詳細前瞻績效表與三窗口橫向對比矩陣。
   - **常態轉折路徑標籤 (Persistent Transition Breadcrumb)**：清晰呈現「前一位階歷史脈絡 → 今日位階」，賦予決策連續性。
 
 ---
@@ -32,11 +39,13 @@
 ## ③ Database Schema & 欄位規範
 1. `RAW_HISTORY`: 官方實體歷史數據底座 (A: Date, B: TWII, C: VIX, D: MA60, E: MA240, F: Dist60, G: Dist240, H: MA60_Slope, I: Dist60_Delta, J: EWT)。新列第 3 列起 C、J 欄停止寫入保持空白。
 2. `THRESHOLD_CONFIG`: 位階門檻定義表 (連動 18 年 P10/P25/P75/P90 原始分位數)。
-3. `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (含 4 大維度自我驗證算式)。
+3. `LAB_BACKTEST`: 1 年期前瞻報酬與勝率統計回測表 (GAS 直接自 RAW_HISTORY 計算純值寫入)。
 4. `DASHBOARD`: 行情最新數據、今日位階 (B15)、DASHBOARD!B12 (`=INDIRECT("RAW_HISTORY!J3")` 原樣保留)、AI 老巴早餐 (B23)、AI 小羅午茶 (B24)。
-5. `HISTORY_LOG`: 歷史位階日誌。A:I 為客觀量化歷史數據 (新列 E 欄 VIX 公式停止注入保持空白)；J 欄為 `AI_Morning_Story` (老巴早餐)，K 欄為 `AI_Afternoon_Story` (小羅午茶)。
-6. `DECISION_LOG`: 加碼與紀律執行紀錄。
-7. `_ROLLBACK_TMP`: 災難復原交易快照隱藏分頁，保存雙表鏡像與中繼簽章。
+5. `AI_LOG`: 10 欄標準純值紀錄表 (A: Record_ID, B: Trade_Date, C: Analyst, D: Generated_At, E: Model_ID, F: Generation_Status, G: Content, H: Input_Data_Snapshot, I: Morning_Record_ID, J: Idempotency_Key)。
+6. `_ARCHIVE_HISTORY_LOG`: 歷史退役分頁，實施強制唯讀保護與隱藏，A:I 為歷史客觀量化數據，J/K 為歷史分析紀錄。
+7. `DECISION_LOG`: 加碼與紀律執行紀錄。
+8. `_ROLLBACK_TMP`: 災難復原交易快照隱藏分頁，保存雙表鏡像與中繼簽章。
+9. `_BACKUP_HISTORY_LOG_PRE_MIGRATION`: 遷移前完整備份表。
 
 ---
 
@@ -95,12 +104,14 @@
 ---
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.9.18` (`main` 分支)
+- **Current Version**: `v2.9.19` (`main` 分支)
 - **GAS Production Deployment**: **Version 156 (`@156`)**
   - **Deployment ID**: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`
+  - **HEAD Status**: 已同步 Milestone 7.11 步驟 6 獨立核對防護邏輯與 PWA 介面整合。
   - **Rollback Baseline**: **Version 155 (`@155`)**
 - **Production Spreadsheet**: `Market_Engine_V3` (`1mbOW4hyoiAJFxGxpSfMPqg21M9d0EhcbTihab7J49Rw`)
-- **GitHub Pages**: `https://voyagermartin.github.io/Market_Engine/`
+- **GitHub Pages (PWA 正式站台)**: `https://voyagermartin.github.io/Market_Engine/`
+  - 支援 Android Chrome / Edge 與 iOS Safari 桌面獨立安裝，離線 App Shell 快取啟用。
 - **Data Status**: 基準交易日 `2026-11-13`，收盤 `43,675.12`，`Dist60: -5.52%`，`Dist240: +35.74%`，位階 `極度恐慌` (T1)。
 
 ---
@@ -121,18 +132,24 @@
 - **Milestone 7.10 (v2.9.18 COMPLETED)**: 🚀 **AI 分析模型架構換代升級 (Switch to gemini-3.8-flash & 3.5-flash-lite)**
   - (1) 徹底移除所有已退役/關閉模型，主力全站切換為 `gemini-3.8-flash`。
   - (2) 配置 `gemini-3.5-flash-lite` 極速保底，防禦瞬時限流並消除掉入特調備援之延遲。
-  - (3) 對齊 `callGeminiAPIUniversal`、`testMarketOpenStatus`、`testGeminiAPI` 與 `fetchUpcomingMarketEvents` 四大呼叫端點，正式發布 **Version 156 (`@156`)**。
-- **Milestone 7.11 (PLANNING / RFC COMPLETED)**: 📋 **HISTORY_LOG 退役與資料架構簡化規劃 (Architecture Simplification RFC)**
-  - (1) **全專案依賴盤點**：全面清查 GAS、前端與 API，確認前端 `index.html` 與核心量化大腦 100% 零依賴 `HISTORY_LOG`。
-  - (2) **AI_LOG 純值規格**：設計具備 10 大標準欄位、唯一 Record_ID、早晚關聯、防重複寫入與模型解耦之專用分頁。
-  - (3) **歷史資料保全方案**：J/K 欄真實 AI 分析 100% 無損遷移，確立 SHA-256 抽樣對帳機制；原表更名 `_ARCHIVE_HISTORY_LOG` 隱藏唯讀封存。
-  - (4) **LAB_BACKTEST 解耦方案**：改由 GAS 直接讀取 `RAW_HISTORY` 純值計算寫入，回測有效樣本數自 2,685 天精確恢復至 4,499 天。
-  - (5) **實施計畫落地**：產出 6 階段無縫遷移實施計畫與 5 大審查決策點，文檔封裝於 `HISTORY_LOG_RETIREMENT_PLAN.md`。
-- **🚀 目前停止位置與起點記錄**: `main` 分支（Commit `4637014`，正式環境 GAS 部署 **Version 156 (`@156`)**，HISTORY_LOG 退役 RFC 規劃就緒）。
+  - (3) 對齊四大呼叫端點，正式發布 **Version 156 (`@156`)**。
+- **Milestone 7.11 (v2.9.19 COMPLETED)**: 📋 **HISTORY_LOG 退役與 AI_LOG 純值架構實施**
+  - (1) **分頁建立與保全**：建立 10 欄標準純值 `AI_LOG` 表，保留完整備份 `_BACKUP_HISTORY_LOG_PRE_MIGRATION`。
+  - (2) **無損遷移與對帳報告**：歷史真實 J/K 分析無損遷移，生成 `MIGRATION_RECONCILIATION_REPORT` 對帳報告。
+  - (3) **舊表實體保護退役**：`_ARCHIVE_HISTORY_LOG` 實施 `isWarningOnly=false` 強制唯讀實體保護與隱藏。
+  - (4) **步驟 6 啟用防護加固**：實體紀錄三態分類 (`VALID_MIGRATION`, `NORMAL_AI_RECORD`, `INVALID_MIGRATION`)、日期正規化防禦、排除現場正常模型誤判，並將新增遷移筆數（BU 2, LO 2）與既有重複筆數（1:1 比對 Record_ID 與內文）分離獨立核對（18/18 測試全數通過）。
+  - (5) **Feature Flag 動態管控**：以 `AI_LOG_FLOW_ACTIVE` 控制切換，支援秒級無損 Rollback 回退舊制。
+- **Milestone 7.12 (v2.9.19 COMPLETED)**: 📱 **PWA (Progressive Web App) 行動裝置原生獨立 App 支援**
+  - (1) **Web App Manifest**：建立標準 `manifest.json`，配置專屬名稱、`#0c0a09` 主題色、`standalone` 獨立全螢幕模式與相對路徑。
+  - (2) **Service Worker 智慧快取**：建立 `sw.js`，離線預載 App Shell，即時行情 API 保持網路優先搭配 `localStorage` SWR 快取。
+  - (3) **完整規格圖標**：產出 192x192、512x512、自適應安全區 maskable 與 iOS 專用 apple-touch-icon。
+  - (4) **雙平台安裝導覽**：Android 原生一鍵安裝提示、iOS Safari「加入主畫面」圖文引導彈窗與 Google 試算表內嵌環境自動轉導提示。
+  - (5) **GitHub Pages 部署發布**：正式推送至 `origin/main`，線上 HTTP 200 實測通過。
+- **🚀 目前停止位置與起點記錄**: `main` 分支（Commit `a53b15c`，正式環境 GAS 部署 **Version 156 (`@156`)**，HEAD 同步最新防護，GitHub Pages PWA 部署上線）。
 - **🎯 下一步施工目標 (下個開發起點記錄)**:
-  - **目標 1 (審查與批准 HISTORY_LOG 退役計畫)**：使用者下班審查 `HISTORY_LOG_RETIREMENT_PLAN.md`，確認 5 大決策點（AI_LOG 頂端插入排序、舊表隱藏封存、LAB_BACKTEST 純值寫入、98 筆舊尾巴保留於封存表、實作時間排定）。
-  - **目標 2 (啟動 Milestone 7.11 實作)**：批准後依 6 階段實施：(1) 建立 `AI_LOG` 與封存舊表 ➔ (2) 遷移歷史 J/K ➔ (3) 切換老巴小羅讀寫至 `AI_LOG` ➔ (4) `LAB_BACKTEST` 改由 RAW 計算 ➔ (5) 簡化盤後雙表事務 ➔ (6) 全系統驗證發布。
-  - **目標 3 (平日收盤實測觀察)**：觀察今日 16:30 小羅盤後午茶（`gemini-3.8-flash`）的自動執行品質與早晨驗證。
+  - **目標 1 (試算表正式啟用 AI_LOG 資料流)**：前往 Google 試算表執行「步驟 6: 正式啟用 AI_LOG 資料流」，確認 8 項核對全綠（🟢）並正式啟動 Feature Flag。
+  - **目標 2 (盤中/盤後自動資料流觀察)**：觀察明日 07:30 老巴早晨分析與 16:30 小羅盤後分析純值寫入 `AI_LOG` 的運作狀態。
+  - **目標 3 (手機端 PWA App 使用反饋)**：在手機桌面上以獨立全螢幕模式開啟 Market Engine App，驗證日常操作與 0ms 載入體驗。
 
 ---
 
@@ -149,4 +166,5 @@
 | **2026-11-15** | `v2.9.16` | ANTI-83420：VIX/EWT 前端顯示與更新快取加固（成功顯示最新、失敗保留最後有效數據並標記警示、獨立判定互不影響、無資料顯示「尚無可用資料」），正式環境發布 (GAS @154)。 |
 | **2026-11-15** | `v2.9.17` | **Milestone 7.9 完工：老巴與小羅 AI 分析品質全面升級**：老巴 4 大區塊與時段標記、小羅 5 大區塊程式精算漲跌與早晨三分類比對、A:I 量化歷史數據隔離、J3/K3 寫入規範確立與備援文字解耦，正式環境發布 (GAS @155，Commit `1afaf8b`)。 |
 | **2026-11-16** | `v2.9.18` | **Milestone 7.10 完工：AI 模型世代升級**：主力全站採用 `gemini-3.8-flash`，配置 `gemini-3.5-flash-lite` 極速保底，正式發布 (GAS @156)。 |
-| **2026-11-16** | `v2.9.18` | **Milestone 7.11 規劃完工：HISTORY_LOG 退役與架構簡化 RFC**：全專案依賴盤點（前端 0 依賴）、AI_LOG 純值規範、歷史 J/K 無損保全方案與 6 階段實施計畫確立，產出 `HISTORY_LOG_RETIREMENT_PLAN.md`。 |
+| **2026-11-18** | `v2.9.19` | **Milestone 7.11 完工：HISTORY_LOG 退役與 AI_LOG 純值架構實施**：10 欄 AI_LOG 分頁建立、歷史真實 J/K 無損遷移、舊表實體保護封存、三態紀錄分類 (`VALID_MIGRATION`/`NORMAL_AI_RECORD`/`INVALID_MIGRATION`)、新增與重複獨立對帳（18/18 測試通過）、Feature Flag 動態管控與 Rollback 機制。 |
+| **2026-11-18** | `v2.9.19` | **Milestone 7.12 完工：PWA (Progressive Web App) 原生獨立 App 支援**：`manifest.json` 與 `sw.js` 智慧快取、全套圖標規格、Android 原生一鍵安裝提示、iOS Safari 引導彈窗與 GitHub Pages 正式發布。 |
