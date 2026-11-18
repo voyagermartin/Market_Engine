@@ -2,10 +2,22 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Market Engine v2.9.0 - 研究市場，是為了最後不再被市場牽著走</title>
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0c0a09">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Market Engine">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -396,6 +408,247 @@
       color: #fde047;
       box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
     }
+
+    /* PWA Install UI Styles */
+    .pwa-header-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.32));
+      border: 1px solid var(--accent-gold);
+      border-radius: 9999px;
+      color: #fffbeb;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+    }
+    .pwa-header-btn:hover {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.38), rgba(217, 119, 6, 0.48));
+      transform: translateY(-1px);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.45);
+    }
+
+    /* Floating Mobile Install Banner */
+    .pwa-banner {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: 460px;
+      background: rgba(24, 21, 18, 0.96);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      border-radius: 18px;
+      padding: 14px 18px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 24px rgba(245, 158, 11, 0.2);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      animation: pwaSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes pwaSlideUp {
+      from { transform: translate(-50%, 60px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    .pwa-banner-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pwa-banner-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+    .pwa-banner-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fffbeb;
+      line-height: 1.3;
+    }
+    .pwa-banner-desc {
+      font-size: 12px;
+      color: #d6d3d1;
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+    .pwa-banner-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+    }
+    .pwa-btn-dismiss {
+      padding: 7px 14px;
+      background: transparent;
+      border: 1px solid rgba(214, 211, 209, 0.25);
+      border-radius: 8px;
+      color: #a8a29e;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .pwa-btn-dismiss:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+    .pwa-btn-install {
+      padding: 7px 18px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border: none;
+      border-radius: 8px;
+      color: #fffbeb;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+      transition: all 0.2s ease;
+    }
+    .pwa-btn-install:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    /* iOS Guide Modal */
+    .pwa-ios-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    .pwa-ios-modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .pwa-ios-modal-card {
+      position: relative;
+      background: #1c1917;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 28px rgba(245, 158, 11, 0.25);
+      animation: pwaScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes pwaScaleIn {
+      from { transform: scale(0.92); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .pwa-ios-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+    }
+    .pwa-ios-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fbbf24;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pwa-ios-close {
+      background: none;
+      border: none;
+      color: #a8a29e;
+      font-size: 26px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+    }
+    .pwa-ios-body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .pwa-ios-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+      color: #e7e5e4;
+      line-height: 1.5;
+    }
+    .pwa-step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid #fbbf24;
+      color: #fbbf24;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .pwa-ios-btn-ok {
+      width: 100%;
+      padding: 11px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border: none;
+      border-radius: 10px;
+      color: #fffbeb;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+      transition: all 0.2s ease;
+    }
+    .pwa-ios-btn-ok:hover {
+      filter: brightness(1.1);
+    }
+    .pwa-toast {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(24, 21, 18, 0.95);
+      border: 1px solid #34d399;
+      color: #34d399;
+      padding: 10px 22px;
+      border-radius: 9999px;
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+      z-index: 100001;
+      display: none;
+      animation: pwaFadeIn 0.3s ease;
+    }
+    @keyframes pwaFadeIn {
+      from { opacity: 0; transform: translate(-50%, -10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
   </style>
 </head>
 <body>
@@ -409,11 +662,17 @@
           <div class="brand-subtitle">來喝咖啡看盤吧～</div>
         </div>
       </div>
-      <div class="status-badge">
-        <span class="status-dot"></span>
-        <span id="marketStatusTag" style="font-weight: 700; color: #9ca3af; margin-right: 8px;">連線中...</span>
-        <span id="navMode" style="font-weight: 700; color: #9ca3af; margin-right: 6px;">連線中...</span>
-        (<span id="dataDate">連線中...</span>)
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <button id="pwaInstallHeaderBtn" class="pwa-header-btn" style="display: none;" title="安裝至手機或桌面作為獨立 App">
+          <span style="font-size: 14px;">📲</span>
+          <span>安裝 App</span>
+        </button>
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span id="marketStatusTag" style="font-weight: 700; color: #9ca3af; margin-right: 8px;">連線中...</span>
+          <span id="navMode" style="font-weight: 700; color: #9ca3af; margin-right: 6px;">連線中...</span>
+          (<span id="dataDate">連線中...</span>)
+        </div>
       </div>
     </header>
 
@@ -3377,6 +3636,231 @@
       script.src = GAS_API_BASE + '?callback=onMarketDataCallback&_=' + new Date().getTime();
       document.body.appendChild(script);
     })();
+
+    // ==========================================
+    // PWA Support & Service Worker Controller
+    // ==========================================
+    (function initPWA() {
+      // 1. Service Worker 註冊
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('./sw.js')
+            .then(function(reg) {
+              console.log('[PWA] Service Worker 註冊成功，Scope:', reg.scope);
+            })
+            .catch(function(err) {
+              console.log('[PWA] Service Worker 註冊略過或受限:', err.message);
+            });
+        });
+      }
+
+      // 2. 獨立模式檢測 (Standalone mode)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                           window.navigator.standalone === true ||
+                           document.referrer.includes('android-app://');
+
+      if (isStandalone) {
+        console.log('[PWA] 目前已在獨立 App 模式下運行');
+        return; // 若已是獨立 App，不顯示任何安裝按鈕與提示
+      }
+
+      const headerBtn = document.getElementById('pwaInstallHeaderBtn');
+      const banner = document.getElementById('pwaInstallBanner');
+      const bannerInstallBtn = document.getElementById('pwaBannerInstallBtn');
+      const bannerDismissBtn = document.getElementById('pwaBannerDismissBtn');
+      const iosModal = document.getElementById('pwaIosModal');
+      const iosCloseBtn = document.getElementById('pwaIosCloseBtn');
+      const iosOkBtn = document.getElementById('pwaIosOkBtn');
+      const iosBackdrop = document.getElementById('pwaIosBackdrop');
+      const toast = document.getElementById('pwaToast');
+
+      const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase()) && !window.MSStream;
+      const isMobile = /android|iphone|ipad|ipod|mobile/.test(window.navigator.userAgent.toLowerCase());
+      const isDismissed = sessionStorage.getItem('PWA_INSTALL_DISMISSED') === 'true';
+
+      const androidModal = document.getElementById('pwaAndroidModal');
+      const androidCloseBtn = document.getElementById('pwaAndroidCloseBtn');
+      const androidOkBtn = document.getElementById('pwaAndroidOkBtn');
+      const androidBackdrop = document.getElementById('pwaAndroidBackdrop');
+      const androidStepGuide = document.getElementById('pwaAndroidStepGuide');
+      const androidGasGuide = document.getElementById('pwaAndroidGasGuide');
+
+      let deferredPrompt = null;
+
+      function showToast(msg) {
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(function() { toast.style.display = 'none'; }, 3500);
+      }
+
+      function openIosModal() {
+        if (iosModal) iosModal.style.display = 'flex';
+      }
+
+      function closeIosModal() {
+        if (iosModal) iosModal.style.display = 'none';
+      }
+
+      function openAndroidModal(isGas) {
+        if (!androidModal) return;
+        if (androidGasGuide) androidGasGuide.style.display = isGas ? 'block' : 'none';
+        if (androidStepGuide) androidStepGuide.style.display = isGas ? 'none' : 'block';
+        androidModal.style.display = 'flex';
+      }
+
+      function closeAndroidModal() {
+        if (androidModal) androidModal.style.display = 'none';
+      }
+
+      if (iosCloseBtn) iosCloseBtn.addEventListener('click', closeIosModal);
+      if (iosOkBtn) iosOkBtn.addEventListener('click', closeIosModal);
+      if (iosBackdrop) iosBackdrop.addEventListener('click', closeIosModal);
+
+      if (androidCloseBtn) androidCloseBtn.addEventListener('click', closeAndroidModal);
+      if (androidOkBtn) androidOkBtn.addEventListener('click', closeAndroidModal);
+      if (androidBackdrop) androidBackdrop.addEventListener('click', closeAndroidModal);
+
+      // 3. Android / Chrome / Edge 安裝事件攔截
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        deferredPrompt = e;
+
+        if (headerBtn) headerBtn.style.display = 'inline-flex';
+        if (banner && !isDismissed) banner.style.display = 'flex';
+      });
+
+      // 4. 手機裝置常態顯示安裝提示入口 (Android & iOS)
+      if (isMobile) {
+        if (headerBtn) headerBtn.style.display = 'inline-flex';
+        if (banner && !isDismissed) banner.style.display = 'flex';
+      }
+
+      // 5. 點擊安裝觸發
+      function handleInstallClick() {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(function(choiceResult) {
+            if (choiceResult.outcome === 'accepted') {
+              console.log('[PWA] 使用者已同意安裝');
+              if (banner) banner.style.display = 'none';
+              if (headerBtn) headerBtn.style.display = 'none';
+            }
+            deferredPrompt = null;
+          });
+        } else if (isIos) {
+          openIosModal();
+        } else {
+          const isGas = window.location.hostname.includes('script.google.com') || window.location.hostname.includes('googleusercontent.com');
+          openAndroidModal(isGas);
+        }
+      }
+
+      if (headerBtn) headerBtn.addEventListener('click', handleInstallClick);
+      if (bannerInstallBtn) bannerInstallBtn.addEventListener('click', handleInstallClick);
+
+      // 6. 稍後再說
+      if (bannerDismissBtn) {
+        bannerDismissBtn.addEventListener('click', function() {
+          if (banner) banner.style.display = 'none';
+          sessionStorage.setItem('PWA_INSTALL_DISMISSED', 'true');
+        });
+      }
+
+      // 7. 安裝成功事件
+      window.addEventListener('appinstalled', function() {
+        console.log('[PWA] App 安裝成功！');
+        if (banner) banner.style.display = 'none';
+        if (headerBtn) headerBtn.style.display = 'none';
+        showToast('🎉 Market Engine App 安裝成功！歡迎直接從手機主畫面開啟。');
+      });
+    })();
   </script>
+
+  <!-- PWA Floating Mobile Install Banner -->
+  <div id="pwaInstallBanner" class="pwa-banner" style="display: none;">
+    <div class="pwa-banner-content">
+      <img src="icon-192.png" alt="App Icon" class="pwa-banner-icon">
+      <div class="pwa-banner-info">
+        <div class="pwa-banner-title">安裝 Market Engine</div>
+        <div class="pwa-banner-desc">安裝至手機主畫面，享受原生全螢幕體驗與即時快取！</div>
+      </div>
+    </div>
+    <div class="pwa-banner-actions">
+      <button id="pwaBannerDismissBtn" class="pwa-btn-dismiss">稍後再說</button>
+      <button id="pwaBannerInstallBtn" class="pwa-btn-install">立即安裝</button>
+    </div>
+  </div>
+
+  <!-- PWA Android Instructions Modal -->
+  <div id="pwaAndroidModal" class="pwa-ios-modal" style="display: none;">
+    <div class="pwa-ios-modal-backdrop" id="pwaAndroidBackdrop"></div>
+    <div class="pwa-ios-modal-card">
+      <div class="pwa-ios-header">
+        <div class="pwa-ios-title">📱 在 Android 上安裝 App</div>
+        <button class="pwa-ios-close" id="pwaAndroidCloseBtn" aria-label="關閉">&times;</button>
+      </div>
+
+      <!-- GAS 內嵌預覽專屬導引 -->
+      <div id="pwaAndroidGasGuide" style="display: none;">
+        <p style="font-size: 14px; color: #e7e5e4; line-height: 1.6; margin-bottom: 16px;">
+          您目前透過 Google 試算表內嵌檢視，因瀏覽器安全沙盒限制，無法在內嵌框架中直接安裝 App。<br><br>
+          請點擊下方按鈕以<strong>獨立正式版 (GitHub Pages)</strong> 開啟後，即可直接安裝為桌面獨立 App：
+        </p>
+        <a href="https://voyagermartin.github.io/Market_Engine/" target="_blank" rel="noopener noreferrer" style="display: block; width: 100%; padding: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 10px; color: #fffbeb; font-size: 15px; font-weight: 700; text-align: center; text-decoration: none; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); margin-bottom: 10px;">
+          🚀 前往正式獨立版安裝
+        </a>
+      </div>
+
+      <!-- 一般瀏覽器步驟導引 -->
+      <div id="pwaAndroidStepGuide">
+        <div class="pwa-ios-body">
+          <div class="pwa-ios-step">
+            <div class="pwa-step-num">1</div>
+            <div class="pwa-step-text">點擊 Chrome / 瀏覽器右上角的選單按鈕 <strong>「⋮」</strong>（三個點）</div>
+          </div>
+          <div class="pwa-ios-step">
+            <div class="pwa-step-num">2</div>
+            <div class="pwa-step-text">在選單中點選 <strong>「安裝應用程式」</strong> 或 <strong>「加到主畫面」</strong></div>
+          </div>
+          <div class="pwa-ios-step">
+            <div class="pwa-step-num">3</div>
+            <div class="pwa-step-text">點選 <strong>「安裝」</strong>，即可在手機桌面以全螢幕 App 模式開啟！</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="pwa-ios-btn-ok" id="pwaAndroidOkBtn">我知道了</button>
+    </div>
+  </div>
+
+  <!-- PWA iOS Instructions Modal -->
+  <div id="pwaIosModal" class="pwa-ios-modal" style="display: none;">
+    <div class="pwa-ios-modal-backdrop" id="pwaIosBackdrop"></div>
+    <div class="pwa-ios-modal-card">
+      <div class="pwa-ios-header">
+        <div class="pwa-ios-title">📱 在 iPhone / iPad 上安裝 App</div>
+        <button class="pwa-ios-close" id="pwaIosCloseBtn" aria-label="關閉">&times;</button>
+      </div>
+      <div class="pwa-ios-body">
+        <div class="pwa-ios-step">
+          <div class="pwa-step-num">1</div>
+          <div class="pwa-step-text">點擊 Safari 底部工具列中央的 <strong>「分享」</strong> 按鈕 <span style="font-size: 16px;">⎋</span></div>
+        </div>
+        <div class="pwa-ios-step">
+          <div class="pwa-step-num">2</div>
+          <div class="pwa-step-text">在分享面板中向下滑動，點選 <strong>「加入主畫面」</strong> <span style="font-size: 16px;">⊞</span></div>
+        </div>
+        <div class="pwa-ios-step">
+          <div class="pwa-step-num">3</div>
+          <div class="pwa-step-text">點擊右上角 <strong>「新增」</strong>，即可在手機桌面以全螢幕 App 模式開啟！</div>
+        </div>
+      </div>
+      <button class="pwa-ios-btn-ok" id="pwaIosOkBtn">我知道了</button>
+    </div>
+  </div>
+
+  <!-- PWA Feedback Toast -->
+  <div id="pwaToast" class="pwa-toast"></div>
 </body>
 </html>
