@@ -1658,44 +1658,150 @@ ${phaseTrack}
 /**
  * 升級版小羅盤後 AI 導航腳本 (對齊 V3 Database Schema & 休市日判定)
  */
-function generateAfternoonNavigation() {
-  const ss = getSpreadsheet();
+function generateAfternoonNavigation(options) {
+  const opt = (options && typeof options === 'object' && !options.triggerUid && !options.authMode)
+    ? ((options instanceof Date || typeof options.getTime === 'function') ? { targetDate: options } : options)
+    : {};
+  const ss = opt.spreadsheet || getSpreadsheet();
   const rawSheet = ss ? ss.getSheetByName("RAW_HISTORY") : null;
   const dashSheet = ss ? ss.getSheetByName("DASHBOARD") : null;
   const historyLogSheet = ss ? (ss.getSheetByName("HISTORY_LOG") || ss.getSheetByName("_ARCHIVE_HISTORY_LOG")) : null;
 
   if (!rawSheet || !dashSheet) {
     Logger.log("⚠️ 分頁未完整建置 (找不到 RAW_HISTORY 或 DASHBOARD)");
-    return;
+    return { success: false, status: 'SHEET_NOT_FOUND', reason: '找不到必要的工作表 (RAW_HISTORY 或 DASHBOARD)' };
   }
 
-  const marketStatus = isMarketOpen(new Date());
+  // 1. 目標日期與開休市判定
+  const targetDate = ((opt.targetDate instanceof Date || (opt.targetDate && typeof opt.targetDate.getTime === 'function')) && !isNaN(opt.targetDate.getTime()))
+    ? opt.targetDate
+    : (typeof opt.targetDate === 'string' && opt.targetDate.trim() !== ''
+        ? new Date(opt.targetDate.trim() + (opt.targetDate.indexOf('T') === -1 ? 'T00:00:00+08:00' : ''))
+        : new Date());
+  const targetDateStr = Utilities.formatDate(targetDate, "Asia/Taipei", "yyyy-MM-dd");
+
+  const marketStatus = opt.holidayStatus || isMarketOpen(targetDate);
   let holidayNotice = "";
   if (!marketStatus.isOpen) {
     holidayNotice = `【今日台股休市提醒】今日台股休市（原因：${marketStatus.reason}）。請勿分析當日成交量與當日買賣，請將重點聚焦在「夜盤EWT情緒」、「VIX國際風險」與「下個交易日觀察方向」。\n`;
   }
 
-  // 台股正式收盤指標讀取自 RAW_HISTORY (不讀取 C3/J3 作為海外最新報價)
+  // 2. 正式收盤資料前置條件檢查與既有 Module B 收盤更新聯動
+  if (marketStatus.isOpen) {
+    const rawTopCell = rawSheet.getRange(3, 1).getValue();
+    const rawTopDateStr = (rawTopCell instanceof Date || (rawTopCell && typeof rawTopCell.getTime === 'function'))
+      ? Utilities.formatDate(rawTopCell, "Asia/Taipei", "yyyy-MM-dd")
+      : (typeof rawTopCell === 'string' ? rawTopCell.trim() : '');
+
+    // 若尚未由 updateAfternoonMarketEngine 更新且第 3 列不是今日
+    if (!opt.alreadyUpdated && rawTopDateStr !== targetDateStr) {
+      const nowTaipei = new Date();
+      const nowTaipeiDateStr = Utilities.formatDate(nowTaipei, "Asia/Taipei", "yyyy-MM-dd");
+      const nowTimeInt = parseInt(Utilities.formatDate(nowTaipei, "Asia/Taipei", "HHmmss"), 10);
+
+      // 若目標日為今日且當前時間早於 13:30:00，嚴禁盤中偷跑
+      if (targetDateStr === nowTaipeiDateStr && nowTimeInt < 133000) {
+        const prematureReason = `尚未達台股收盤時間 (13:30:00，目前時間 ${Utilities.formatDate(nowTaipei, "Asia/Taipei", "HH:mm:ss")})，今日台股尚未正式收盤。依規定停止生成盤後分析，嚴禁使用盤中未結算或昨日過期資料。`;
+        Logger.log(`[generateAfternoonNavigation] 終止分析：${prematureReason}`);
+        return {
+          success: false,
+          status: 'REJECTED_BEFORE_MARKET_CLOSE',
+          reason: prematureReason
+        };
+      }
+
+      // 已達收盤時間，優先執行既有 Module B 正式收盤更新流程
+      Logger.log(`[generateAfternoonNavigation] RAW_HISTORY 第 3 列日期 (${rawTopDateStr}) 尚無今日 (${targetDateStr}) 正式收盤資料，優先啟動既有收盤更新流程...`);
+      const updateOptions = Object.assign({}, opt, {
+        spreadsheet: ss,
+        targetDate: targetDate,
+        skipNavigation: true // 避免遞迴重複呼叫導航
+      });
+      const updateResult = updateAfternoonMarketEngine(updateOptions);
+
+      if (!updateResult || !updateResult.success) {
+        const failStatus = (updateResult && updateResult.status) ? updateResult.status : 'UPDATE_FAILED';
+        const failReason = (updateResult && updateResult.reason) ? updateResult.reason : '既有收盤更新流程失敗';
+        const failMsg = `今日正式收盤更新失敗 [${failStatus}]: ${failReason}。依規定立即停止小羅盤後分析，嚴禁退回使用昨日舊資料。`;
+        Logger.log(`[generateAfternoonNavigation] 終止分析：${failMsg}`);
+        return {
+          success: false,
+          status: failStatus,
+          reason: failMsg
+        };
+      }
+    }
+  }
+
+  // 3. 更新完成後重新讀取 RAW_HISTORY，建立統一的單一資料快照
   const rawData = rawSheet.getRange(3, 1, 7, 9).getValues();
-  if (rawData.length < 1 || !rawData[0][0]) {
-    Logger.log("RAW_HISTORY 資料不足");
-    return;
+  if (!rawData || rawData.length < 1 || !rawData[0] || !rawData[0][0]) {
+    const emptyMsg = "RAW_HISTORY 第 3 列無有效資料，終止分析。";
+    Logger.log(`[generateAfternoonNavigation] 終止分析：${emptyMsg}`);
+    return { success: false, status: 'RAW_HISTORY_EMPTY', reason: emptyMsg };
   }
 
   const today = rawData[0];     // [Date, TWII, _, MA60, MA240, Dist60, Dist240, MA60_Slope, Dist60_Delta]
   const yesterday = (rawData.length > 1 && rawData[1]) ? rawData[1] : rawData[0];
 
-  const todayDateStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd");
-  let dateStr = (today[0] instanceof Date) ? Utilities.formatDate(today[0], "Asia/Taipei", "yyyy-MM-dd") : String(today[0] || "");
-  if (!dateStr || dateStr < "2026-09-01") {
-    dateStr = todayDateStr;
-  }
-  const twiiClose = (today[1] && today[1] > 0) ? today[1] : 46164.72;
-  const yesterdayClose = (yesterday[1] && yesterday[1] > 0) ? yesterday[1] : twiiClose;
+  const rawTradeDate = today[0];
+  const dateStr = (rawTradeDate instanceof Date || (rawTradeDate && typeof rawTradeDate.getTime === 'function'))
+    ? Utilities.formatDate(rawTradeDate, "Asia/Taipei", "yyyy-MM-dd")
+    : (typeof rawTradeDate === 'string' ? rawTradeDate.trim() : '');
 
-  // 今日漲跌點數與漲跌幅：由程式計算後提供，嚴禁模型自行猜測
-  const numClose = parseFloat(String(twiiClose).replace(/,/g, ''));
-  const numPrev = parseFloat(String(yesterdayClose).replace(/,/g, ''));
+  if (!dateStr) {
+    const invalidDateMsg = "RAW_HISTORY 最新交易日期為空或無效，終止分析。";
+    Logger.log(`[generateAfternoonNavigation] 終止分析：${invalidDateMsg}`);
+    return { success: false, status: 'INVALID_TRADE_DATE', reason: invalidDateMsg };
+  }
+
+  // 開市交易日嚴格核對交易日期與目標日一致性
+  if (marketStatus.isOpen && dateStr !== targetDateStr) {
+    const dateMismatchMsg = `RAW_HISTORY 最新交易日 (${dateStr}) 與目標交易日 (${targetDateStr}) 不一致，非當日最新正式收盤資料。依規定立即終止分析。`;
+    Logger.log(`[generateAfternoonNavigation] 終止分析：${dateMismatchMsg}`);
+    return { success: false, status: 'TRADE_DATE_MISMATCH', reason: dateMismatchMsg };
+  }
+
+  // 嚴格檢驗台股收盤價必須為大於 0 之有效數值
+  const rawTwii = today[1];
+  const numClose = (typeof rawTwii === 'number') ? rawTwii : parseFloat(String(rawTwii || '').replace(/,/g, ''));
+  if (isNaN(numClose) || !isFinite(numClose) || numClose <= 0) {
+    const invalidTwiiMsg = `RAW_HISTORY 收盤加權指數無效 (${rawTwii})，必須為大於 0 之數值。依規定立即終止分析。`;
+    Logger.log(`[generateAfternoonNavigation] 終止分析：${invalidTwiiMsg}`);
+    return { success: false, status: 'INVALID_TWII_CLOSE', reason: invalidTwiiMsg };
+  }
+  const twiiClose = numClose;
+
+  // 嚴格檢驗技術指標數值合法性 (Dist60, Dist240, MA60 Slope, Dist60 Delta 嚴禁為空、NaN 或公式錯誤)
+  const rawD60 = today[5];
+  const rawD240 = today[6];
+  const rawSlope = today[7];
+  const rawDelta = today[8];
+
+  const numD60 = Number(rawD60);
+  const numD240 = Number(rawD240);
+  const numSlope = Number(rawSlope);
+  const numDelta = Number(rawDelta);
+
+  if (rawD60 === '' || rawD60 === null || isNaN(numD60) || !isFinite(numD60) ||
+      rawD240 === '' || rawD240 === null || isNaN(numD240) || !isFinite(numD240) ||
+      rawSlope === '' || rawSlope === null || isNaN(numSlope) || !isFinite(numSlope) ||
+      rawDelta === '' || rawDelta === null || isNaN(numDelta) || !isFinite(numDelta)) {
+    const fieldMsg = `RAW_HISTORY 技術指標欄位異常或缺漏 (Dist60: ${rawD60}, Dist240: ${rawD240}, MA60 Slope: ${rawSlope}, Dist60 Delta: ${rawDelta})。依規定立即終止分析。`;
+    Logger.log(`[generateAfternoonNavigation] 終止分析：${fieldMsg}`);
+    return { success: false, status: 'INVALID_INDICATOR_FIELDS', reason: fieldMsg };
+  }
+
+  const dist60 = (numD60 * 100).toFixed(2) + "%";
+  const dist240 = (numD240 * 100).toFixed(2) + "%";
+  const ma60Slope = (numSlope * 100).toFixed(2) + "%";
+  const dist60Delta = (numDelta * 100).toFixed(2) + "%";
+
+  // 前一交易日收盤價與今日漲跌計算 (由程式精算，嚴禁模型自行猜測)
+  const rawPrevTwii = yesterday[1];
+  const numPrev = (typeof rawPrevTwii === 'number') ? rawPrevTwii : parseFloat(String(rawPrevTwii || '').replace(/,/g, ''));
+  const yesterdayClose = (!isNaN(numPrev) && isFinite(numPrev) && numPrev > 0) ? numPrev : twiiClose;
+
   let changePoints = '0.00';
   let changePct = '0.00%';
   let changeDescription = '平盤 0.00 點 (0.00%)';
@@ -1710,11 +1816,6 @@ function generateAfternoonNavigation() {
     changeDescription = '無前一交易日對照基準';
   }
 
-  const dist60 = (Number(today[5]) * 100).toFixed(2) + "%";
-  const dist240 = (Number(today[6]) * 100).toFixed(2) + "%";
-  const ma60Slope = (Number(today[7]) * 100).toFixed(2) + "%";
-  const dist60Delta = (Number(today[8]) * 100).toFixed(2) + "%";
-
   // 海外最新觀測統一讀取並評估 ScriptProperties (與 API/前端一致使用 5 種 statusCode)
   const overseasObs = getOverseasObservation_();
   const overseasEval = evaluateOverseasObservation_(overseasObs);
@@ -1725,8 +1826,11 @@ function generateAfternoonNavigation() {
     ? "【海外資料狀態提醒】標示「更新失敗」、「保留」、「缺少交易時間戳」或「資料已過期」之海外指標，代表非當日有效最新觀測；切勿將保留舊數值、N/A 或過期資料描述為今日最新海外行情。\n"
     : "";
 
-  // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)
-  const currentPhase = dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || "順風/中性";
+  // 從 DASHBOARD 讀取當前位階名稱 (Single Source of Truth, B15 為今日位階)，必要時以 classifyPhase 兜底確保一致性
+  let currentPhase = String(dashSheet.getRange("B15").getValue() || dashSheet.getRange("B8").getValue() || '').trim();
+  if (!currentPhase || currentPhase === '資料計算中' || currentPhase.startsWith('#')) {
+    currentPhase = (typeof classifyPhase === 'function') ? classifyPhase(numD60) : '順風/中性';
+  }
 
   // 讀取當日老巴早晨分析 (僅在 AI_LOG_FLOW_ACTIVE 開啟時自 AI_LOG 讀取，未開啟則直接自 ScriptProperties 與歷史鏡像讀取)
   const isAiLogActive = (typeof isAiLogFlowActive_ === 'function') ? isAiLogFlowActive_() : false;
@@ -1845,7 +1949,9 @@ ${phaseTrack}
 `;
 
   let aiText = callGeminiAPIUniversal(prompt);
+  let isOfficialAi = true;
   if (!aiText) {
+    isOfficialAi = false;
     aiText = generateFallbackAfternoonText(
       dateStr,
       twiiClose,
@@ -1912,6 +2018,14 @@ ${phaseTrack}
   }
 
   try { CacheService.getScriptCache().remove("MARKET_ENGINE_DATA_API_CACHE"); } catch (e) {}
+
+  return {
+    success: true,
+    status: 'GENERATED',
+    tradeDate: dateStr,
+    isOfficial: isOfficialAi,
+    content: aiText
+  };
 }
 
 // ==========================================
@@ -3054,7 +3168,7 @@ function updateAfternoonMarketEngine(options) {
   if (!status.isOpen) {
     Logger.log(`[Afternoon Update] 目標日期台股休市 (${status.reason})，略過歷史資料維護，僅生成休市 AI 導航。`);
     if (!opt.skipNavigation) {
-      generateAfternoonNavigation();
+      generateAfternoonNavigation({ spreadsheet: ss, targetDate: targetDate, alreadyUpdated: true, holidayStatus: status });
     }
     return { success: false, status: 'MARKET_CLOSED', reason: `台股休市 (${status.reason})`, inserted: false };
   }
@@ -3200,7 +3314,7 @@ function updateAfternoonMarketEngine(options) {
 
   // 7. 自動觸發小羅盤後 AI 導航生成與近 2 日千點大跌緊急防禦檢查 (僅在完整驗證與寫入成功後觸發)
   if (!opt.skipNavigation) {
-    generateAfternoonNavigation();
+    generateAfternoonNavigation({ spreadsheet: ss, targetDate: targetDate, alreadyUpdated: true });
     try {
       checkCrashEmergencyDefense();
     } catch (e) {
