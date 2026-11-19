@@ -1,4 +1,4 @@
-# HANDBOOK.md (v2.9.19)
+# HANDBOOK.md (v2.9.20)
 
 ## ① Project Vision
 建立整合型 Market Engine V3，將「市場觀察 Web App」與「MARKET LAB 研發實驗室」合併為單一 Google Sheet & GAS 專案。透過客觀的 18 年歷史數據分位數校正與量化回測，建立統一、無歧義的 Single Source of Truth 市場位階決策大腦。
@@ -52,7 +52,7 @@
 ## ④ Function Library (核心函式索引)
 - **AI 雙分析師導航 (v2.9.17 升級)**:
   - `generateMorningNavigation()`: 老巴早盤 AI 導航（07:30 執行），標記台股未開盤事實、美股指數未收錄提醒，輸出 4 大標準區塊，寫入 `DASHBOARD!B23`、`HISTORY_LOG!J3` 並存入 `LAST_MORNING_ANALYSIS_JSON`。
-  - `generateAfternoonNavigation()`: 小羅盤後 AI 導航（16:30 執行），程式精算漲跌點數與幅度、標記成交量未收錄禁猜測、讀取早晨分析進行三分類驗證（已觀察到/尚未發生或無法確認/與早晨預期不同），輸出 5 大標準區塊，寫入 `DASHBOARD!B24` 與 `HISTORY_LOG!K3`。
+  - `generateAfternoonNavigation(options)`: 小羅盤後 AI 導航（16:30 執行），具備正式收盤資料前置條件檢查（開市日 13:30 前嚴格阻斷盤中冒充、13:30 後未更新時自動聯動 `updateAfternoonMarketEngine({ skipNavigation: true })`、更新失敗立即終止防舊資料回退、重新讀取校驗單一快照與技術指標數值合法性），程式精算漲跌點數與幅度、標記成交量未收錄禁猜測、讀取早晨分析進行三分類驗證，輸出 5 大標準區塊，寫入 `DASHBOARD!B24`、`HISTORY_LOG!K3` 與 `AI_LOG`。
   - `generateFallbackMorningText()`: 老巴智慧特調備援函式，維持 4 大區塊結構並標記 `[系統備援文字，非正式 AI 分析]`。
   - `generateFallbackAfternoonText()`: 小羅智慧特調備援函式，維持 5 大區塊結構、程式精算漲跌與早晨分析三分類隔離，標記備援狀態。
 - **海外市場觀測與解耦 (ANTI-83418 ~ ANTI-83420)**:
@@ -80,10 +80,11 @@
   - 歷史既有數據 100% 原始保留，不刪除、不回填、不重算。
 - **海外觀測資料留存原則 (ANTI-83420)**:
   - 更新成功顯示最新數值與交易日；更新失敗保留最後一次有效數據並標記「本次更新失敗，以下為最後有效資料」及原交易日；僅從未取得有效資料時顯示「尚無可用資料」。
-- **AI 分析師原則 (v2.9.17)**:
+- **AI 分析師原則 (v2.9.17 ~ v2.9.20)**:
   - 兩位分析師均落實「先交代客觀事實，再給予觀點」，嚴格區分已發生事實、推論與未知。
   - 嚴禁捏造行情、成交量或因果關係；現有資料來源無成交量數據時如實標明，切勿自行猜測量能數字。
   - 小羅比對早晨老巴分析採三分類（已觀察到、尚未發生或無法確認、與早晨預期不同）；早晨若為備援文字或未執行，嚴格禁止批判備援文字。
+  - **小羅收盤分析資料新鮮度前置原則 (v2.9.20)**：具備正式收盤資料前置條件，盤中（13:30 前）嚴禁偷跑生成，回傳 `REJECTED_BEFORE_MARKET_CLOSE`；13:30 後未更新時自動聯動既有 Module B 收盤更新流程；若更新失敗、日期不符或必要指標欄位缺漏，立即終止正式分析並回報原因，絕不退回使用昨日舊資料；整份分析與 `AI_LOG` 必須使用同一份最新資料快照。
 - **核心公式不可變更**:
   - `DASHBOARD!B12` 永遠保留原始公式：`=INDIRECT("RAW_HISTORY!J3")`。
   - 不修改投資策略、T1～T5 門檻及歷史量化資料。
@@ -104,10 +105,10 @@
 ---
 
 ## ⑦ System Endpoints & Version Status
-- **Current Version**: `v2.9.19` (`main` 分支)
+- **Current Version**: `v2.9.20` (`main` 分支)
 - **GAS Production Deployment**: **Version 156 (`@156`)**
   - **Deployment ID**: `AKfycbxkc3sjplCOGuDcktq_ZYhHzy87k9v6L2UxeVZt2cxTt7amV0_l6ARVS4ggqCT_MjGrxw`
-  - **HEAD Status**: 已同步 Milestone 7.11 步驟 6 獨立核對防護邏輯與 PWA 介面整合。
+  - **HEAD Status**: 已同步 Milestone 7.13 小羅收盤資料新鮮度修正、收盤更新聯動與防遞迴保護。
   - **Rollback Baseline**: **Version 155 (`@155`)**
 - **Production Spreadsheet**: `Market_Engine_V3` (`1mbOW4hyoiAJFxGxpSfMPqg21M9d0EhcbTihab7J49Rw`)
 - **GitHub Pages (PWA 正式站台)**: `https://voyagermartin.github.io/Market_Engine/`
@@ -145,11 +146,17 @@
   - (3) **完整規格圖標**：產出 192x192、512x512、自適應安全區 maskable 與 iOS 專用 apple-touch-icon。
   - (4) **雙平台安裝導覽**：Android 原生一鍵安裝提示、iOS Safari「加入主畫面」圖文引導彈窗與 Google 試算表內嵌環境自動轉導提示。
   - (5) **GitHub Pages 部署發布**：正式推送至 `origin/main`，線上 HTTP 200 實測通過。
-- **🚀 目前停止位置與起點記錄**: `main` 分支（Commit `a53b15c`，正式環境 GAS 部署 **Version 156 (`@156`)**，HEAD 同步最新防護，GitHub Pages PWA 部署上線）。
+- **Milestone 7.13 (v2.9.20 COMPLETED)**: ☕ **小羅盤後 AI 導航資料新鮮度前置檢查與收盤更新聯動 (Closing Freshness & Update Prerequisite)**
+  - (1) **收盤前置條件防呆**：開市交易日 13:30 前執行嚴格阻斷 (`REJECTED_BEFORE_MARKET_CLOSE`)，防止盤中未結算或舊日資料冒充。
+  - (2) **既有收盤更新自動聯動**：13:30 後若 `RAW_HISTORY` 未有今日資料，自動啟動既有 Module B `updateAfternoonMarketEngine({ skipNavigation: true })`，更新失敗立即中止，絕不退回使用昨日舊資料。
+  - (3) **單一快照完整性驗證**：更新後重新讀取第 3 列，校驗日期一致、TWII > 0 與技術指標（Dist60/Dist240/Slope/Delta）數值合法性（防 `#REF!` 等損毀），整份分析與 `AI_LOG` 嚴格統一快照。
+  - (4) **雙向遞迴防護與休市日平穩相容**：`alreadyUpdated: true` 與 `skipNavigation: true` 雙向保護；週末休市日自動相容最近一次有效交易日數據與休市提醒；GAS HEAD 已藉由 `clasp push` 同步完成。
+- **🚀 目前停止位置與起點記錄**: `main` 分支（Commit `16fd99d`，版本 `v2.9.20`，GAS HEAD 已透過 `clasp push` 同步，正式環境維持部署 Version 156 (`@156`)，GitHub Pages PWA 部署上線）。
 - **🎯 下一步施工目標 (下個開發起點記錄)**:
   - **目標 1 (試算表正式啟用 AI_LOG 資料流)**：前往 Google 試算表執行「步驟 6: 正式啟用 AI_LOG 資料流」，確認 8 項核對全綠（🟢）並正式啟動 Feature Flag。
-  - **目標 2 (盤中/盤後自動資料流觀察)**：觀察明日 07:30 老巴早晨分析與 16:30 小羅盤後分析純值寫入 `AI_LOG` 的運作狀態。
+  - **目標 2 (盤中/盤後自動資料流與小羅新鮮度檢驗)**：觀察明日 07:30 老巴早晨分析、13:30 前阻斷機制與 16:30 小羅盤後分析自動聯動收盤更新之實際表現。
   - **目標 3 (手機端 PWA App 使用反饋)**：在手機桌面上以獨立全螢幕模式開啟 Market Engine App，驗證日常操作與 0ms 載入體驗。
+  - **目標 4 (正式版本部署 Release @157)**：待線上實測確認無誤後，將最新 HEAD 建立為正式 GAS Web App 部署版本。
 
 ---
 
@@ -168,3 +175,4 @@
 | **2026-11-16** | `v2.9.18` | **Milestone 7.10 完工：AI 模型世代升級**：主力全站採用 `gemini-3.8-flash`，配置 `gemini-3.5-flash-lite` 極速保底，正式發布 (GAS @156)。 |
 | **2026-11-18** | `v2.9.19` | **Milestone 7.11 完工：HISTORY_LOG 退役與 AI_LOG 純值架構實施**：10 欄 AI_LOG 分頁建立、歷史真實 J/K 無損遷移、舊表實體保護封存、三態紀錄分類 (`VALID_MIGRATION`/`NORMAL_AI_RECORD`/`INVALID_MIGRATION`)、新增與重複獨立對帳（18/18 測試通過）、Feature Flag 動態管控與 Rollback 機制。 |
 | **2026-11-18** | `v2.9.19` | **Milestone 7.12 完工：PWA (Progressive Web App) 原生獨立 App 支援**：`manifest.json` 與 `sw.js` 智慧快取、全套圖標規格、Android 原生一鍵安裝提示、iOS Safari 引導彈窗與 GitHub Pages 正式發布。 |
+| **2026-11-19** | `v2.9.20` | **Milestone 7.13 完工：小羅收盤分析資料新鮮度修正與 Module B 收盤更新聯動**：開市交易日 13:30 前嚴格阻斷生成、13:30 後未更新時自動觸發既有收盤更新、更新失敗立即終止嚴防舊資料回退、單一資料快照完整性驗證（TWII、Dist60/240、Slope、Delta 公式防呆）、雙向防遞迴保護，GAS HEAD 同步 (Commit `16fd99d`)。 |
